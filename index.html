@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KerjaHarian - Platform Kerjaan Harian Terdekat</title>
+
+  <!-- Tailwind CSS & FontAwesome -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Supabase JS Client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+    body { font-family: 'Plus Jakarta Sans', sans-serif; }
+    .page-tab { display: none; }
+    .page-tab.active { display: block; }
+    .nav-button.active { color: #059669; font-weight: 700; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 pb-24 min-h-screen">
+
+  <!-- ================= TAB 1: RADAR PEKERJA ================= -->
+  <main id="page-radar" class="page-tab active">
+    <!-- Header Hero -->
+    <header class="bg-gradient-to-r from-red-900 via-red-800 to-black text-white pt-6 pb-12 px-5 rounded-b-3xl shadow-xl relative overflow-hidden">
+      <div class="flex justify-between items-center mb-4 relative z-10">
+        <span class="inline-flex items-center gap-1.5 px-3 py-1 bg-white/10 backdrop-blur-md rounded-full text-xs font-medium border border-white/20">
+          <i class="fa-solid font-bold fa-location-dot text-red-400"></i> Kebayoran Baru, Jaksel
+        </span>
+        <button class="w-10 h-10 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center hover:bg-white/20 transition">
+          <i class="fa-regular fa-bell text-yellow-400"></i>
+        </button>
+      </div>
+      <div class="relative z-10">
+        <h1 class="text-2xl font-extrabold tracking-tight">Halo Mitra Kerja! 🇮🇩</h1>
+        <p class="text-slate-300 text-xs mt-1">Ada 100+ kerjaan harian siap diambil hari ini</p>
+      </div>
+    </header>
+
+    <!-- Kategori Cepat -->
+    <section class="px-4 -mt-6 relative z-20">
+      <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+        <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider mb-3">🚀 Kategori Cepat (Pilih)</h3>
+        <div class="grid grid-cols-4 gap-2 text-center">
+          <button onclick="alert('Menyaring kategori Setrika')" class="p-2 bg-sky-50 rounded-xl hover:bg-sky-100 transition">
+            <span class="text-xl block mb-1">🧺</span>
+            <span class="text-[10px] font-semibold text-slate-700">Setrika</span>
+          </button>
+          <button onclick="alert('Menyaring kategori Kebersihan')" class="p-2 bg-amber-50 rounded-xl hover:bg-amber-100 transition">
+            <span class="text-xl block mb-1">🧹</span>
+            <span class="text-[10px] font-semibold text-slate-700">Kebersihan</span>
+          </button>
+          <button onclick="alert('Menyaring kategori Packing')" class="p-2 bg-emerald-50 rounded-xl hover:bg-emerald-100 transition">
+            <span class="text-xl block mb-1">📦</span>
+            <span class="text-[10px] font-semibold text-slate-700">Packing</span>
+          </button>
+          <button onclick="alert('Menyaring kategori Angkut')" class="p-2 bg-rose-50 rounded-xl hover:bg-rose-100 transition">
+            <span class="text-xl block mb-1">🚚</span>
+            <span class="text-[10px] font-semibold text-slate-700">Angkut</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Counter Stats Banner -->
+    <section class="px-4 mt-4">
+      <div class="bg-emerald-600 text-white p-4 rounded-2xl shadow-md flex items-center justify-between">
+        <div>
+          <h2 id="counter-text" class="text-base font-bold">Ditemukan 0 Lowongan Aktif (Live Cloud)</h2>
+          <p class="text-[11px] text-emerald-100">Mencari lokasi terdekat &lt; 5 KM</p>
+        </div>
+        <div class="w-3 h-3 rounded-full bg-emerald-300 animate-ping"></div>
+      </div>
+    </section>
+
+    <!-- Container Feed Lowongan -->
+    <section class="px-4 mt-4 space-y-3" id="job-feed-container">
+      <div class="text-center py-8 text-slate-400">
+        <i class="fa-solid fa-spinner fa-spin text-2xl mb-2"></i>
+        <p class="text-xs">Menghubungkan ke Cloud Supabase...</p>
+      </div>
+    </section>
+  </main>
+
+  <!-- ================= TAB 2: PEMBERI KERJA ================= -->
+  <main id="page-pemberi" class="page-tab">
+    <header class="bg-gradient-to-r from-red-900 to-black text-white p-5 rounded-b-3xl shadow-xl">
+      <span class="px-3 py-1 bg-white/10 rounded-full text-xs font-medium">💼 Dashboard Pemberi Kerja</span>
+      <h1 class="text-xl font-extrabold mt-2">Buat Permintaan Baru</h1>
+      <p class="text-slate-300 text-xs">Cari pekerja harian terdekat dalam hitungan menit</p>
+    </header>
+
+    <section class="p-4">
+      <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Jenis Pekerjaan</label>
+          <select id="job-type-select" onchange="handleJobSelectChange(this.value)" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-emerald-500">
+            <option value="Buruh Setrika Panggilan">Buruh Setrika Panggilan</option>
+            <option value="Tukang Bersih Selokan dan Parit">Tukang Bersih Selokan dan Parit</option>
+            <option value="Bantu Cat Dinding dan Pagar">Bantu Cat Dinding dan Pagar</option>
+            <option value="Asisten Pindahan Rumah & Angkut Barang">Asisten Pindahan Rumah & Angkut Barang</option>
+            <option value="Pendamping Pulang Malam (Escort/Security)">Pendamping Pulang Malam (Escort/Security)</option>
+            <option value="KUSTOM">+ Tulis Pekerjaan Lain...</option>
+          </select>
+        </div>
+
+        <div id="custom-job-wrapper" class="hidden">
+          <label class="block text-xs font-bold text-slate-700 mb-1">Nama Pekerjaan Kustom</label>
+          <input type="text" id="custom-job-input" placeholder="Contoh: Cuci Karpet Masjid" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Nominal Upah Tunai Disarankan (Rp)</label>
+          <input type="number" id="job-price-input" value="65000" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-emerald-600">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Jumlah Pekerjaan Dibutuhkan</label>
+          <div class="flex items-center gap-3">
+            <button onclick="updatePeople(-1)" class="w-10 h-10 bg-slate-100 rounded-xl font-bold text-slate-600">-</button>
+            <span id="people-val" class="font-bold text-slate-800 text-sm">1</span>
+            <button onclick="updatePeople(1)" class="w-10 h-10 bg-slate-100 rounded-xl font-bold text-slate-600">+</button>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Catatan Khusus (Opsional)</label>
+          <input type="text" id="job-note" placeholder="Contoh: Bawa alat pendukung dasar" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs">
+        </div>
+
+        <button onclick="window.kirimKeSupabase()" class="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-lg transition">
+          🔍 Terbitkan Lowongan Sekarang
+        </button>
+      </div>
+    </section>
+  </main>
+
+  <!-- ================= NAVIGASI BAWAH ================= -->
+  <nav class="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-slate-200 px-6 py-3 flex justify-around items-center z-50">
+    <button id="nav-btn-radar" onclick="switchTab('radar', this)" class="nav-button active flex flex-col items-center gap-1 text-slate-400">
+      <i class="fa-solid fa-radar text-lg"></i>
+      <span class="text-[10px] font-semibold">Radar</span>
+    </button>
+    <button id="nav-btn-pemberi" onclick="switchTab('pemberi', this)" class="nav-button flex flex-col items-center gap-1 text-slate-400">
+      <i class="fa-solid fa-briefcase text-lg"></i>
+      <span class="text-[10px] font-semibold">Pemberi Kerja</span>
+    </button>
+  </nav>
+
+  <script>
+    // KONEKSI UTAMA KE DATABASE SUPABASE BARU (cgulvtbyqkixpxxqzcet)
+    var SUPABASE_URL = "https://cgulvtbyqkixpxxqzcet.supabase.co"; 
+    var SUPABASE_KEY = "sb_publishable_37nHNxKCf60GiWedu90g9g_DDetNzb9";
+    
+    var _supabase = null;
+    if (window.supabase) {
+      _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    }
+
+    // Fungsi Utama Muat Data Realtime dari Supabase Cloud
+    async function muatDataDariSupabase() {
+      var container = document.getElementById('job-feed-container');
+      var counterText = document.getElementById('counter-text');
+      if (!container || !_supabase) return;
+
+      var res = await _supabase
+        .from('jobs')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (res.error) {
+        container.innerHTML = '<p class="text-xs text-red-500 text-center py-4">Gagal memuat data dari cloud: ' + res.error.message + '</p>';
+        return;
+      }
+
+      var jobs = res.data || [];
+      if (counterText) {
+        counterText.innerText = 'Ditemukan ' + jobs.length + ' Lowongan Aktif (Live Cloud)';
+      }
+
+      if (jobs.length === 0) {
+        container.innerHTML = '<p class="text-xs text-slate-400 text-center py-8">Belum ada lowongan aktif. Terbitkan lowongan pertama Anda di tab Pemberi Kerja!</p>';
+        return;
+      }
+
+      var html = '';
+      jobs.forEach(function(job) {
+        html += `
+          <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition">
+            <div class="flex justify-between items-start mb-2">
+              <span class="text-[10px] font-bold px-2 py-0.5 bg-red-50 text-red-600 rounded-full border border-red-100">
+                🔴 LIVE HARIAN
+              </span>
+              <span class="text-[10px] font-semibold px-2 py-0.5 bg-emerald-50 text-emerald-600 rounded-full border border-emerald-100">
+                🛡️ PROTEKSI ASURANSI
+              </span>
+            </div>
+            <h3 class="font-bold text-slate-800 text-sm mb-1">${job.job_type}</h3>
+            <div class="flex items-baseline gap-1 mb-2">
+              <span class="text-lg font-extrabold text-emerald-600">Rp ${(job.price || 0).toLocaleString('id-ID')}</span>
+              <span class="text-xs text-slate-500 font-medium">/ ${job.people_count || 1} Pekerja</span>
+            </div>
+            <div class="text-[11px] text-slate-500 space-y-0.5 border-t border-slate-100 pt-2 mb-3">
+              <p>⭐ Pemesan: <b>${job.owner || 'Saya (Pemberi Kerja)'}</b> (Rating ${job.rating || '5.0'}/5)</p>
+              <p>📍 Jarak: Radius &lt; 3 KM • 📝 ${job.note || 'Bawa alat pendukung dasar'}</p>
+            </div>
+            <button onclick="alert('Lowongan berhasil diambil! Silakan hubungi pemesan.')" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow transition">
+              ⚡ AMBIL KERJAAN SEKARANG
+            </button>
+          </div>
+        `;
+      });
+
+      container.innerHTML = html;
+    }
+
+    // Listener Realtime Supabase
+    if (_supabase) {
+      _supabase
+        .channel('public:jobs')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'jobs' }, function() {
+          muatDataDariSupabase();
+        })
+        .subscribe();
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+      muatDataDariSupabase();
+    });
+
+    /** @param {any} tabName @param {any} element */
+    window.switchTab = function(tabName, element) {
+      var radarPage = document.getElementById('page-radar');
+      var pemberiPage = document.getElementById('page-pemberi');
+      if (radarPage) radarPage.classList.remove('active');
+      if (pemberiPage) pemberiPage.classList.remove('active');
+
+      document.querySelectorAll('.nav-button').forEach(function(nav) {
+        nav.classList.remove('active');
+      });
+
+      var targetPage = document.getElementById('page-' + tabName);
+      if (targetPage) targetPage.classList.add('active');
+
+      if (element) element.classList.add('active');
+
+      if (tabName === 'radar') {
+        muatDataDariSupabase();
+      }
+    };
+
+    var peopleCount = 1;
+    /** @param {any} delta */
+    window.updatePeople = function(delta) {
+      peopleCount = Math.max(1, peopleCount + delta);
+      var displayElem = document.getElementById('people-val');
+      if (displayElem) displayElem.innerText = peopleCount.toString();
+    };
+
+    function handleJobSelectChange(val) {
+      var customWrapper = document.getElementById('custom-job-wrapper');
+      if (customWrapper) {
+        if (val === 'KUSTOM') customWrapper.classList.remove('hidden');
+        else customWrapper.classList.add('hidden');
+      }
+    }
+
+    window.kirimKeSupabase = async function() {
+      if (!_supabase) {
+        alert('Supabase belum terhubung');
+        return;
+      }
+
+      var elSelect = document.getElementById('job-type-select');
+      var elCustom = document.getElementById('custom-job-input');
+      var elPrice = document.getElementById('job-price-input');
+      var elNote = document.getElementById('job-note');
+
+      var jobType = elSelect ? elSelect.value : '';
+      var priceVal = elPrice ? elPrice.value : '65000';
+      var noteText = elNote ? elNote.value : '';
+
+      if (jobType === "KUSTOM") {
+        jobType = elCustom ? elCustom.value : '';
+      }
+      
+      if (!jobType) {
+        alert('Silakan pilih atau tulis jenis pekerjaan!');
+        return;
+      }
+
+      var payload = {
+        job_type: jobType,
+        price: Number(priceVal),
+        people_count: peopleCount,
+        owner: "Saya (Pemberi Kerja)",
+        rating: "5.0",
+        note: noteText || 'Bawa alat pendukung dasar',
+        is_taken: false
+      };
+
+      var response = await _supabase.from('jobs').insert([payload]);
+
+      if (response.error) {
+        alert('Gagal menerbitkan lowongan: ' + response.error.message);
+        return;
+      }
+
+      alert("Sukses! Lowongan (" + jobType + ") telah tersimpan di Database Supabase!");
+      var btnRadar = document.getElementById('nav-btn-radar');
+      window.switchTab('radar', btnRadar);
+    };
+  </script>
+</body>
+</html>
