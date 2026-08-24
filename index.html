@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KerjaHarian - Cari Kerja Harian Mudah & Cepat</title>
+
+  <!-- Tailwind CSS & FontAwesome -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Leaflet CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- QRCode Generator Library untuk QRIS -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+
+  <!-- Supabase JS Client UMD -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+    body { font-family: 'Plus Jakarta Sans', sans-serif; }
+    .page-tab { display: none; }
+    .page-tab.active { display: block; }
+    .nav-button.active { color: #059669; font-weight: 700; }
+    
+    select option, select optgroup {
+      font-size: 10px !important;
+    }
+    
+    #mini-map {
+      height: 180px !important;
+      width: 100% !important;
+      border-radius: 1rem;
+      z-index: 1;
+      display: block;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 pb-24 min-h-screen relative">
+
+  <!-- ================= TAB 1: PEKERJA ================= -->
+  <main id="page-radar" class="page-tab active">
+    
+    <div id="top-sk-banner" onclick="bukaModalProteksiInfo()" class="bg-amber-500 text-slate-900 px-4 py-2 text-[11px] font-bold flex justify-between items-center cursor-pointer shadow-sm">
+      <div class="flex items-center gap-2 truncate">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        <span class="truncate">Ketentuan Kerja Wajib Dibaca. Ketuk di sini.</span>
+      </div>
+      <i class="fa-solid fa-chevron-right text-[10px] shrink-0"></i>
+    </div>
+
+    <header class="bg-gradient-to-r from-red-900 via-red-800 to-black text-white pt-6 pb-12 px-5 rounded-b-3xl shadow-xl relative overflow-hidden">
+      <div class="flex justify-between items-center mb-4 relative z-10">
+        <button onclick="mintaAksesGPS()" class="inline-flex items-center gap-1.5 px-3 py-1 bg-white/10 backdrop-blur-md rounded-full text-xs font-medium border border-white/20">
+          <i class="fa-solid fa-location-crosshairs text-red-400 animate-pulse"></i> 
+          <span id="gps-status-text">Lokasi Aktif</span>
+        </button>
+        
+        <div class="flex items-center gap-2">
+          <button onclick="bukaModalProfilMitra()" class="w-10 h-10 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/20" title="Dompet Saya">
+            <i class="fa-solid fa-user-shield text-emerald-400"></i>
+          </button>
+          <button onclick="bukaModalProteksiInfo()" class="w-10 h-10 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/20">
+            <i class="fa-solid fa-shield-halved text-amber-400"></i>
+          </button>
+        </div>
+      </div>
+      <div class="relative z-10">
+        <h1 class="text-2xl font-extrabold tracking-tight">Cari Kerja Harian 🇮🇩</h1>
+      </div>
+    </header>
+
+    <section class="px-4 -mt-6 relative z-20">
+      <div class="bg-white p-3.5 rounded-2xl shadow-md border border-slate-100 space-y-2">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div id="status-dot-indicator" class="w-3.5 h-3.5 rounded-full bg-slate-300"></div>
+            <div>
+              <h4 id="status-title-text" class="text-xs font-extrabold text-slate-700">Status: BELUM SIAP KERJA</h4>
+              <p id="status-sub-text" class="text-[10px] text-slate-400">Geser tombol untuk mulai terima panggilan kerja</p>
+            </div>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="ready-status-toggle" onchange="handleReadyToggleChange(this)" class="sr-only peer">
+            <div class="w-11 h-6 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+          </label>
+        </div>
+
+        <div id="active-skills-container" class="hidden pt-2 border-t border-slate-100 flex flex-wrap gap-1 items-center">
+          <span class="text-[9px] font-bold text-slate-500 mr-1">Keahlian:</span>
+          <div id="skills-badge-list" class="flex flex-wrap gap-1"></div>
+          <button onclick="bukaModalPilihSkill()" class="text-[9px] font-bold text-emerald-600 hover:underline ml-auto">Ganti</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="px-4 mt-3 relative z-20 space-y-2">
+      <div class="bg-white p-2 rounded-2xl shadow-md border border-slate-100">
+        <div id="mini-map"></div>
+      </div>
+      <button onclick="mintaAksesGPS()" class="w-full py-2.5 bg-emerald-50 border border-emerald-300 text-emerald-800 font-extrabold text-xs rounded-xl shadow-sm flex items-center justify-center gap-2">
+        <i class="fa-solid fa-location-dot text-emerald-600"></i> Tekan Disini Supaya Boss Tahu Posisi Saya
+      </button>
+    </section>
+
+    <section class="px-4 mt-3 relative z-20 space-y-3">
+      <div class="bg-white p-3 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between gap-2">
+        <span class="text-[11px] font-bold text-slate-700 shrink-0">📍 Jarak Kerja:</span>
+        <div class="grid grid-cols-4 gap-1.5 w-full">
+          <button onclick="setFilterRadius(null, this)" class="btn-radius active py-1.5 px-2 bg-emerald-600 text-white rounded-xl text-[10px] font-bold text-center">Semua</button>
+          <button onclick="setFilterRadius(2, this)" class="btn-radius py-1.5 px-2 bg-slate-100 text-slate-600 rounded-xl text-[10px] font-bold text-center">&lt; 2 KM</button>
+          <button onclick="setFilterRadius(5, this)" class="btn-radius py-1.5 px-2 bg-slate-100 text-slate-600 rounded-xl text-[10px] font-bold text-center">&lt; 5 KM</button>
+          <button onclick="setFilterRadius(10, this)" class="btn-radius py-1.5 px-2 bg-slate-100 text-slate-600 rounded-xl text-[10px] font-bold text-center">&lt; 10 KM</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="px-4 mt-3">
+      <div class="bg-emerald-600 text-white p-4 rounded-2xl shadow-md flex items-center justify-between">
+        <div>
+          <h2 id="counter-text" class="text-base font-bold">Cari Pekerjaan Terkini</h2>
+        </div>
+        <div class="w-3 h-3 rounded-full bg-emerald-300 animate-ping"></div>
+      </div>
+    </section>
+
+    <section class="px-4 mt-4 space-y-3" id="job-feed-container">
+      <div class="text-center py-8 text-slate-400">
+        <i class="fa-solid fa-spinner fa-spin text-2xl mb-2"></i>
+        <p class="text-xs">Memuat data...</p>
+      </div>
+    </section>
+  </main>
+
+  <!-- ================= TAB 2: PEMBERI KERJA ================= -->
+  <main id="page-pemberi" class="page-tab">
+    
+    <div onclick="bukaModalProteksiInfo()" class="bg-amber-500 text-slate-900 px-4 py-2 text-[11px] font-bold flex justify-between items-center cursor-pointer shadow-sm">
+      <div class="flex items-center gap-2 truncate">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        <span class="truncate">Ketentuan Kerja Wajib Dibaca. Ketuk di sini.</span>
+      </div>
+      <i class="fa-solid fa-chevron-right text-[10px] shrink-0"></i>
+    </div>
+
+    <header class="bg-gradient-to-r from-red-900 to-black text-white p-5 rounded-b-3xl shadow-xl flex justify-between items-center">
+      <div>
+        <span class="px-3 py-1 bg-white/10 rounded-full text-xs font-medium">💼 Butuh Pekerja</span>
+        <h1 class="text-xl font-extrabold mt-2">Pasang Lowongan</h1>
+        <p class="text-slate-300 text-xs">Panggil tenaga kerja harian dengan cepat</p>
+      </div>
+      <div class="bg-white/10 p-3 rounded-2xl border border-white/20 text-right">
+        <span class="text-[9px] text-slate-300 block">Saldo Anda:</span>
+        <span id="employer-credit-balance" class="text-xs font-extrabold text-amber-400">Rp 0</span>
+        <button onclick="bukaModalTopUp()" class="text-[9px] bg-emerald-500 text-white px-2 py-0.5 rounded-md font-bold mt-1 block ml-auto">💳 Isi Saldo</button>
+      </div>
+    </header>
+
+    <section class="p-4 space-y-4">
+      
+      <div id="active-task-monitoring" class="hidden bg-emerald-50 border border-emerald-200 p-4 rounded-2xl space-y-3 shadow-sm">
+        <div class="flex justify-between items-center">
+          <span class="text-[10px] font-extrabold bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded-full">🛡️ TUGAS SEDANG JALAN</span>
+          <span id="anti-ghost-timer" class="text-xs font-mono font-extrabold text-rose-600">15:00</span>
+        </div>
+        
+        <h4 class="text-xs font-bold text-slate-800" id="monitored-job-title">Pekerja Menuju Lokasi</h4>
+        
+        <div class="p-3 bg-white border border-emerald-200 rounded-xl space-y-2">
+          <div class="flex justify-between items-center text-[11px]">
+            <span class="font-semibold text-slate-600">Kode PIN Masuk:</span>
+            <span id="display-handshake-pin" class="font-mono font-extrabold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded text-sm">4892</span>
+          </div>
+          <p class="text-[10px] text-slate-500">Berikan PIN ini ke pekerja saat tiba.</p>
+        </div>
+
+        <div class="flex gap-2 pt-1">
+          <button onclick="batalkanTugasGhosting()" class="flex-1 py-2 bg-rose-600 text-white font-bold text-[10px] rounded-xl">Batal & Cari Lagi</button>
+          <button onclick="bukaModalRating()" class="flex-1 py-2 bg-emerald-600 text-white font-extrabold text-[10px] rounded-xl">Selesai & Beri Nilai</button>
+        </div>
+      </div>
+
+      <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+        
+        <div class="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-center justify-between">
+          <div>
+            <h4 class="text-xs font-bold text-rose-900">Butuh Cepat (&lt; 1 Jam)</h4>
+            <p class="text-[10px] text-rose-700">Tampil paling atas (+20% upah)</p>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="urgent-toggle" onchange="toggleUrgentMode(this)" class="sr-only peer">
+            <div class="w-9 h-5 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-rose-600"></div>
+          </label>
+        </div>
+
+        <div class="p-3 bg-slate-50 rounded-xl border border-slate-200/80 space-y-3">
+          <span class="text-[10px] font-extrabold text-emerald-700 uppercase tracking-wider block">Data Pembuat Lowongan</span>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Nama Lengkap / Nama Toko</label>
+            <input type="text" id="job-owner-input" placeholder="Contoh: Pak Budi" class="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Nomor WhatsApp</label>
+            <input type="tel" id="job-phone-input" placeholder="Contoh: 081234567890" class="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1.5">Pilih Jenis Pekerjaan</label>
+          <select id="job-type-select" onchange="handleJobSelectChange(this)" class="w-full py-2.5 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700">
+            <optgroup label="📦 PAKET BUNDLING PEKERJAAN">
+              <option value="Paket Bantuan Logistik & Penataan Material" data-price="130000">📦 Paket Bantuan Logistik & Penataan Material</option>
+              <option value="Paket Perawatan Lahan & Taman Luas" data-price="120000">📦 Paket Perawatan Lahan & Taman Luas</option>
+            </optgroup>
+            <optgroup label="TENAGA PROFESIONAL HARIAN">
+              <option value="Bantuan Logistik & Penataan Material" data-price="100000">Bantuan Logistik & Penataan Material</option>
+              <option value="Pembuatan Saluran & Galian Pendukung" data-price="110000">Pembuatan Saluran & Galian Pendukung</option>
+              <option value="Pembersihan & Pengelolaan Sisa Proyek" data-price="100000">Pembersihan & Pengelolaan Sisa Proyek</option>
+              <option value="Perawatan Taman & Pemotongan Rumput" data-price="95000">Perawatan Taman & Pemotongan Rumput</option>
+              <option value="Bantuan Pindahan & Logistik Tempat" data-price="120000">Bantuan Pindahan & Logistik Tempat</option>
+              <option value="Pengecatan Dekoratif & Pelapis Dinding" data-price="110000">Pengecatan Dekoratif & Pelapis Dinding</option>
+              <option value="Pemeliharaan Saluran Air & Drainase" data-price="115000">Pemeliharaan Saluran Air & Drainase</option>
+            </optgroup>
+            <optgroup label="LAINNYA">
+              <option value="KUSTOM" data-price="85000">+ Tulis Jenis Pekerjaan Bebas...</option>
+            </optgroup>
+          </select>
+        </div>
+
+        <div id="custom-job-wrapper" class="hidden">
+          <label class="block text-xs font-bold text-slate-700 mb-1">Tulis Pekerjaan Bebas</label>
+          <input type="text" id="custom-job-input" placeholder="Contoh: Jaga toko atau angkut kardus" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1.5">Cara Bayar</label>
+          <div class="grid grid-cols-2 gap-2">
+            <label class="p-2.5 border rounded-xl flex items-center gap-2 text-xs font-semibold cursor-pointer bg-emerald-50 border-emerald-300">
+              <input type="radio" name="payment_method" value="Tunai" checked class="accent-emerald-600"> 💵 Tunai
+            </label>
+            <label class="p-2.5 border rounded-xl flex items-center gap-2 text-xs font-semibold cursor-pointer bg-slate-50 border-slate-200">
+              <input type="radio" name="payment_method" value="QRIS" class="accent-emerald-600"> 💳 QRIS
+            </label>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Jumlah Orang</label>
+          <div class="flex items-center gap-3">
+            <button onclick="updatePeople(-1)" class="w-9 h-9 bg-slate-100 rounded-xl font-bold text-slate-600">-</button>
+            <span id="people-val" class="font-extrabold text-slate-800 text-xs">1</span>
+            <button onclick="updatePeople(1)" class="w-9 h-9 bg-slate-100 rounded-xl font-bold text-slate-600 hover:bg-slate-200">+</button>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Upah untuk Pekerja</label>
+          <input type="text" id="job-price-input" value="Rp 100.000" oninput="formatRupiahInput(this)" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-extrabold text-emerald-600">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Catatan Tambahan (Bisa Ketik atau Ngomong)</label>
+          <div class="flex gap-2">
+            <input type="text" id="job-note" placeholder="Contoh: Bawa arit atau karung sendiri" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs">
+            <button type="button" onclick="mulaiRekamSuara('job-note')" class="px-3 bg-emerald-100 text-emerald-700 rounded-xl text-xs font-bold hover:bg-emerald-200" title="Ngomong untuk isi teks">
+              <i class="fa-solid fa-microphone"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1 text-[11px] text-slate-600">
+          <div class="flex justify-between">
+            <span>• Upah Bersih Pekerja:</span>
+            <span id="breakdown-net-mitra" class="font-bold text-emerald-700">Rp 100.000</span>
+          </div>
+          <div class="flex justify-between text-[10px]">
+            <span>• Biaya Layanan & Asuransi:</span>
+            <span>+Rp 10.000</span>
+          </div>
+          <div class="flex justify-between pt-1 border-t border-slate-200 font-extrabold text-slate-800 text-xs">
+            <span>Total Bayar:</span>
+            <span id="breakdown-total" class="font-extrabold text-emerald-600">Rp 110.000</span>
+          </div>
+        </div>
+
+        <button onclick="kirimKeSupabase()" class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-lg flex items-center justify-center gap-2">
+          <i class="fa-solid fa-paper-plane"></i> Pasang Lowongan Sekarang
+        </button>
+      </div>
+    </section>
+  </main>
+
+  <!-- ================= MODAL QRIS ================= -->
+  <div id="modal-gateway-qris" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl space-y-4 border border-slate-100 text-center">
+      <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+        <h3 class="font-extrabold text-sm text-slate-800">Scan QRIS Pembayaran</h3>
+        <button onclick="tutupModalQris()" class="text-slate-400 text-sm"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <p class="text-[11px] text-slate-500">Scan kode QRIS di bawah ini dengan HP Anda untuk membayar:</p>
+      
+      <div id="qris-dynamic-container" class="p-3 bg-white border border-slate-200 rounded-2xl inline-block mx-auto shadow-inner flex justify-center"></div>
+
+      <p class="text-xs font-extrabold text-slate-800" id="qris-total-amount">Total: Rp 110.000</p>
+      <button onclick="simulasiPembayaranQrisSukses()" class="w-full py-3 bg-emerald-600 text-white font-bold text-xs rounded-xl shadow-lg">
+        <i class="fa-solid fa-check-circle"></i> Selesai Bayar & Terbitkan Tugas
+      </button>
+    </div>
+  </div>
+
+  <!-- MODAL ISI SALDO -->
+  <div id="modal-topup-kredit" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl space-y-4 border border-slate-100">
+      <h3 class="font-extrabold text-sm text-slate-800">Isi Saldo Dompet</h3>
+      <div>
+        <label class="block text-xs font-bold text-slate-700 mb-1">Jumlah (Rp)</label>
+        <input type="text" id="topup-amount-input" value="Rp 100.000" oninput="formatRupiahInput(this)" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-extrabold text-emerald-600">
+      </div>
+      <button onclick="eksekusiTopUpSaldo()" class="w-full py-3 bg-emerald-600 text-white font-bold text-xs rounded-xl">Konfirmasi Isi Saldo</button>
+    </div>
+  </div>
+
+  <!-- MODAL AMBIL TUGAS -->
+  <div id="modal-verifikasi-mitra" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl space-y-4 border border-slate-100">
+      <h3 class="font-extrabold text-sm text-slate-800">Data Diri Pekerja</h3>
+      <input type="text" id="mitra-name-input" placeholder="Nama Lengkap Anda" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs">
+      
+      <div class="p-3 bg-slate-50 border border-dashed border-slate-300 rounded-xl text-center cursor-pointer" onclick="simulasiAmbilSelfie(this)">
+        <p id="selfie-status-label" class="text-[10px] font-bold text-slate-600">📸 Ketuk untuk Foto Wajah di Lokasi</p>
+      </div>
+
+      <div class="p-3 bg-emerald-50 border border-dashed border-emerald-300 rounded-xl text-center cursor-pointer" onclick="simulasiFotoHasil(this)">
+        <p id="hasil-foto-label" class="text-[10px] font-bold text-emerald-700">📷 1 Klik Foto Hasil Kerja (Bukti Selesai)</p>
+      </div>
+
+      <button onclick="eksekusiAmbilTugas()" class="w-full py-3 bg-emerald-600 text-white font-bold text-xs rounded-xl">Lanjut & Chat WhatsApp</button>
+    </div>
+  </div>
+
+  <!-- MODAL PENILAIAN -->
+  <div id="modal-rating-mitra" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl space-y-4 border border-slate-100 text-center">
+      <h3 class="font-extrabold text-sm text-slate-800">Beri Nilai Pekerjaan</h3>
+      <div class="flex justify-center gap-2 text-2xl text-amber-400 py-2">
+        <i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i>
+      </div>
+      <button onclick="kirimUlasan()" class="w-full py-2.5 bg-emerald-600 text-white font-bold text-xs rounded-xl">Kirim & Selesaikan</button>
+    </div>
+  </div>
+
+  <!-- MODAL KETENTUAN KERJA -->
+  <div id="modal-proteksi-info" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl space-y-4 border border-slate-100 max-h-[85vh] overflow-y-auto">
+      <h3 class="font-extrabold text-sm text-slate-800">Aturan & Ketentuan Kerja</h3>
+      <div class="space-y-3 text-xs text-slate-600 leading-relaxed">
+        <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+          <ul class="list-disc pl-4 space-y-1.5 text-[11px]">
+            <li><b>Upah Minimal:</b> Bayaran paling sedikit adalah Rp 75.000 per tugas.</li>
+            <li><b>Foto Kehadiran:</b> Pekerja wajib foto wajah di lokasi kerja.</li>
+            <li><b>Kode PIN:</b> Pemberi kerja wajib memberikan PIN rahasia saat pekerja tiba.</li>
+            <li><b>Batas Waktu:</b> Jika dalam 10 menit tidak ada respon, sistem otomatis mengurus sisanya.</li>
+          </ul>
+        </div>
+      </div>
+      <button onclick="setujuSyaratDanKetentuan()" class="w-full py-3 bg-emerald-600 text-white font-extrabold text-xs rounded-xl">Saya Mengerti & Setuju</button>
+    </div>
+  </div>
+
+  <!-- MENU BAWAH -->
+  <nav class="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-slate-200 px-6 py-3 flex justify-around items-center z-50">
+    <button id="nav-btn-radar" onclick="switchTab('radar', this)" class="nav-button active flex flex-col items-center gap-1 text-slate-400">
+      <i class="fa-solid fa-radar text-lg"></i><span class="text-[10px] font-semibold">Pekerja</span>
+    </button>
+    <button id="nav-btn-pemberi" onclick="switchTab('pemberi', this)" class="nav-button flex flex-col items-center gap-1 text-slate-400">
+      <i class="fa-solid fa-briefcase text-lg"></i><span class="text-[10px] font-semibold">Pemberi Kerja</span>
+    </button>
+  </nav>
+
+  <script>
+    var SUPABASE_URL = "https://cgulvtbyqkixpxxqzcet.supabase.co"; 
+    var SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNndWx2dGJ5cWtpeHB4eHF6Y2V0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc0MTc2MDksImV4cCI6MjEwMjk5MzYwOX0.j-OJ4FSDnxFz3MKTf8pAkIqNPeBA-TCTMJFcWDJdAGE";
+    var _supabase = null;
+    try { if (window.supabase) _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY); } catch(e){}
+
+    var userLat = -6.2088, userLng = 106.8456, map = null, currentRadius = null;
+    var employerCredit = 0, employerOrderCount = 0, mitraWalletBalance = 0;
+    var pendingJobPayload = null, activeJobTemp = null, userAgreedSK = false, selfieCaptured = false, hasilFotoCaptured = false, peopleCount = 1, baseUnitPrice = 100000;
+
+    function setujuSyaratDanKetentuan() {
+      userAgreedSK = true;
+      document.getElementById('modal-proteksi-info').classList.add('hidden');
+      inisialisasiPeta();
+    }
+    function bukaModalProteksiInfo() { document.getElementById('modal-proteksi-info').classList.remove('hidden'); }
+    function bukaModalTopUp() { document.getElementById('modal-topup-kredit').classList.remove('hidden'); }
+    function tutupModalTopUp() { document.getElementById('modal-topup-kredit').classList.add('hidden'); }
+    function tutupModalQris() { document.getElementById('modal-gateway-qris').classList.add('hidden'); }
+    function bukaModalRating() { document.getElementById('modal-rating-mitra').classList.remove('hidden'); }
+
+    function formatRibuan(angka) { return angka.toString().replace(/\B(?=(\d{3})+(?!\d))/g, "."); }
+    function parseAngka(str) { return Number(str.replace(/[^0-9]/g, '')) || 0; }
+    function formatRupiahInput(inputElem) {
+      inputElem.value = "Rp " + formatRibuan(parseAngka(inputElem.value));
+      hitungBreakdownUpah();
+    }
+
+    function hitungBreakdownUpah() {
+      var priceInput = document.getElementById('job-price-input');
+      if (!priceInput) return;
+      var netUpah = parseAngka(priceInput.value);
+      document.getElementById('breakdown-net-mitra').innerText = "Rp " + formatRibuan(netUpah);
+      document.getElementById('breakdown-total').innerText = "Rp " + formatRibuan(netUpah + 10000);
+    }
+
+    function updatePeople(delta) {
+      peopleCount = Math.max(1, peopleCount + delta);
+      document.getElementById('people-val').innerText = peopleCount;
+      document.getElementById('job-price-input').value = "Rp " + formatRibuan(baseUnitPrice * peopleCount);
+      hitungBreakdownUpah();
+    }
+
+    function handleJobSelectChange(selectElem) {
+      var val = selectElem.value;
+      var customWrapper = document.getElementById('custom-job-wrapper');
+      if (val === 'KUSTOM') {
+        if (customWrapper) customWrapper.classList.remove('hidden');
+        baseUnitPrice = 85000;
+      } else {
+        if (customWrapper) customWrapper.classList.add('hidden');
+        var opt = selectElem.options[selectElem.selectedIndex];
+        baseUnitPrice = Number(opt.getAttribute('data-price')) || 100000;
+      }
+      document.getElementById('job-price-input').value = "Rp " + formatRibuan(baseUnitPrice * peopleCount);
+      hitungBreakdownUpah();
+    }
+
+    function toggleUrgentMode(checkbox) {
+      var price = baseUnitPrice * peopleCount;
+      if (checkbox.checked) price = Math.round((price * 1.2) / 1000) * 1000;
+      document.getElementById('job-price-input').value = "Rp " + formatRibuan(price);
+      hitungBreakdownUpah();
+    }
+
+    function inisialisasiPeta() {
+      if (typeof L !== 'undefined' && !map) {
+        setTimeout(() => {
+          map = L.map('mini-map', { zoomControl: false }).setView([userLat, userLng], 14);
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18 }).addTo(map);
+          L.marker([userLat, userLng]).addTo(map);
+          map.invalidateSize();
+        }, 300);
+      }
+    }
+
+    function mintaAksesGPS() {
+      if ("geolocation" in navigator) {
+        navigator.geolocation.getCurrentPosition(pos => {
+          userLat = pos.coords.latitude; userLng = pos.coords.longitude;
+          document.getElementById('gps-status-text').innerText = "Lokasi Aktif (Akurat)";
+          inisialisasiPeta(); muatDataDariSupabase();
+          alert("📍 Lokasi Anda berhasil ditandai dan dikirim ke sistem!");
+        }, () => { 
+          inisialisasiPeta(); muatDataDariSupabase(); 
+          alert("📍 Menggunakan lokasi standar Jakarta.");
+        });
+      }
+    }
+
+    function setFilterRadius(km, elem) {
+      currentRadius = km;
+      document.querySelectorAll('.btn-radius').forEach(b => { b.className = "btn-radius py-1.5 px-2 bg-slate-100 text-slate-600 rounded-xl text-[10px] font-bold text-center"; });
+      if (elem) elem.className = "btn-radius active py-1.5 px-2 bg-emerald-600 text-white rounded-xl text-[10px] font-bold text-center";
+      muatDataDariSupabase();
+    }
+
+    function generateDynamicQris(totalAmount) {
+      document.getElementById('qris-dynamic-container').innerHTML = "";
+      let baseQris = "00020101021128590013ID.CO.GOPAY.WWW0118936009143301024348847380211ID1024348847380303UMI5204599953033605802ID5911sevendroneid6013MMPNG PR61051275062070703A01";
+      new QRCode(document.getElementById("qris-dynamic-container"), {
+        text: baseQris,
+        width: 170,
+        height: 170,
+        colorDark: "#000000",
+        colorLight: "#ffffff",
+        correctLevel: QRCode.CorrectLevel.H
+      });
+    }
+
+    function mulaiRekamSuara(targetId) {
+      if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+        return alert("Fitur suara tidak didukung di browser ini. Silakan ketik biasa.");
+      }
+      var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      var recognition = new SpeechRecognition();
+      recognition.lang = 'id-ID';
+      recognition.start();
+      alert("🎙️ Silakan bicara sekarang untuk mengisi catatan...");
+      recognition.onresult = function(event) {
+        var transcript = event.results[0][0].transcript;
+        document.getElementById(targetId).value = transcript;
+      };
+      recognition.onerror = function() {
+        alert("Gagal mendengarkan suara. Silakan coba ketik manual.");
+      };
+    }
+
+    function eksekusiTopUpSaldo() {
+      var val = parseAngka(document.getElementById('topup-amount-input').value);
+      if (val <= 0) return alert("Jumlah tidak valid.");
+      employerCredit += val;
+      document.getElementById('employer-credit-balance').innerText = "Rp " + formatRibuan(employerCredit);
+      tutupModalTopUp();
+      alert("✅ Saldo berhasil diisi!");
+    }
+
+    window.switchTab = function(tabName, element) {
+      document.querySelectorAll('.page-tab').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.nav-button').forEach(n => n.classList.remove('active'));
+      document.getElementById('page-' + tabName).classList.add('active');
+      if (element) element.classList.add('active');
+      if (tabName === 'radar') { muatDataDariSupabase(); inisialisasiPeta(); }
+    };
+
+    window.kirimKeSupabase = async function() {
+      if (!userAgreedSK) return bukaModalProteksiInfo();
+      var owner = document.getElementById('job-owner-input').value.trim();
+      var phone = document.getElementById('job-phone-input').value.trim();
+      if (!owner || !phone) return alert("Isi nama dan nomor WhatsApp terlebih dahulu.");
+
+      var rawPrice = parseAngka(document.getElementById('job-price-input').value);
+      var flatFee = 10000;
+      var totalBayar = rawPrice + flatFee;
+      var paymentMethod = document.querySelector('input[name="payment_method"]:checked').value;
+      
+      var jobType = document.getElementById('job-type-select').value;
+      if (jobType === "KUSTOM") {
+        jobType = document.getElementById('custom-job-input').value.trim() || 'Pekerjaan Umum';
+      }
+
+      var note = document.getElementById('job-note').value.trim() || 'Sesuai kesepakatan';
+
+      pendingJobPayload = {
+        job_type: jobType, price: rawPrice, owner: owner, phone: phone,
+        payment_method: paymentMethod, note: note, is_taken: false, lat: userLat, lng: userLng
+      };
+
+      if (paymentMethod === 'QRIS') {
+        document.getElementById('qris-total-amount').innerText = "Total: Rp " + formatRibuan(totalBayar);
+        document.getElementById('modal-gateway-qris').classList.remove('hidden');
+        generateDynamicQris(totalBayar);
+        return;
+      }
+
+      if (employerCredit < flatFee) {
+        alert("Saldo Anda kurang untuk biaya layanan!");
+        return bukaModalTopUp();
+      }
+      employerCredit -= flatFee;
+      employerOrderCount++;
+      if (employerOrderCount % 5 === 0) {
+        employerCredit += 20000;
+        alert("🎁 Bonus! Saldo Anda bertambah Rp 20.000.");
+      }
+      document.getElementById('employer-credit-balance').innerText = "Rp " + formatRibuan(employerCredit);
+
+      if (_supabase) await _supabase.from('jobs').insert([pendingJobPayload]);
+      window.switchTab('radar', document.getElementById('nav-btn-radar'));
+    };
+
+    async function simulasiPembayaranQrisSukses() {
+      tutupModalQris();
+      if (pendingJobPayload && _supabase) {
+        await _supabase.from('jobs').insert([pendingJobPayload]);
+      }
+      employerOrderCount++;
+      if (employerOrderCount % 5 === 0) {
+        employerCredit += 20000;
+        alert("🎁 Bonus! Saldo Anda bertambah Rp 20.000.");
+      }
+      alert("✅ Pembayaran QRIS Berhasil!");
+      window.switchTab('radar', document.getElementById('nav-btn-radar'));
+    }
+
+    function simulasiAmbilSelfie(elem) {
+      selfieCaptured = true;
+      document.getElementById('selfie-status-label').innerText = "✅ Foto Wajah Tersimpan";
+    }
+
+    function simulasiFotoHasil(elem) {
+      hasilFotoCaptured = true;
+      document.getElementById('hasil-foto-label').innerText = "✅ Foto Hasil Kerja Terkirim";
+    }
+
+    function bukaModalMitra(jobObj) {
+      activeJobTemp = jobObj;
+      document.getElementById('modal-verifikasi-mitra').classList.remove('hidden');
+    }
+
+    function tutupModalMitra() { document.getElementById('modal-verifikasi-mitra').classList.add('hidden'); }
+
+    function eksekusiAmbilTugas() {
+      var nama = document.getElementById('mitra-name-input').value.trim();
+      if (!nama || !selfieCaptured) return alert("Lengkapi nama dan foto wajah Anda.");
+      tutupModalMitra();
+      document.getElementById('active-task-monitoring').classList.remove('hidden');
+      var cleanPhone = (activeJobTemp.phone || '62812').replace(/[^0-9]/g, '');
+      var pesan = "Halo, saya ambil kerjaan lewat *KerjaHarian*:\n• Nama: " + nama + "\n• PIN: *4892*";
+      if (hasilFotoCaptured) pesan += "\n• Bukti Kerja: Terlampir";
+      window.open("https://wa.me/" + cleanPhone + "?text=" + encodeURIComponent(pesan), '_blank');
+    }
+
+    async function muatDataDariSupabase() {
+      var container = document.getElementById('job-feed-container');
+      if (!container || !_supabase) return;
+      var res = await _supabase.from('jobs').select('*').eq('is_taken', false).order('created_at', { ascending: false });
+      var jobs = res.data || [];
+      if (jobs.length === 0) {
+        container.innerHTML = '<div class="text-center py-8 text-slate-400 text-xs">Belum ada lowongan kerja saat ini.</div>';
+        return;
+      }
+      var html = '';
+      jobs.forEach(job => {
+        html += `
+          <div class="bg-white border border-slate-100 p-4 rounded-2xl shadow-sm space-y-2">
+            <span class="text-[10px] font-extrabold px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-full">💳 ${job.payment_method}</span>
+            <h3 class="font-bold text-slate-800 text-sm">${job.job_type}</h3>
+            <p class="text-xs font-extrabold text-emerald-600">Upah: Rp ${(job.price || 0).toLocaleString('id-ID')}</p>
+            <p class="text-[11px] text-slate-500">Pemberi Kerja: ${job.owner}</p>
+            <p class="text-[10px] text-slate-400">Catatan: ${job.note || 'Sesuai kesepakatan'}</p>
+            <button onclick='bukaModalMitra(${JSON.stringify(job)})' class="w-full py-2 bg-emerald-600 text-white font-bold text-xs rounded-xl mt-2">Ambil Pekerjaan (Chat WhatsApp)</button>
+          </div>
+        `;
+      });
+      container.innerHTML = html;
+    }
+
+    async function kirimUlasan() {
+      document.getElementById('modal-rating-mitra').classList.add('hidden');
+      document.getElementById('active-task-monitoring').classList.add('hidden');
+      alert("⭐ Pekerjaan selesai dan upah dikirim ke pekerja!");
+      muatDataDariSupabase();
+    }
+
+    document.addEventListener('DOMContentLoaded', () => { hitungBreakdownUpah(); inisialisasiPeta(); muatDataDariSupabase(); });
+  </script>
+</body>
+</html>
