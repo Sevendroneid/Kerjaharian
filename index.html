@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KerjaHarian - Temukan Pekerja Kilat</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #f8fafc; margin: 0; padding: 0; color: #1e293b; padding-bottom: 70px; }
+        
+        .gojek-header { background: #16a34a; color: white; padding: 20px; border-bottom-left-radius: 20px; border-bottom-right-radius: 20px; box-shadow: 0 4px 10px rgba(22, 163, 74, 0.2); }
+        .gojek-header h1 { margin: 0 0 5px 0; font-size: 20px; font-weight: 800; }
+        .gojek-header p { margin: 0; font-size: 13px; opacity: 0.9; }
+
+        .container { padding: 15px; max-width: 480px; margin: 0 auto; }
+
+        #workerSection { display: block; }
+        #employerSection { display: none; }
+
+        .card { background: #ffffff; border-radius: 16px; padding: 18px; margin-bottom: 15px; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+        
+        .status-pill { display: flex; justify-content: space-between; align-items: center; background: #f1f5f9; padding: 12px 16px; border-radius: 12px; margin-bottom: 15px; }
+        
+        .switch { position: relative; display: inline-block; width: 50px; height: 26px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #cbd5e1; transition: .3s; border-radius: 26px; }
+        .slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 3px; bottom: 3px; background-color: white; transition: .3s; border-radius: 50%; }
+        input:checked + .slider { background-color: #16a34a; }
+        input:checked + .slider:before { transform: translateX(24px); }
+
+        #map { height: 160px; border-radius: 12px; margin-bottom: 12px; z-index: 1; }
+        
+        .btn-green { background: #16a34a; color: white; border: none; width: 100%; padding: 14px; border-radius: 12px; font-weight: bold; font-size: 15px; cursor: pointer; text-align: center; box-shadow: 0 4px 10px rgba(22, 163, 74, 0.2); }
+        .btn-green:hover { background: #15803d; }
+        .btn-green:disabled { background: #94a3b8; cursor: not-allowed; }
+
+        .form-group { margin-bottom: 14px; }
+        .form-group label { display: block; font-size: 12px; color: #64748b; margin-bottom: 5px; font-weight: 600; }
+        .form-input { width: 100%; padding: 12px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 10px; font-size: 14px; }
+        
+        .order-card { background: #ffffff; border-left: 5px solid #16a34a; padding: 16px; border-radius: 12px; margin-bottom: 12px; border: 1px solid #e2e8f0; border-left-width: 5px; }
+        .order-title { font-weight: bold; font-size: 16px; color: #0f172a; margin-bottom: 6px; }
+        .order-detail { font-size: 13px; color: #475569; margin-bottom: 12px; line-height: 1.5; }
+        
+        .bottom-nav { position: fixed; bottom: 0; left: 0; width: 100%; background: #ffffff; display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid #e2e8f0; z-index: 1000; box-shadow: 0 -4px 10px rgba(0,0,0,0.05); }
+        .nav-item { padding: 14px; text-align: center; color: #64748b; font-size: 13px; font-weight: 600; cursor: pointer; background: none; border: none; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+        .nav-item.active { color: #16a34a; background: #f8fafc; }
+    </style>
+</head>
+<body>
+
+    <div class="gojek-header">
+        <h1>KerjaHarian 🇮🇩</h1>
+        <p>Aplikasi On-Demand Buruh & Pekerja Kilat (Secure Edition)</p>
+    </div>
+
+    <div class="container">
+        
+        <!-- MODE PEKERJA -->
+        <div id="workerSection">
+            <div class="status-pill">
+                <div>
+                    <div style="font-size: 13px; font-weight: bold; color: #0f172a;" id="workerStatusTitle">SEDANG OFF (TIDAK SIAP)</div>
+                    <div style="font-size: 11px; color: #64748b;">Geser untuk mulai terima order kerja</div>
+                </div>
+                <label class="switch">
+                    <input type="checkbox" id="workStatusToggle" onchange="toggleWorkStatus()">
+                    <span class="slider"></span>
+                </label>
+            </div>
+
+            <div class="card">
+                <div id="map"></div>
+                <button class="btn-green" onclick="loadLiveOrders()" style="background: #2563eb;">
+                    🔄 Refresh Cari Order Terdekat
+                </button>
+            </div>
+
+            <div id="orderListContainer">
+                <div style="text-align: center; color: #64748b; font-size: 13px; margin: 30px 0;">
+                    Belum ada order masuk di sekitar Anda.
+                </div>
+            </div>
+        </div>
+
+        <!-- MODE PEMBERI KERJA -->
+        <div id="employerSection">
+            <div class="card">
+                <h2 style="font-size: 18px; margin: 0 0 15px 0; color: #0f172a;">Panggil Pekerja Kilat ⚡</h2>
+
+                <div class="form-group">
+                    <label>Nama Anda / Toko</label>
+                    <input type="text" class="form-input" id="empName" placeholder="Contoh: Pak Budi">
+                </div>
+
+                <div class="form-group">
+                    <label>Nomor WhatsApp (Aktif)</label>
+                    <input type="text" class="form-input" id="empPhone" placeholder="Contoh: 081234567890">
+                </div>
+
+                <div class="form-group">
+                    <label>Butuh Pekerja Untuk Apa? (Ketik Bebas)</label>
+                    <input type="text" class="form-input" id="jobCustomInput" placeholder="Contoh: Cuci piring, Angkut kardus">
+                </div>
+
+                <div class="form-group">
+                    <label>Upah Bersih untuk Pekerja</label>
+                    <input type="text" class="form-input" id="wageInput" value="100.000">
+                </div>
+
+                <!-- Tombol dengan Proteksi Rate Limiting (Anti-Spam) -->
+                <button class="btn-green" id="submitOrderBtn" onclick="createOrderSecure()">
+                    🟢 Cari Pekerja Sekarang (Order)
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="bottom-nav">
+        <button class="nav-item active" id="navWorker" onclick="switchTab('worker')">
+            <span>🛵</span> Mode Pekerja
+        </button>
+        <button class="nav-item" id="navEmployer" onclick="switchTab('employer')">
+            <span>📍</span> Panggil Pekerja
+        </button>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        var map = L.map('map').setView([-6.2115, 106.8452], 14);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+        var marker = L.marker([-6.2115, 106.8452]).addTo(map).bindPopup('Lokasi Anda').openPopup();
+
+        function switchTab(tab) {
+            const workerSec = document.getElementById('workerSection');
+            const employerSec = document.getElementById('employerSection');
+            const navWorker = document.getElementById('navWorker');
+            const navEmployer = document.getElementById('navEmployer');
+
+            if (tab === 'worker') {
+                workerSec.style.display = 'block';
+                employerSec.style.display = 'none';
+                navWorker.classList.add('active');
+                navEmployer.classList.remove('active');
+                window.scrollTo({top: 0, behavior: 'smooth'});
+                setTimeout(() => { map.invalidateSize(); }, 200);
+                loadLiveOrders();
+            } else {
+                workerSec.style.display = 'none';
+                employerSec.style.display = 'block';
+                navEmployer.classList.add('active');
+                navWorker.classList.remove('active');
+                window.scrollTo({top: 0, behavior: 'smooth'});
+            }
+        }
+
+        function toggleWorkStatus() {
+            const toggle = document.getElementById('workStatusToggle');
+            const title = document.getElementById('workerStatusTitle');
+            if (toggle.checked) {
+                title.innerText = "SIAP TERIMA ORDER (ONLINE)";
+                title.style.color = "#16a34a";
+            } else {
+                title.innerText = "SEDANG OFF (TIDAK SIAP)";
+                title.style.color = "#64748b";
+            }
+        }
+
+        // --- LAPIS KEAMANAN 1: SANITASI TOTAL & ANTI-INJEKSI ---
+        function sanitizeInput(str) {
+            if (!str) return "";
+            // Menghapus seluruh tag HTML, simbol script, dan karakter berbahaya
+            return str.replace(/<[^>]*>?/gm, '').replace(/['";]/g, '').trim();
+        }
+
+        // --- LAPIS KEAMANAN 2: VALIDASI KETAT NOMOR WHATSAPP ---
+        function isValidWhatsApp(phone) {
+            const clean = phone.replace(/[^0-9]/g, '');
+            return clean.length >= 10 && clean.length <= 15;
+        }
+
+        let lastOrderTime = 0;
+
+        // --- LAPIS KEAMANAN 3: RATE LIMITING / ANTI-SPAM (COOLDOWN) ---
+        function createOrderSecure() {
+            let now = Date.now();
+            if (now - lastOrderTime < 3000) {
+                alert("Peringatan Keamanan: Terlalu cepat! Harap tunggu beberapa detik sebelum membuat order kembali.");
+                return;
+            }
+
+            let name = sanitizeInput(document.getElementById('empName').value);
+            let rawPhone = document.getElementById('empPhone').value;
+            let jobDesc = sanitizeInput(document.getElementById('jobCustomInput').value);
+            let wage = sanitizeInput(document.getElementById('wageInput').value);
+
+            if (!name || !rawPhone || !jobDesc) {
+                alert("Mohon lengkapi Nama, Nomor WhatsApp, dan Kebutuhan Pekerjaan secara benar!");
+                return;
+            }
+
+            if (!isValidWhatsApp(rawPhone)) {
+                alert("Nomor WhatsApp tidak valid! Harap masukkan angka yang benar (10-15 digit).");
+                return;
+            }
+
+            // Format nomor ke standar internasional (62)
+            let phoneClean = rawPhone.replace(/[^0-9]/g, '');
+            if (phoneClean.startsWith('0')) {
+                phoneClean = '62' + phoneClean.slice(1);
+            }
+
+            let newOrder = {
+                id: Date.now(),
+                name: name,
+                phone: phoneClean,
+                jobDesc: jobDesc,
+                wage: wage,
+                status: 'Mencari Pekerja Terdekat...'
+            };
+
+            let orders = JSON.parse(localStorage.getItem('gojek_kerjaharian_orders') || '[]');
+            orders.unshift(newOrder);
+            localStorage.setItem('gojek_kerjaharian_orders', JSON.stringify(orders));
+
+            lastOrderTime = now; // Catat waktu order terakhir untuk proteksi spam
+
+            alert("Order Aman Terkirim! Mencari pekerja di sekitar...");
+            switchTab('worker');
+        }
+
+        function loadLiveOrders() {
+            let container = document.getElementById('orderListContainer');
+            let orders = JSON.parse(localStorage.getItem('gojek_kerjaharian_orders') || '[]');
+
+            if (orders.length === 0) {
+                container.innerHTML = `<div style="text-align: center; color: #64748b; font-size: 13px; margin: 30px 0;">Belum ada order masuk di sekitar Anda.</div>`;
+                return;
+            }
+
+            let html = `<div style="font-weight: bold; font-size: 14px; margin-bottom: 10px; color: #0f172a;">⚡ Order Masuk (${orders.length}):</div>`;
+            
+            orders.forEach((order) => {
+                let waMsg = encodeURIComponent(`Halo ${order.name}, saya ambil order "${order.jobDesc}" upah Rp ${order.wage} di KerjaHarian. Saya on the way sekarang!`);
+                let waLink = `https://wa.me/${order.phone}?text=${waMsg}`;
+
+                html += `
+                    <div class="order-card">
+                        <div class="order-title">⚡ ${order.jobDesc}</div>
+                        <div class="order-detail">
+                            👤 Pemesan: <strong>${order.name}</strong><br>
+                            💰 Upah: <strong>Rp ${order.wage}</strong><br>
+                            📍 Status: <span style="color: #16a34a; font-weight: bold;">${order.status}</span>
+                        </div>
+                        <a href="${waLink}" target="_blank" class="btn-green" style="display: block; text-decoration: none; text-align: center; padding: 10px;">
+                            🟢 Ambil Order (Terima & Chat)
+                        </a>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        window.onload = function() {
+            loadLiveOrders();
+        };
+    </script>
+</body>
+</html>
