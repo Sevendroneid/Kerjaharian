@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KerjaHarian - Cari Kerja Cepat & Adil</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- Pustaka Supabase Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #f4f6f8; margin: 0; padding: 0; color: #1e293b; padding-bottom: 70px; }
+        
+        /* Header Ala Gojek */
+        .gojek-header { background: #00aa13; color: white; padding: 20px; border-bottom-left-radius: 20px; border-bottom-right-radius: 20px; box-shadow: 0 4px 10px rgba(0, 170, 19, 0.2); }
+        .gojek-header h1 { margin: 0 0 4px 0; font-size: 22px; font-weight: 800; }
+        .gojek-header p { margin: 0; font-size: 13px; opacity: 0.95; }
+
+        .container { padding: 15px; max-width: 480px; margin: 0 auto; }
+
+        #workerSection { display: block; }
+        #employerSection { display: none; }
+
+        .card { background: #ffffff; border-radius: 16px; padding: 18px; margin-bottom: 15px; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+        
+        /* Status Toggle Ala Gojek */
+        .status-pill { display: flex; justify-content: space-between; align-items: center; background: #ffffff; padding: 14px 16px; border-radius: 14px; margin-bottom: 15px; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+        
+        .switch { position: relative; display: inline-block; width: 50px; height: 26px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #cbd5e1; transition: .3s; border-radius: 26px; }
+        .slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 3px; bottom: 3px; background-color: white; transition: .3s; border-radius: 50%; }
+        input:checked + .slider { background-color: #00aa13; }
+        input:checked + .slider:before { transform: translateX(24px); }
+
+        #map { height: 150px; border-radius: 12px; margin-bottom: 12px; z-index: 1; }
+        
+        .btn-gojek { background: #00aa13; color: white; border: none; width: 100%; padding: 14px; border-radius: 12px; font-weight: bold; font-size: 15px; cursor: pointer; text-align: center; box-shadow: 0 4px 10px rgba(0, 170, 19, 0.2); }
+        .btn-gojek:hover { background: #008810; }
+
+        .form-group { margin-bottom: 14px; }
+        .form-group label { display: block; font-size: 12px; color: #64748b; margin-bottom: 5px; font-weight: 600; }
+        .form-input { width: 100%; padding: 12px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 10px; font-size: 14px; }
+        
+        /* Pilihan Durasi Kotak */
+        .duration-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+        .duration-btn { background: #f8fafc; border: 1px solid #cbd5e1; padding: 10px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; text-align: center; color: #475569; }
+        .duration-btn.active { background: #dcfce7; border-color: #00aa13; color: #166534; }
+
+        /* Kartu Order */
+        .order-card { background: #ffffff; border-left: 5px solid #00aa13; padding: 16px; border-radius: 12px; margin-bottom: 12px; border: 1px solid #e2e8f0; border-left-width: 5px; }
+        .order-title { font-weight: bold; font-size: 16px; color: #0f172a; margin-bottom: 6px; }
+        .order-detail { font-size: 13px; color: #475569; margin-bottom: 12px; line-height: 1.5; }
+        
+        /* Modal Alert Ala Gojek */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: none; align-items: center; justify-content: center; z-index: 2000; padding: 20px; }
+        .modal-box { background: #ffffff; color: #1e293b; width: 100%; max-width: 400px; padding: 22px; border-radius: 16px; box-shadow: 0 15px 30px rgba(0,0,0,0.3); text-align: center; }
+
+        /* Bottom Nav Ala Gojek */
+        .bottom-nav { position: fixed; bottom: 0; left: 0; width: 100%; background: #ffffff; display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid #e2e8f0; z-index: 1000; box-shadow: 0 -4px 10px rgba(0,0,0,0.05); }
+        .nav-item { padding: 14px; text-align: center; color: #64748b; font-size: 13px; font-weight: 600; cursor: pointer; background: none; border: none; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+        .nav-item.active { color: #00aa13; background: #f8fafc; }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <div class="gojek-header">
+        <h1>KerjaHarian 🇮🇩</h1>
+        <p>Cari buruh harian & pekerja kilat jadi gampang</p>
+    </div>
+
+    <div class="container">
+        
+        <!-- ================= MODE PEKERJA ================= -->
+        <div id="workerSection">
+            <div class="status-pill">
+                <div>
+                    <div style="font-size: 13px; font-weight: bold; color: #0f172a;" id="workerStatusTitle">LAGI LIBUR (OFF)</div>
+                    <div style="font-size: 11px; color: #64748b;">Geser tombol kalau siap cari uang</div>
+                </div>
+                <label class="switch">
+                    <input type="checkbox" id="workStatusToggle" onchange="toggleWorkStatus()">
+                    <span class="slider"></span>
+                </label>
+            </div>
+
+            <div class="card">
+                <div id="map"></div>
+                <button class="btn-gojek" onclick="loadLiveOrdersFromServer()" style="background: #2563eb;">
+                    🔄 Cek Orderan Masuk (Server)
+                </button>
+            </div>
+
+            <div id="orderListContainer">
+                <div style="text-align: center; color: #64748b; font-size: 13px; margin: 30px 0;">
+                    Memuat data dari server pusat...
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= MODE PEMBERI KERJA ================= -->
+        <div id="employerSection">
+            <div class="card">
+                <h2 style="font-size: 18px; margin: 0 0 15px 0; color: #0f172a;">Panggil Pekerja Sekarang ⚡</h2>
+
+                <div class="form-group">
+                    <label>Nama Anda / Toko</label>
+                    <input type="text" class="form-input" id="empName" placeholder="Contoh: Pak Budi">
+                </div>
+
+                <div class="form-group">
+                    <label>Nomor WhatsApp (Aktif)</label>
+                    <input type="text" class="form-input" id="empPhone" placeholder="Contoh: 081234567890">
+                </div>
+
+                <div class="form-group">
+                    <label>Butuh Pekerja Buat Apa?</label>
+                    <input type="text" class="form-input" id="jobCustomInput" placeholder="Contoh: Cuci piring, Jaga anak">
+                </div>
+
+                <div class="form-group">
+                    <label>Pilih Durasi Kerja (Standar Adil)</label>
+                    <div class="duration-grid">
+                        <div class="duration-btn active" id="dur1" onclick="setDuration('kilat', 75000)">⚡ Kilat (1-2 Jam)<br>Min. Rp 75rb</div>
+                        <div class="duration-btn" id="dur2" onclick="setDuration('setengah', 120000)">🕒 Setengah Hari (4 Jam)<br>Min. Rp 120rb</div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Upah untuk Pekerja (Otomatis Sesuai Durasi)</label>
+                    <input type="text" class="form-input" id="wageInput" value="75.000">
+                </div>
+
+                <button class="btn-gojek" onclick="createOrderServer()">
+                    🟢 Cari Pekerja (Pesan ke Server)
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- MODAL ALERT ALA GOJEK UNTUK EMPLOYER -->
+    <div id="gojekAlertModal" class="modal-overlay">
+        <div class="modal-box">
+            <div style="font-size: 36px; margin-bottom: 10px;">🎉🛵</div>
+            <h3 style="color: #0f172a; margin-top:0;">Pekerja Siap Meluncur!</h3>
+            <p id="alertModalDesc" style="font-size: 13px; color: #475569; line-height: 1.5; margin-bottom: 20px;">
+                Mitra pekerja telah mengambil tugas Anda. Silakan konfirmasi untuk melihat detail peta lokasi pekerja.
+            </p>
+            <div id="alertModalActions" style="display: flex; flex-direction: column; gap: 10px;">
+                <!-- Tombol Dinamis Map & WhatsApp -->
+            </div>
+            <button onclick="closeGojekAlert()" style="background: none; border: none; color: #64748b; font-size: 12px; margin-top: 15px; cursor: pointer; text-decoration: underline;">Tutup</button>
+        </div>
+    </div>
+
+    <!-- Bottom Nav Ala Gojek -->
+    <div class="bottom-nav">
+        <button class="nav-item active" id="navWorker" onclick="switchTab('worker')">
+            <span>🛵</span> Mode Pekerja
+        </button>
+        <button class="nav-item" id="navEmployer" onclick="switchTab('employer')">
+            <span>📍</span> Panggil Pekerja
+        </button>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // ================= KONEKSI SUPABASE DATABASE =================
+        const SUPABASE_URL = 'https://cgulvtbyqkixpxxqzcet.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_37nHNxKCf60GiWedu90g9g_DDetNzb9';
+        const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        var map = L.map('map').setView([-6.2115, 106.8452], 14);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+        var marker = L.marker([-6.2115, 106.8452]).addTo(map).bindPopup('Lokasi Anda').openPopup();
+
+        function switchTab(tab) {
+            const workerSec = document.getElementById('workerSection');
+            const employerSec = document.getElementById('employerSection');
+            const navWorker = document.getElementById('navWorker');
+            const navEmployer = document.getElementById('navEmployer');
+
+            if (tab === 'worker') {
+                workerSec.style.display = 'block';
+                employerSec.style.display = 'none';
+                navWorker.classList.add('active');
+                navEmployer.classList.remove('active');
+                window.scrollTo({top: 0, behavior: 'smooth'});
+                setTimeout(() => { map.invalidateSize(); }, 200);
+                loadLiveOrdersFromServer();
+            } else {
+                workerSec.style.display = 'none';
+                employerSec.style.display = 'block';
+                navEmployer.classList.add('active');
+                navWorker.classList.remove('active');
+                window.scrollTo({top: 0, behavior: 'smooth'});
+            }
+        }
+
+        function toggleWorkStatus() {
+            const toggle = document.getElementById('workStatusToggle');
+            const title = document.getElementById('workerStatusTitle');
+            if (toggle.checked) {
+                title.innerText = "SIAP TERIMA ORDER (ONLINE)";
+                title.style.color = "#00aa13";
+            } else {
+                title.innerText = "LAGI LIBUR (OFF)";
+                title.style.color = "#64748b";
+            }
+        }
+
+        function setDuration(type, minWage) {
+            document.getElementById('dur1').classList.remove('active');
+            document.getElementById('dur2').classList.remove('active');
+            if (type === 'kilat') {
+                document.getElementById('dur1').classList.add('active');
+            } else {
+                document.getElementById('dur2').classList.add('active');
+            }
+            document.getElementById('wageInput').value = minWage.toLocaleString('id-ID');
+        }
+
+        function sanitizeInput(str) {
+            if (!str) return "";
+            return str.replace(/<[^>]*>?/gm, '').replace(/['";]/g, '').trim();
+        }
+
+        function isValidWhatsApp(phone) {
+            const clean = phone.replace(/[^0-9]/g, '');
+            return clean.length >= 10 && clean.length <= 15;
+        }
+
+        let lastOrderTime = 0;
+
+        // --- KIRIM ORDER KE DATABASE SUPABASE (DISESUAIKAN DENGAN TABEL ANDA) ---
+        async function createOrderServer() {
+            let now = Date.now();
+            if (now - lastOrderTime < 3000) {
+                alert("Tunggu sebentar ya, jangan buru-buru klik.");
+                return;
+            }
+
+            let name = sanitizeInput(document.getElementById('empName').value);
+            let rawPhone = document.getElementById('empPhone').value;
+            let jobDesc = sanitizeInput(document.getElementById('jobCustomInput').value);
+            
+            let wageStr = document.getElementById('wageInput').value.replace(/[^0-9]/g, '');
+            let wageNum = parseInt(wageStr) || 75000;
+            
+            if (wageNum < 75000) {
+                alert("Upah minimum untuk pekerja harian adalah Rp 75.000 agar layak ya Bos!");
+                wageNum = 75000;
+                document.getElementById('wageInput').value = "75.000";
+            }
+            let finalWage = wageNum.toLocaleString('id-ID');
+
+            if (!name || !rawPhone || !jobDesc) {
+                alert("Mohon isi Nama, No WhatsApp, dan Kebutuhan Pekerjaan dulu!");
+                return;
+            }
+
+            if (!isValidWhatsApp(rawPhone)) {
+                alert("Nomor WhatsApp tidak valid. Masukkan nomor yang benar ya.");
+                return;
+            }
+
+            let phoneClean = rawPhone.replace(/[^0-9]/g, '');
+            if (phoneClean.startsWith('0')) {
+                phoneClean = '62' + phoneClean.slice(1);
+            }
+
+            const { error } = await _supabase
+                .from('jobs')
+                .insert([
+                    { 
+                        name: name, 
+                        phone: phoneClean, 
+                        job_type: jobDesc, 
+                        wage: finalWage, 
+                        status: 'Mencari Pekerja Terdekat...' 
+                    }
+                ]);
+
+            if (error) {
+                alert("Gagal mengirim order ke server: " + error.message);
+                console.error(error);
+            } else {
+                lastOrderTime = now;
+                alert("Order berhasil disiarkan ke server pusat!");
+                switchTab('worker');
+            }
+        }
+
+        // --- TARIK DATA REAL-TIME DARI SUPABASE ---
+        async function loadLiveOrdersFromServer() {
+            let container = document.getElementById('orderListContainer');
+
+            const { data: jobs, error } = await _supabase
+                .from('jobs')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (error) {
+                container.innerHTML = `<div style="text-align: center; color: red; font-size: 13px; margin: 30px 0;">Gagal memuat data server.</div>`;
+                return;
+            }
+
+            if (!jobs || jobs.length === 0) {
+                container.innerHTML = `<div style="text-align: center; color: #64748b; font-size: 13px; margin: 30px 0;">Belum ada orderan masuk di server.</div>`;
+                return;
+            }
+
+            let html = `<div style="font-weight: bold; font-size: 14px; margin-bottom: 10px; color: #0f172a;">⚡ Orderan Masuk Server (${jobs.length}):</div>`;
+            
+            jobs.forEach((order) => {
+                let empName = order.name || order.employer_name || 'Pemesan';
+                let empPhone = order.phone || order.employer_phone || '628123456789';
+                let jobDesc = order.job_type || 'Pekerjaan Harian';
+                let wageVal = order.wage || '75.000';
+                let jobStatus = order.status || 'Mencari Pekerja Terdekat...';
+
+                let waMsg = encodeURIComponent(`Halo ${empName}, saya ambil order "${jobDesc}" upah Rp ${wageVal} di KerjaHarian. Saya on the way sekarang!`);
+                let waLink = `https://wa.me/${empPhone}?text=${waMsg}`;
+                let mapsLink = `https://www.google.com/maps?q=-6.2115,106.8452`;
+
+                html += `
+                    <div class="order-card">
+                        <div class="order-title">⚡ ${jobDesc}</div>
+                        <div class="order-detail">
+                            👤 Pemesan: <strong>${empName}</strong><br>
+                            💰 Upah: <strong>Rp ${wageVal}</strong><br>
+                            📍 Status: <span style="color: #00aa13; font-weight: bold;">${jobStatus}</span>
+                        </div>
+                        <button class="btn-gojek" onclick="triggerGojekAlert('${empName}', '${jobDesc}', '${waLink}', '${mapsLink}')">
+                            🟢 Ambil Orderan (Terima Tugas)
+                        </button>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        // --- SISTEM ALERT ALA GOJEK ---
+        function triggerGojekAlert(empName, jobDesc, waLink, mapsLink) {
+            const modal = document.getElementById('gojekAlertModal');
+            const desc = document.getElementById('alertModalDesc');
+            const actions = document.getElementById('alertModalActions');
+
+            desc.innerHTML = `Mitra pekerja telah mengambil tugas <strong>"${jobDesc}"</strong>. Pemberi kerja (${empName}) langsung menerima notifikasi dan peta detail lokasi!`;
+
+            actions.innerHTML = `
+                <a href="${mapsLink}" target="_blank" style="background: #2563eb; color: white; padding: 12px; border-radius: 8px; font-weight: bold; text-decoration: none; display: block; text-align: center;">🗺️ Buka Peta Lokasi (Google Maps)</a>
+                <a href="${waLink}" target="_blank" onclick="closeGojekAlert()" style="background: #00aa13; color: white; padding: 12px; border-radius: 8px; font-weight: bold; text-decoration: none; display: block; text-align: center;">💬 Lanjut Chat WhatsApp</a>
+            `;
+
+            modal.style.display = 'flex';
+        }
+
+        function closeGojekAlert() {
+            document.getElementById('gojekAlertModal').style.display = 'none';
+        }
+
+        window.onload = function() {
+            loadLiveOrdersFromServer();
+        };
+    </script>
+</body>
+</html>
