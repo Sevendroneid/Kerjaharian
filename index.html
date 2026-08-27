@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+
+  <!-- Primary SEO Meta Tags -->
+  <title>KerjaHarian - Platform Cari & Panggil Pekerja Harian Terpercaya</title>
+  <meta name="title" content="KerjaHarian - Platform Cari & Panggil Pekerja Harian Terpercaya">
+  <meta name="description" content="Platform pencarian kerja harian real-time yang menghubungkan pemberi kerja dengan tenaga kerja fisik terdekat secara aman, cepat, dan transparan di Indonesia.">
+  <link rel="canonical" href="https://www.kerjaharian.my.id/">
+
+  <!-- Open Graph / Global Social Meta Tags -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://www.kerjaharian.my.id/">
+  <meta property="og:title" content="KerjaHarian - Platform Cari & Panggil Pekerja Harian Terpercaya">
+  <meta property="og:description" content="Hubungkan pemberi kerja langsung dengan tenaga kerja fisik terdekat secara real-time, aman, dan transparan.">
+  <meta property="og:image" content="https://www.kerjaharian.my.id/assets/og-image.jpg">
+
+  <!-- Geo Meta Tags untuk Local SEO -->
+  <meta name="geo.region" content="ID-JK">
+  <meta name="geo.placename" content="Jakarta Selatan">
+  <meta name="geo.position" content="-6.2088;106.8456">
+  <meta name="ICBM" content="-6.2088, 106.8456">
+
+  <!-- Structured Data: LocalBusiness Schema (JSON-LD) -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "LocalBusiness",
+    "name": "KerjaHarian",
+    "image": "https://www.kerjaharian.my.id/assets/logo.png",
+    "@id": "https://www.kerjaharian.my.id/#business",
+    "url": "https://www.kerjaharian.my.id/",
+    "telephone": "+6282340871029",
+    "priceRange": "Rp",
+    "address": {
+      "@type": "PostalAddress",
+      "streetAddress": "Jakarta Selatan",
+      "addressLocality": "Jakarta",
+      "addressRegion": "DKI Jakarta",
+      "postalCode": "12000",
+      "addressCountry": "ID"
+    },
+    "geo": {
+      "@type": "GeoCoordinates",
+      "latitude": -6.2088,
+      "longitude": 106.8456
+    },
+    "openingHoursSpecification": {
+      "@type": "OpeningHoursSpecification",
+      "dayOfWeek": [
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+        "Sunday"
+      ],
+      "opens": "00:00",
+      "closes": "23:59"
+    },
+    "sameAs": [
+      "https://www.kerjaharian.my.id"
+    ],
+    "serviceArea": {
+      "@type": "GeoCircle",
+      "geoMidpoint": {
+        "@type": "GeoCoordinates",
+        "latitude": -6.2088,
+        "longitude": 106.8456
+      },
+      "geoRadius": "50000"
+    }
+  }
+  </script>
+
+  <!-- Modern Professional Styling -->
+  <style>
+    :root {
+      --primary: #1a73e8;
+      --primary-dark: #1557b0;
+      --success: #34a853;
+      --bg-color: #f8f9fa;
+      --card-bg: #ffffff;
+      --text-main: #202124;
+      --text-muted: #5f6368;
+      --border-color: #dadce0;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 16px;
+    }
+    .app-container {
+      background-color: var(--card-bg);
+      width: 100%;
+      max-width: 600px;
+      padding: 30px 24px;
+      border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+    }
+    .badge {
+      display: inline-block;
+      background-color: #e8f0fe;
+      color: var(--primary);
+      padding: 6px 14px;
+      font-size: 11px;
+      font-weight: 700;
+      border-radius: 20px;
+      margin-bottom: 16px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    h1 {
+      font-size: 26px;
+      color: var(--text-main);
+      margin-bottom: 12px;
+    }
+    h1 span {
+      color: var(--primary);
+    }
+    p {
+      font-size: 14px;
+      line-height: 1.6;
+      color: var(--text-muted);
+      margin-bottom: 24px;
+    }
+    .cta-container {
+      display: flex;
+      gap: 12px;
+      flex-direction: column;
+    }
+    .btn {
+      width: 100%;
+      padding: 14px 20px;
+      font-size: 14px;
+      font-weight: 600;
+      border-radius: 8px;
+      text-decoration: none;
+      cursor: pointer;
+      border: none;
+      text-align: center;
+      transition: all 0.2s ease;
+    }
+    .btn-primary {
+      background-color: var(--primary);
+      color: white;
+    }
+    .btn-primary:hover {
+      background-color: var(--primary-dark);
+    }
+    .btn-outline {
+      background-color: transparent;
+      color: var(--primary);
+      border: 1.5px solid var(--primary);
+    }
+    .btn-outline:hover {
+      background-color: #e8f0fe;
+    }
+    
+    /* View Switching System */
+    .view-section {
+      display: none;
+    }
+    .view-section.active {
+      display: block;
+    }
+    .dashboard-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 12px;
+    }
+    .dashboard-header h2 {
+      font-size: 18px;
+      color: var(--primary);
+    }
+    .btn-back {
+      background: #f1f3f4;
+      color: var(--text-muted);
+      border: none;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .form-group {
+      margin-bottom: 14px;
+      text-align: left;
+    }
+    .form-group label {
+      display: block;
+      font-size: 12px;
+      font-weight: 700;
+      margin-bottom: 6px;
+      color: var(--text-main);
+    }
+    .form-group input, .form-group select {
+      width: 100%;
+      padding: 12px;
+      border: 1.5px solid var(--border-color);
+      border-radius: 8px;
+      font-size: 14px;
+      outline: none;
+      background: #fff;
+    }
+    .form-group input:focus, .form-group select:focus {
+      border-color: var(--primary);
+    }
+    .status-card {
+      background: #f8f9fa;
+      border: 1.5px dashed var(--border-color);
+      padding: 16px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    .status-active {
+      color: var(--success);
+      font-weight: 700;
+      font-size: 15px;
+    }
+    .result-box {
+      margin-top: 15px;
+      padding: 12px;
+      background: #e8f0fe;
+      border-radius: 8px;
+      font-size: 13px;
+      color: var(--primary-dark);
+      display: none;
+      text-align: left;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-container">
+    
+    <!-- 1. HALAMAN UTAMA (LANDING) -->
+    <div id="home-view" class="view-section active">
+      <div class="badge">Platform Terverifikasi Google</div>
+      <h1>Kerja<span>Harian</span></h1>
+      <p>Platform pencarian kerja harian yang mereduksi jarak dan waktu, menghubungkan pemberi kerja langsung dengan tenaga kerja fisik terdekat secara real-time, aman, dan transparan.</p>
+      
+      <div class="cta-container">
+        <button onclick="switchView('employer-view')" class="btn btn-primary">Cari Pekerja Sekarang</button>
+        <button onclick="switchView('worker-view')" class="btn btn-outline">Gabung Jadi Mitra Pekerja</button>
+      </div>
+    </div>
+
+    <!-- 2. DASHBOARD PEMBERI KERJA (EMPLOYER) -->
+    <div id="employer-view" class="view-section">
+      <div class="dashboard-header">
+        <h2>Dashboard Pemberi Kerja</h2>
+        <button onclick="switchView('home-view')" class="btn-back">Kembali</button>
+      </div>
+      <p style="text-align: left; margin-bottom: 16px;">Pilih jenis layanan dan tentukan lokasi untuk memanggil tenaga kerja harian terdekat secara instan.</p>
+      
+      <div class="form-group">
+        <label>Kategori Kebutuhan Jasa</label>
+        <select id="service-category">
+          <option value="Angkut Barang & Pindahan">Jasa Angkut Barang / Pindahan</option>
+          <option value="Bersih-Bersih Rumah & Gedung">Jasa Bersih-Bersih Rumah / Gedung</option>
+          <option value="Tenaga Serabutan / Tukang">Tenaga Serabutan / Tukang Harian</option>
+          <option value="Logistik & Pendampingan Lapangan">Logistik & Pendampingan Lapangan</option>
+        </select>
+      </div>
+      
+      <div class="form-group">
+        <label>Lokasi Pengerjaan / Area</label>
+        <input type="text" id="service-location" value="Jakarta Selatan" placeholder="Masukkan lokasi/kecamatan">
+      </div>
+
+      <button onclick="handleEmployerSearch()" class="btn btn-primary" style="margin-top: 10px;">Temukan Pekerja Terdekat</button>
+      
+      <div id="employer-result" class="result-box">
+        <strong>Radar Aktif:</strong> Mencari tenaga kerja untuk kategori <span id="res-cat"></span> di area <span id="res-loc"></span>. Sistem sedang mencocokkan mitra terdekat...
+      </div>
+    </div>
+
+    <!-- 3. DASHBOARD MITRA PEKERJA (WORKER) -->
+    <div id="worker-view" class="view-section">
+      <div class="dashboard-header">
+        <h2>Dashboard Mitra Pekerja</h2>
+        <button onclick="switchView('home-view')" class="btn-back">Kembali</button>
+      </div>
+      
+      <div class="status-card">
+        <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px;">Status Radar Anda</p>
+        <div class="status-active">● Siap Terima Orderan (Online)</div>
+      </div>
+
+      <div class="form-group">
+        <label>Nama Mitra</label>
+        <input type="text" value="Michael Johan (Professional Partner)" readonly style="background: #f1f3f4; color: #5f6368;">
+      </div>
+      
+      <div class="form-group">
+        <label>Spesifikasi Keahlian</label>
+        <input type="text" value="Logistik & Tenaga Serabutan Lapangan" readonly style="background: #f1f3f4; color: #5f6368;">
+      </div>
+
+      <button onclick="handleWorkerUpdate()" class="btn btn-primary" style="margin-top: 10px;">Perbarui Status & Lokasi GPS</button>
+      
+      <div id="worker-result" class="result-box">
+        <strong>Berhasil:</strong> Status dan lokasi GPS Anda telah disinkronkan dengan server pusat KerjaHarian!
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Interactive Logic Script -->
+  <script>
+    function switchView(viewId) {
+      document.querySelectorAll('.view-section').forEach(el => {
+        el.classList.remove('active');
+      });
+      document.getElementById(viewId).classList.add('active');
+    }
+
+    function handleEmployerSearch() {
+      const category = document.getElementById('service-category').value;
+      const location = document.getElementById('service-location').value;
+      
+      document.getElementById('res-cat').innerText = category;
+      document.getElementById('res-loc').innerText = location;
+      
+      const resultBox = document.getElementById('employer-result');
+      resultBox.style.display = 'block';
+    }
+
+    function handleWorkerUpdate() {
+      const resultBox = document.getElementById('worker-result');
+      resultBox.style.display = 'block';
+    }
+  </script>
+
+</body>
+</html>
