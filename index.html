@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  
+  <title>KerjaHarian - Platform Cari & Panggil Pekerja Harian Terpercaya</title>
+  <meta name="description" content="Platform pencarian kerja harian blue-collar real-time yang menghubungkan pemberi kerja langsung dengan tenaga kerja fisik dan serabutan terdekat di Jakarta.">
+  <link rel="canonical" href="https://www.kerjaharian.my.id/">
+  
+  <!-- Geo Meta Tags untuk Local SEO Jakarta -->
+  <meta name="geo.region" content="ID-JK">
+  <meta name="geo.placename" content="Jakarta Selatan">
+  <meta name="geo.position" content="-6.2088;106.8456">
+  <meta name="ICBM" content="-6.2088, 106.8456">
+
+  <!-- Schema Markup LocalBusiness -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "LocalBusiness",
+    "name": "KerjaHarian",
+    "url": "https://www.kerjaharian.my.id/",
+    "telephone": "+6282340871029",
+    "address": {
+      "@type": "PostalAddress",
+      "addressLocality": "Jakarta",
+      "addressRegion": "DKI Jakarta",
+      "addressCountry": "ID"
+    }
+  }
+  </script>
+
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <div class="app-container">
+    <!-- LANDING VIEW -->
+    <div id="home-view" class="view-section active">
+      <div class="badge">Platform Terverifikasi Google & Local SEO</div>
+      <h1>Kerja<span>Harian</span></h1>
+      <p>Platform pencarian kerja harian yang mereduksi jarak dan waktu, menghubungkan pemberi kerja langsung dengan tenaga kerja fisik & buruh harian terdekat di Jakarta secara real-time, aman, dan transparan.</p>
+      
+      <div class="cta-container">
+        <button onclick="switchView('employer-view')" class="btn btn-primary">Cari Pekerja Sekarang (Pemberi Kerja)</button>
+        <button onclick="switchView('worker-view')" class="btn btn-outline">Gabung Jadi Mitra Pekerja Harian</button>
+      </div>
+    </div>
+
+    <!-- EMPLOYER DASHBOARD -->
+    <div id="employer-view" class="view-section">
+      <div class="dashboard-header">
+        <h2>Dashboard Pemberi Kerja</h2>
+        <button onclick="switchView('home-view')" class="btn-back">Kembali</button>
+      </div>
+      <p style="text-align: left; margin-bottom: 16px;">Pilih kategori jasa buruh harian dan tentukan titik wilayah untuk memanggil tenaga kerja fisik terdekat.</p>
+      
+      <div class="form-group">
+        <label>Kategori Kebutuhan Jasa</label>
+        <select id="service-category">
+          <option value="Jasa Angkut Barang / Pindahan">Jasa Angkut Barang / Pindahan</option>
+          <option value="Jasa Bersih-Bersih Rumah / Gedung">Jasa Bersih-Bersih Rumah / Gedung</option>
+          <option value="Tenaga Serabutan / Buruh Tukang Harian">Tenaga Serabutan / Buruh Tukang Harian</option>
+          <option value="Logistik & Pendampingan Lapangan">Logistik & Pendampingan Lapangan</option>
+        </select>
+      </div>
+      
+      <div class="form-group">
+        <label>Lokasi / Area Pengerjaan (Jakarta)</label>
+        <input type="text" id="service-location" value="Mampang Prapatan, Jakarta Selatan">
+      </div>
+
+      <button onclick="executeRadarSearch()" class="btn btn-primary">Aktifkan Radar & Cari Pekerja Terdekat</button>
+      
+      <div id="map-box" class="map-container">
+        <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3966.264858909899!2d106.8229!3d-6.2415!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x2e69f3e123456789%3A0x123456789abcdef!2sMampang%20Prapatan%2C%20South%20Jakarta%2C%20Jakarta!5e0!3m2!1sen!2sid!4v1650000000000!5m2!1sen!2sid" allowfullscreen="" loading="lazy"></iframe>
+      </div>
+
+      <div id="radar-results" class="radar-results">
+        <strong>📡 Radar Aktif Menemukan 3 Mitra Terdekat:</strong>
+        <div class="worker-item"><span>1. Slamet (Tukang / Angkut) - <strong>0.5 km</strong></span> <button class="btn-primary" style="width:auto; padding:4px 10px; font-size:11px;" onclick="alert('Menghubungkan langsung ke Slamet via sistem terpadu!')">Panggil</button></div>
+        <div class="worker-item"><span>2. Budi (Serabutan) - <strong>1.2 km</strong></span> <button class="btn-primary" style="width:auto; padding:4px 10px; font-size:11px;" onclick="alert('Menghubungkan langsung ke Budi via sistem terpadu!')">Panggil</button></div>
+        <div class="worker-item"><span>3. Joko (Kebersihan) - <strong>1.8 km</strong></span> <button class="btn-primary" style="width:auto; padding:4px 10px; font-size:11px;" onclick="alert('Menghubungkan langsung ke Joko via sistem terpadu!')">Panggil</button></div>
+      </div>
+    </div>
+
+    <!-- WORKER DASHBOARD -->
+    <div id="worker-view" class="view-section">
+      <div class="dashboard-header">
+        <h2>Dashboard Mitra Pekerja</h2>
+        <button onclick="switchView('home-view')" class="btn-back">Kembali</button>
+      </div>
+      
+      <div class="status-card">
+        <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px;">Status Radar GPS Anda</p>
+        <div class="status-active">● Siap Terima Orderan Harian (Online)</div>
+      </div>
+
+      <div class="form-group">
+        <label>Nama Mitra Pekerja</label>
+        <input type="text" value="Michael Johan (Professional Partner)" readonly style="background: #f1f3f4; color: #5f6368;">
+      </div>
+      
+      <div class="form-group">
+        <label>Spesifikasi Keahlian Fisik</label>
+        <input type="text" value="Logistik, Angkut & Tenaga Serabutan Harian" readonly style="background: #f1f3f4; color: #5f6368;">
+      </div>
+
+      <button onclick="syncWorkerGPS()" class="btn btn-primary">Sinkronkan Lokasi GPS & Terima Order</button>
+      
+      <div id="worker-sync-box" class="radar-results">
+        <strong>Status Terkini:</strong> Lokasi GPS Anda di Jakarta Selatan telah disinkronkan. Pemberi kerja terdekat sekarang dapat melihat profil dan memanggil Anda secara langsung!
+      </div>
+    </div>
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
