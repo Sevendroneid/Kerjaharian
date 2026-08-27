@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>KerjaHarian - Solusi Cepat</title>
+    
+    <!-- Font Poppins & Inter (Persis kerjaharian.my.id) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        :root {
+            /* Warna Persis Kerjaharian.my.id */
+            --primary-green: #00C853; /* Hijau cerah khas logo */
+            --bg-light: #F8F9FA;
+            --card-white: #FFFFFF;
+            --text-dark: #1A1A1A;
+            --text-gray: #6B7280;
+            --border-light: #E5E7EB;
+            --shadow-soft: 0 4px 12px rgba(0,0,0,0.08);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        
+        body { 
+            background: var(--bg-light); 
+            color: var(--text-dark); 
+            padding-bottom: 100px; 
+            overflow-x: hidden;
+            font-family: 'Inter', sans-serif; /* Body text Inter */
+        }
+
+        h1, h2, h3, h4, .brand, .tagline, .btn-primary { font-family: 'Poppins', sans-serif; } /* Heading Poppins */
+
+        /* Header */
+        .header { padding: 24px 20px 16px 20px; text-align: center; background: white; border-bottom: 1px solid var(--border-light); }
+        .brand { font-size: 26px; font-weight: 800; color: var(--text-dark); letter-spacing: -0.5px; }
+        .brand span { color: var(--primary-green); }
+        .tagline { font-size: 18px; font-weight: 600; line-height: 1.4; margin-top: 8px; color: var(--text-gray); }
+
+        /* Container & Cards (Light Theme) */
+        .container { padding: 0 16px; max-width: 480px; margin: 0 auto; }
+        .card { 
+            background: var(--card-white); 
+            border: 1px solid var(--border-light); 
+            border-radius: 16px; 
+            padding: 20px; 
+            margin-top: 16px;
+            margin-bottom: 16px; 
+            box-shadow: var(--shadow-soft);
+        }
+
+        /* Form Elements */
+        label { display: block; font-size: 12px; font-weight: 600; color: var(--text-gray); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+        input, textarea { 
+            width: 100%; background: #F3F4F6; border: 1px solid var(--border-light); 
+            color: var(--text-dark); padding: 14px; border-radius: 12px; font-size: 15px; 
+            margin-bottom: 14px; outline: none; transition: all 0.2s ease; font-family: 'Inter', sans-serif;
+        }
+        input:focus, textarea:focus { border-color: var(--primary-green); background: white; box-shadow: 0 0 0 3px rgba(0, 200, 83, 0.1); }
+        textarea { resize: vertical; min-height: 80px; }
+
+        /* Category Grid (Persis Referensi) */
+        .cat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+        .cat-btn { 
+            background: white; border: 1px solid var(--border-light); color: var(--text-gray); 
+            padding: 14px 10px; border-radius: 12px; text-align: center; cursor: pointer; 
+            transition: all 0.2s ease; font-size: 13px; font-weight: 500; font-family: 'Inter', sans-serif;
+        }
+        .cat-btn.active { background: rgba(0, 200, 83, 0.08); border-color: var(--primary-green); color: var(--primary-green); font-weight: 600; }
+        .cat-icon { font-size: 22px; display: block; margin-bottom: 6px; }
+
+        /* Calculator Box (Light Transparent) */
+        .calc-box { background: #F9FAFB; border: 1px dashed var(--border-light); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+        .calc-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 13px; color: var(--text-gray); font-weight: 500; }
+        .calc-total { display: flex; justify-content: space-between; font-size: 16px; font-weight: 800; color: var(--primary-green); margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-light); font-family: 'Poppins', sans-serif; }
+
+        /* Buttons (Solid Green) */
+        .btn-primary { 
+            width: 100%; background: var(--primary-green); color: white; font-weight: 700; 
+            padding: 16px; border-radius: 30px; border: none; font-size: 15px; cursor: pointer; 
+            box-shadow: 0 4px 12px rgba(0, 200, 83, 0.25); transition: transform 0.1s; font-family: 'Poppins', sans-serif;
+        }
+        .btn-primary:active { transform: scale(0.98); }
+        
+        .btn-ready { background: #E5E7EB; color: var(--text-gray); box-shadow: none; }
+        .btn-ready.active { background: var(--primary-green); color: white; box-shadow: 0 4px 12px rgba(0, 200, 83, 0.25); }
+        
+        .btn-gps { background: #2563EB; color: white; margin-top: 10px; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2); }
+
+        /* Map */
+        #map { height: 240px; border-radius: 16px; margin-bottom: 12px; z-index: 1; border: 1px solid var(--border-light); }
+
+        /* Bottom Nav (Light Theme) */
+        .bottom-nav { 
+            position: fixed; bottom: 0; left: 0; right: 0; background: white; 
+            display: flex; justify-content: space-around; padding: 12px 0 24px 0; 
+            border-top: 1px solid var(--border-light); z-index: 100; box-shadow: 0 -4px 12px rgba(0,0,0,0.05);
+        }
+        .nav-item { color: var(--text-gray); text-decoration: none; font-size: 11px; font-weight: 600; display: flex; flex-direction: column; align-items: center; gap: 4px; width: 50%; font-family: 'Inter', sans-serif; }
+        .nav-item svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+        .nav-item.active { color: var(--primary-green); }
+
+        /* Footer (Light Theme) */
+        .footer-section { padding: 40px 20px 30px 20px; background: white; border-top: 1px solid var(--border-light); margin-top: 20px; }
+        .footer-grid { display:grid; grid-template-columns: 1fr 1fr; gap:24px; margin-bottom:32px; }
+        .footer-col h4 { color:var(--text-dark); margin-bottom:16px; font-size: 13px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; font-family: 'Poppins', sans-serif; }
+        .footer-col a { display:block; color:var(--text-gray); text-decoration:none; margin-bottom:12px; font-size: 14px; transition: 0.2s; font-family: 'Inter', sans-serif; }
+        .footer-col a:hover { color: var(--primary-green); }
+        
+        .social-icons { display:flex; gap:12px; margin-bottom:32px; }
+        .social-icon { width:40px; height:40px; background:#F3F4F6; border-radius:12px; display:flex; align-items:center; justify-content:center; cursor: pointer; transition: 0.2s; }
+        .social-icon svg { width: 18px; height: 18px; fill: var(--text-gray); transition: 0.2s; }
+        .social-icon:hover { background: rgba(0, 200, 83, 0.1); }
+        .social-icon:hover svg { fill: var(--primary-green); }
+        
+        .download-btn { width:100%; background:var(--text-dark); color:white; padding:14px; border-radius:30px; border:none; font-weight:700; margin-bottom:10px; display:flex; align-items:center; justify-content:center; gap:8px; font-size: 14px; cursor: pointer; font-family: 'Poppins', sans-serif; }
+        
+        .legal-links { display:flex; flex-wrap:wrap; gap:16px; font-size:11px; color:#9CA3AF; margin-bottom:24px; }
+        .legal-links a { color:#9CA3AF; text-decoration:none; font-family: 'Inter', sans-serif; }
+        
+        .region-select { background:#F3F4F6; padding:14px; border-radius:12px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; font-size: 14px; border: 1px solid var(--border-light); cursor: pointer; font-family: 'Inter', sans-serif; color: var(--text-dark); }
+
+        /* Modal Tentang (Light Overlay) */
+        #modal-about { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background: rgba(255,255,255,0.98); z-index:200; overflow-y:auto; padding:24px; animation: slideUp 0.3s ease-out; }
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        .close-modal { background:none; border:none; color:var(--text-gray); font-size:24px; margin-bottom:20px; cursor: pointer; }
+        .about-content { line-height:1.7; color:var(--text-gray); font-size: 15px; font-family: 'Inter', sans-serif; }
+        .about-content p { margin-bottom:16px; }
+        .about-content strong { color: var(--primary-green); font-weight: 600; }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <!-- HEADER -->
+    <div class="header">
+        <div class="brand">Kerja<span>Harian</span></div>
+        <div class="tagline">Solusi Cepat Tenaga Kerja Terampil Terdekat.</div>
+    </div>
+
+    <!-- TAB CONTENT: EMPLOYER -->
+    <div id="tab-employer" class="container">
+        <div class="card">
+            <h3 style="margin-bottom:20px; font-size: 18px;">Pesan Tenaga Kerja</h3>
+            
+            <label>Kategori Layanan</label>
+            <div class="cat-grid">
+                <div class="cat-btn active" onclick="selectCat(this, 2)">
+                    <span class="cat-icon">📦</span> Logistik & Pindahan
+                </div>
+                <div class="cat-btn" onclick="selectCat(this, 3)">
+                    <span class="cat-icon"></span> Tukang & Renovasi
+                </div>
+                <div class="cat-btn" onclick="selectCat(this, 1)">
+                    <span class="cat-icon"></span> Jasa Kebersihan
+                </div>
+                <div class="cat-btn" onclick="selectCat(this, 4)">
+                    <span class="cat-icon">⚡</span> Serabutan Profesional
+                </div>
+            </div>
+
+            <label>Detail Pekerjaan</label>
+            <textarea placeholder="Contoh: Bongkar muat barang / Pasang keramik"></textarea>
+
+            <label>Lokasi Pengerjaan</label>
+            <input type="text" placeholder="Masukkan alamat lengkap atau kota">
+
+            <label>Upah Harian Ditawarkan (Min. Rp 75.000)</label>
+            <input type="number" id="wageInput" placeholder="Contoh: 100000" oninput="calculateTotal()">
+
+            <div class="calc-box">
+                <div class="calc-row"><span>Total Bersih Diterima Pekerja</span> <span id="workerNett">Rp 0</span></div>
+                <div class="calc-row"><span>Biaya Layanan Platform</span> <span id="platformFee">Rp 0</span></div>
+                <div class="calc-total"><span>Total Pembayaran Employer</span> <span id="employerTotal">Rp 0</span></div>
+            </div>
+
+            <!-- Wording Tetap Super Grande -->
+            <button class="btn-primary">Cari Pekerja</button>
+        </div>
+    </div>
+
+    <!-- TAB CONTENT: WORKER -->
+    <div id="tab-worker" class="container hidden">
+        <div class="card">
+            <!-- Tombol Siap Kerja Stateful -->
+            <button id="btnReadyWork" class="btn-primary btn-ready" onclick="toggleReadyWork()" style="margin-bottom: 16px;">
+                SIAP KERJA
+            </button>
+            
+            <div id="map"></div>
+            
+            <!-- Wording Tetap Super Grande -->
+            <button class="btn-primary btn-gps" onclick="updateGPS()">Posisi Saya</button>
+        </div>
+
+        <div class="card">
+            <!-- Wording Tetap Super Grande -->
+            <h3 style="margin-bottom:16px; font-size: 16px;">Pekerjaan Tersedia</h3>
+            <div style="background:#F9FAFB; padding:20px; border-radius:12px; text-align:center; color:var(--text-gray); border: 1px dashed var(--border-light);">
+                <div style="font-size: 14px; margin-bottom: 8px; font-weight: 500;">Belum ada pekerjaan baru</div>
+                <div style="font-size: 12px; margin-bottom: 12px; font-weight: 500;">Area: - | Upah: Rp 0</div>
+                <span style="color:var(--primary-green); font-size: 13px; font-weight: 600;">Status: Menunggu orderan...</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- FOOTER LENGKAP (Light Theme) -->
+    <div class="footer-section">
+        <div class="footer-grid">
+            <div class="footer-col">
+                <h4>Perusahaan</h4>
+                <a href="#" onclick="openAbout(event)">Tentang</a>
+                <a href="#">Produk</a>
+                <a href="#">Blog</a>
+            </div>
+            <div class="footer-col">
+                <h4>Gabung</h4>
+                <a href="#">Mitra Pekerja</a>
+                <a href="#">Mitra Usaha</a>
+            </div>
+            <div class="footer-col">
+                <h4>Karir</h4>
+                <a href="#">Pelajar</a>
+                <a href="#">Professional</a>
+            </div>
+            <div class="footer-col">
+                <h4>Hubungi Kami</h4>
+                <a href="#">Bantuan</a>
+                <a href="#">Lokasi Kami</a>
+            </div>
+        </div>
+
+        <h4 style="color:var(--text-dark); margin-bottom:16px; font-size: 13px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase;">Connect with Us</h4>
+        <div class="social-icons">
+            <div class="social-icon"><svg viewBox="0 0 24 24"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"></path></svg></div>
+            <div class="social-icon"><svg viewBox="0 0 24 24"><path d="M4 4l11.733 16h4.267l-11.733 -16zM4 20l6.768 -6.768M13.232 10.768L20 4"></path></svg></div>
+            <div class="social-icon"><svg viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line></svg></div>
+            <div class="social-icon"><svg viewBox="0 0 24 24"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.33z"></path><polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"></polygon></svg></div>
+        </div>
+
+        <h4 style="color:var(--text-dark); margin-bottom:16px; font-size: 13px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase;">Download the app</h4>
+        <button class="download-btn">App Store</button>
+        <button class="download-btn">Play Store</button>
+
+        <div class="legal-links">
+            <a href="#">Pemberitahuan Privasi</a>
+            <a href="#">Syarat dan Ketentuan</a>
+            <a href="#">Atribusi Data</a>
+            <a href="#">Cookie Settings</a>
+        </div>
+
+        <div class="region-select">Indonesia <span>∨</span></div>
+        <div class="region-select">Bahasa Indonesia <span>∨</span></div>
+        
+        <p style="text-align: center; font-size: 11px; color: #9CA3AF; margin-top: 32px; line-height: 1.6;">
+            © 2026 PT Kerja Harian Indonesia.<br>Terdaftar pada Direktorat Jenderal Kekayaan Intelektual RI.
+        </p>
+    </div>
+
+    <!-- MODAL TENTANG -->
+    <div id="modal-about">
+        <button class="close-modal" onclick="closeAbout()">✕</button>
+        <h2 style="color: var(--primary-green); margin-bottom:20px; font-size: 24px; font-weight: 800;">Tentang KerjaHarian</h2>
+        <div class="about-content">
+            <p><strong>KerjaHarian</strong> adalah platform sederhana untuk menghubungkan tetangga yang butuh bantuan tenaga kerja dengan warga sekitar yang siap bekerja keras.</p>
+            <p>Kami percaya setiap orang berhak mendapat penghasilan harian yang jujur dan transparan. Di sini tidak ada tes rumit atau syarat tinggi. Cukup punya KTP, niat kerja, dan skill dasar, kamu bisa langsung cari cuan.</p>
+            <p><strong>Untuk Pemberi Kerja:</strong> Cari bantuan bongkar barang, bersihin rumah, atau tukang reparasi dengan harga pas dan orang terdekat.</p>
+            <p><strong>Untuk Pekerja:</strong> Dapat orderan harian tanpa perantara ribet. Upah jelas, cair cepat, aman.</p>
+            <p style="margin-top:32px; font-size:12px; color:#9CA3AF; border-top: 1px solid var(--border-light); padding-top: 20px;">© 2026 PT Kerja Harian Indonesia.<br>Terdaftar pada Direktorat Jenderal Kekayaan Intelektual RI.</p>
+        </div>
+    </div>
+
+    <!-- BOTTOM NAVIGATION -->
+    <div class="bottom-nav">
+        <a href="#" class="nav-item" onclick="switchTab('worker', this, event)"> 
+            <svg viewBox="0 0 24 24"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/><path d="M14 10l-2 7"/></svg>
+            Mitra Pekerja
+        </a>
+        <a href="#" class="nav-item active" onclick="switchTab('employer', this, event)">
+            <svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+            Pesan Tenaga Kerja
+        </a>
+    </div>
+
+    <!-- LEAFLET JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // --- LOGIC KALKULATOR REAL-TIME ---
+        const PLATFORM_FEE = 15000; 
+        function calculateTotal() {
+            let wage = parseInt(document.getElementById('wageInput').value) || 0;
+            if(wage > 0 && wage < 75000) wage = 75000; 
+            let nett = Math.max(0, wage - PLATFORM_FEE);
+            document.getElementById('workerNett').innerText = 'Rp ' + nett.toLocaleString('id-ID');
+            document.getElementById('platformFee').innerText = 'Rp ' + PLATFORM_FEE.toLocaleString('id-ID');
+            document.getElementById('employerTotal').innerText = 'Rp ' + wage.toLocaleString('id-ID');
+        }
+
+        // --- LOGIC TAB SWITCHING ---
+        function switchTab(tabName, element, e) {
+            if(e) e.preventDefault();
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+            element.classList.add('active');
+            document.getElementById('tab-employer').classList.toggle('hidden', tabName !== 'employer');
+            document.getElementById('tab-worker').classList.toggle('hidden', tabName !== 'worker');
+            window.scrollTo({top: 0, behavior: 'smooth'});
+            if(tabName === 'worker' && !window.mapInitialized) initMap();
+        }
+
+        // --- LOGIC CATEGORY SELECTION ---
+        function selectCat(element, catId) {
+            document.querySelectorAll('.cat-btn').forEach(btn => btn.classList.remove('active'));
+            element.classList.add('active');
+        }
+
+        // --- MAP INITIALIZATION ---
+        let map;
+        function initMap() {
+            map = L.map('map').setView([-6.2088, 106.8456], 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
+            window.mapInitialized = true;
+        }
+
+        function updateGPS() { alert("Memperbarui posisi GPS..."); }
+
+        // --- LOGIC TOMBOL SIAP KERJA ---
+        function toggleReadyWork() {
+            const btn = document.getElementById('btnReadyWork');
+            btn.classList.toggle('active');
+            btn.innerText = btn.classList.contains('active') ? "SEDANG MENCARI KERJA..." : "SIAP KERJA";
+        }
+
+        // --- MODAL LOGIC ---
+        function openAbout(e) { if(e) e.preventDefault(); document.getElementById('modal-about').style.display = 'block'; document.body.style.overflow = 'hidden'; }
+        function closeAbout() { document.getElementById('modal-about').style.display = 'none'; document.body.style.overflow = 'auto'; }
+    </script>
+</body>
+</html>
