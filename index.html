@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KerjaHarian - Solusi Kerja Harian Terpercaya</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #f4f6f8; margin: 0; padding: 0; color: #111827; padding-bottom: 80px; }
+        
+        .app-header { background: #00aa13; color: white; padding: 20px; border-bottom-left-radius: 20px; border-bottom-right-radius: 20px; box-shadow: 0 4px 12px rgba(0, 170, 19, 0.2); }
+        .app-header h1 { margin: 0 0 2px 0; font-size: 22px; font-weight: 800; }
+        .app-header p { margin: 0; font-size: 12px; opacity: 0.9; }
+
+        .container { padding: 16px; max-width: 480px; margin: 0 auto; }
+        .section-box { display: none; }
+        .section-box.active { display: block; }
+
+        .card { background: #ffffff; border-radius: 16px; padding: 18px; margin-bottom: 14px; border: 1px solid #e5e7eb; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+        
+        .status-pill { display: flex; justify-content: space-between; align-items: center; background: #ffffff; padding: 14px 16px; border-radius: 14px; margin-bottom: 14px; border: 1px solid #e5e7eb; }
+        .switch { position: relative; display: inline-block; width: 48px; height: 26px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #cbd5e1; transition: .3s; border-radius: 26px; }
+        .slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 3px; bottom: 3px; background-color: white; transition: .3s; border-radius: 50%; }
+        input:checked + .slider { background-color: #00aa13; }
+        input:checked + .slider:before { transform: translateX(22px); }
+
+        #map { height: 150px; border-radius: 12px; margin-bottom: 12px; z-index: 1; border: 1px solid #e5e7eb; }
+        
+        .btn-primary { background: #00aa13; color: white; border: none; width: 100%; padding: 14px; border-radius: 12px; font-weight: 700; font-size: 14px; cursor: pointer; text-align: center; box-shadow: 0 4px 10px rgba(0, 170, 19, 0.2); }
+        .btn-primary:hover { background: #008810; }
+        .btn-secondary { background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; width: 100%; padding: 11px; border-radius: 10px; font-weight: 600; font-size: 12px; cursor: pointer; text-align: center; margin-top: 8px; }
+        .btn-danger { background: #fef2f2; color: #dc2626; border: 1px solid #fca5a5; width: 100%; padding: 10px; border-radius: 10px; font-weight: 600; font-size: 12px; cursor: pointer; text-align: center; margin-top: 6px; }
+
+        .form-group { margin-bottom: 14px; }
+        .form-group label { display: block; font-size: 11px; color: #6b7280; margin-bottom: 4px; font-weight: 700; text-transform: uppercase; }
+        .form-input { width: 100%; padding: 12px 14px; background: #f9fafb; border: 1px solid #d1d5db; border-radius: 10px; font-size: 13px; color: #111827; }
+        
+        /* Kategori ala TaskRabbit (Tertata Rapi 2x2 Grid) */
+        .category-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+        .cat-card { background: #f9fafb; border: 1px solid #d1d5db; padding: 12px 10px; border-radius: 10px; font-size: 12px; font-weight: 600; cursor: pointer; text-align: center; color: #4b5563; transition: all 0.2s; }
+        .cat-card.active { background: #f0fdf4; border-color: #00aa13; color: #166534; box-shadow: 0 0 0 1px #00aa13; }
+
+        .order-card { background: #ffffff; border-left: 4px solid #00aa13; padding: 16px; border-radius: 12px; margin-bottom: 12px; border: 1px solid #e5e7eb; border-left-width: 4px; }
+        .order-title { font-weight: 700; font-size: 15px; color: #111827; margin-bottom: 4px; }
+        .order-detail { font-size: 12px; color: #4b5563; margin-bottom: 12px; line-height: 1.5; }
+        
+        .badge-payment { background: #e0f2fe; color: #0369a1; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; display: inline-block; margin-left: 4px; }
+
+        /* Custom Notification Toast (Pengganti Alert Vercel) */
+        .toast-banner { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); background: #111827; color: white; padding: 10px 20px; border-radius: 25px; font-size: 12px; font-weight: 600; z-index: 3000; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.15); text-align: center; max-width: 90%; }
+
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); backdrop-filter: blur(3px); display: none; align-items: center; justify-content: center; z-index: 2000; padding: 16px; }
+        .modal-box { background: #ffffff; color: #111827; width: 100%; max-width: 380px; padding: 20px; border-radius: 18px; text-align: center; }
+
+        .bottom-nav { position: fixed; bottom: 0; left: 0; width: 100%; background: #ffffff; display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid #e5e7eb; z-index: 1000; }
+        .nav-item { padding: 12px; text-align: center; color: #6b7280; font-size: 12px; font-weight: 600; cursor: pointer; background: none; border: none; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+        .nav-item.active { color: #00aa13; background: #f9fafb; }
+    </style>
+</head>
+<body>
+
+    <!-- TOAST NOTIFIKASI ELEGAN (Tanpa Teks Vercel) -->
+    <div id="toastBanner" class="toast-banner">Pesan sistem...</div>
+
+    <div class="app-header">
+        <h1>KerjaHarian 🇮🇩</h1>
+        <p>Cari & Panggil Pekerja Harian Terdekat</p>
+    </div>
+
+    <div class="container">
+        
+        <!-- ================= MODE PEKERJA ================= -->
+        <div id="workerSection" class="section-box active">
+            <div class="card" id="workerAuthCard" style="background: #f0fdf4; border: 1px solid #bbf7d0;">
+                <h3 style="font-size: 15px; margin: 0 0 4px 0; color: #166534;">Masuk Sebagai Mitra</h3>
+                <p style="font-size: 11px; color: #15803d; margin-bottom: 12px;">Masukkan nama dan nomor WhatsApp untuk mulai terima tugas.</p>
+                
+                <div class="form-group">
+                    <label>Nama Panggilan</label>
+                    <input type="text" class="form-input" id="workerNameInput" placeholder="Contoh: Mang Udin">
+                </div>
+                <div class="form-group">
+                    <label>Nomor WhatsApp</label>
+                    <input type="text" class="form-input" id="workerPhoneInput" placeholder="Contoh: 081234567890">
+                </div>
+                <button class="btn-primary" onclick="setWorkerIdentity()">Mulai Terima Tugas</button>
+            </div>
+
+            <div id="workerDashboard" style="display: none;">
+                <div class="status-pill">
+                    <div>
+                        <div style="font-size: 12px; font-weight: bold; color: #111827;" id="workerStatusTitle">SEDANG SANTAI (OFFLINE)</div>
+                        <div style="font-size: 10px; color: #6b7280;" id="workerInfoSub">-</div>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="workStatusToggle" onchange="toggleWorkStatus()">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <div class="card">
+                    <div id="map"></div>
+                    <button class="btn-primary" onclick="loadLiveOrdersFromServer()" style="background: #2563eb; padding: 11px; font-size: 13px;">
+                        Cari Tugas Terdekat
+                    </button>
+                    <button class="btn-secondary" onclick="resetWorkerIdentity()">Ganti Akun Mitra</button>
+                </div>
+
+                <div id="orderListContainer">
+                    <div style="text-align: center; color: #6b7280; font-size: 12px; margin: 20px 0;">
+                        Mencari tugas di sekitar Anda...
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= MODE PEMBERI KERJA ================= -->
+        <div id="employerSection" class="section-box">
+            <div class="card" id="employerAuthCard" style="background: #fefce8; border: 1px solid #fef08a;">
+                <h3 style="font-size: 15px; margin: 0 0 4px 0; color: #854d0e;">Masuk Sebagai Pemesan</h3>
+                <p style="font-size: 11px; color: #a16207; margin-bottom: 12px;">Masukkan identitas untuk mulai memanggil pekerja.</p>
+                
+                <div class="form-group">
+                    <label>Nama / Toko Anda</label>
+                    <input type="text" class="form-input" id="empNameInput" placeholder="Contoh: Toko Berkah">
+                </div>
+                <div class="form-group">
+                    <label>Nomor WhatsApp</label>
+                    <input type="text" class="form-input" id="empPhoneInput" placeholder="Contoh: 081234567890">
+                </div>
+                <button class="btn-primary" onclick="setEmployerIdentity()" style="background: #ca8a04;">Lanjut Panggil Pekerja</button>
+            </div>
+
+            <div class="card" id="employerDashboard" style="display: none;">
+                <h2 style="font-size: 16px; margin: 0 0 2px 0; color: #111827;">Panggil Pekerja ⚡</h2>
+                <p style="font-size: 11px; color: #6b7280; margin-bottom: 12px;">Pemesan: <strong id="verifiedEmpLabel" style="color: #00aa13;">-</strong> (<a href="#" onclick="resetEmployerIdentity()" style="color: #2563eb; text-decoration: none;">Ganti</a>)</p>
+
+                <!-- KATEGORI TEPAT 4 PILIHAN (ALA TASKRABBIT TERTATA RAPI) -->
+                <div class="form-group">
+                    <label>Pilih Kategori Tugas (TaskRabbit Style)</label>
+                    <div class="category-grid">
+                        <div class="cat-card active" onclick="selectCategory('🩺 Jaga Pasien Inap', 'time', 120000)">🩺 Jaga Pasien</div>
+                        <div class="cat-card" onclick="selectCategory('🍽️ Cuci Piring & Dapur', 'time', 95000)">🍽️ Cuci Piring</div>
+                        <div class="cat-card" onclick="selectCategory('📦 Bongkar Muat Barang', 'time', 75000)">📦 Bongkar Muat</div>
+                        <div class="cat-card" onclick="selectCategory('🧹 Bersih-Bersih Rumah', 'time', 100000)">🧹 Bersih Rumah</div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Durasi Kerja (Jam)</label>
+                    <input type="number" class="form-input" id="paramInput" value="4" min="1" max="24" oninput="calculateDynamicWage()">
+                    <span style="font-size: 10px; color: #6b7280; display: block; margin-top: 3px;">*Minimal 4 jam pertama. Lebihan dihitung otomatis.</span>
+                </div>
+
+                <div class="form-group">
+                    <label>Catatan Detail Tugas (Opsional)</label>
+                    <input type="text" class="form-input" id="jobCustomDetail" placeholder="Contoh: Tolong bantu bereskan ruang tamu dan dapur">
+                </div>
+
+                <div class="form-group">
+                    <label>Total Upah Aman (Escrow)</label>
+                    <input type="text" class="form-input" id="wageInput" value="120.000" readonly style="background: #e5e7eb; font-weight: bold; color: #166534;">
+                </div>
+
+                <button class="btn-primary" onclick="generateRealTimeQRISPayment()">
+                    Bayar & Siarkan Tugas (QRIS)
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- MODAL UTAMA -->
+    <div id="enterpriseModal" class="modal-overlay">
+        <div class="modal-box">
+            <div style="font-size: 32px; margin-bottom: 8px;">🛡️</div>
+            <h3 style="color: #111827; margin-top:0; font-size: 16px;" id="modalTitle">Pembayaran QRIS</h3>
+            <p id="modalDesc" style="font-size: 12px; color: #4b5563; line-height: 1.5; margin-bottom: 15px;">Scan QRIS untuk mengamankan upah.</p>
+            
+            <div id="qrisContainer" style="display:none; margin-bottom: 12px; background: #f9fafb; padding: 12px; border-radius: 10px; border: 1px dashed #d1d5db;">
+                <div id="qrisImageHolder" style="margin-bottom: 8px;">
+                    <img id="qrisDynamicImg" src="" alt="QRIS Code" style="width: 170px; height: 170px; border-radius: 6px; border: 1px solid #e5e7eb;">
+                </div>
+                <div id="qrisStringText" style="font-size: 9px; color: #6b7280; word-break: break-all; background: #fff; padding: 4px; border-radius: 4px;">-</div>
+            </div>
+
+            <div id="ratingSection" style="display:none; border-top: 1px solid #e5e7eb; padding-top: 12px; margin-bottom: 12px; text-align: left;">
+                <label style="font-size: 11px; font-weight: bold; color: #111827; display: block; margin-bottom: 4px;">Berikan Penilaian & Selesaikan:</label>
+                <select id="starRating" class="form-input" style="margin-bottom: 6px; padding: 8px;">
+                    <option value="5">⭐⭐⭐⭐⭐ Sangat Memuaskan (5/5)</option>
+                    <option value="4">⭐⭐⭐⭐ Baik (4/5)</option>
+                    <option value="3">⭐⭐⭐ Cukup (3/5)</option>
+                </select>
+                <input type="text" id="reviewText" class="form-input" placeholder="Ulasan singkat..." style="padding: 8px;">
+                <button class="btn-primary" onclick="submitReviewAndReleaseEscrow()" style="margin-top: 6px; padding: 10px; font-size: 12px;">Selesai & Cairkan Dana</button>
+            </div>
+
+            <div id="modalActions" style="display: flex; flex-direction: column; gap: 8px;"></div>
+            <button onclick="closeEnterpriseModal()" class="btn-secondary" style="margin-top: 10px; padding: 10px;">Tutup</button>
+        </div>
+    </div>
+
+    <div class="bottom-nav">
+        <button class="nav-item active" id="navWorker" onclick="switchTab('worker')">
+            <span>🛵</span> Cari Tugas
+        </button>
+        <button class="nav-item" id="navEmployer" onclick="switchTab('employer')">
+            <span>📍</span> Panggil Pekerja
+        </button>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        const SUPABASE_URL = 'https://cgulvtbyqkixpxxqzcet.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_37nHNxKCf60GiWedu90g9g_DDetNzb9';
+        const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        var map = L.map('map').setView([-6.2115, 106.8452], 14);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+        var marker = L.marker([-6.2115, 106.8452]).addTo(map).bindPopup('Lokasi Anda').openPopup();
+
+        let currentLat = -6.2115;
+        let currentLng = 106.8452;
+        let activeTakenOrderId = null;
+
+        if (navigator.geolocation) {
+            navigator.geolocation.watchPosition(
+                (pos) => {
+                    currentLat = pos.coords.latitude;
+                    currentLng = pos.coords.longitude;
+                    map.setView([currentLat, currentLng], 15);
+                    marker.setLatLng([currentLat, currentLng]);
+                },
+                (err) => { console.warn(err); },
+                { enableHighAccuracy: true, timeout: 20000 }
+            );
+        }
+
+        let currentWorker = null;
+        let currentEmployer = null;
+        let selectedCategoryName = '🩺 Jaga Pasien Inap';
+        let categoryType = 'time';
+        let baseMinWage = 120000;
+
+        function showToast(msg) {
+            let toast = document.getElementById('toastBanner');
+            toast.innerText = msg;
+            toast.style.display = 'block';
+            setTimeout(() => { toast.style.display = 'none'; }, 3000);
+        }
+
+        function isValidIndonesianPhone(phone) {
+            const clean = phone.replace(/[^0-9]/g, '');
+            return /^(08|628)[1-9][0-9]{7,10}$/.test(clean);
+        }
+
+        function sanitizeInput(str) {
+            if (!str) return "";
+            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").trim();
+        }
+
+        function selectCategory(catName, type, defaultWage) {
+            document.querySelectorAll('.cat-card').forEach(el => el.classList.remove('active'));
+            event.currentTarget.classList.add('active');
+            
+            selectedCategoryName = catName;
+            categoryType = type;
+            baseMinWage = defaultWage;
+            calculateDynamicWage();
+        }
+
+        function calculateDynamicWage() {
+            let hours = parseInt(document.getElementById('paramInput').value) || 4;
+            if (hours > 24) hours = 24;
+            if (hours < 1) hours = 1;
+            
+            let totalWage = baseMinWage;
+            if (hours > 4) {
+                totalWage = baseMinWage + ((hours - 4) * 25000);
+            }
+            document.getElementById('wageInput').value = totalWage.toLocaleString('id-ID');
+        }
+
+        function setWorkerIdentity() {
+            let name = sanitizeInput(document.getElementById('workerNameInput').value);
+            let rawPhone = document.getElementById('workerPhoneInput').value;
+
+            if (!name || !isValidIndonesianPhone(rawPhone)) {
+                showToast("Masukkan nama dan nomor WhatsApp yang valid!");
+                return;
+            }
+
+            let phoneClean = rawPhone.replace(/[^0-9]/g, '');
+            if (phoneClean.startsWith('0')) phoneClean = '62' + phoneClean.slice(1);
+
+            currentWorker = { name: name, phone: phoneClean };
+            document.getElementById('workerAuthCard').style.display = 'none';
+            document.getElementById('workerDashboard').style.display = 'block';
+            document.getElementById('workerInfoSub').innerText = `${name} (${phoneClean})`;
+            loadLiveOrdersFromServer();
+        }
+
+        function resetWorkerIdentity() {
+            currentWorker = null;
+            document.getElementById('workerAuthCard').style.display = 'block';
+            document.getElementById('workerDashboard').style.display = 'none';
+        }
+
+        function setEmployerIdentity() {
+            let name = sanitizeInput(document.getElementById('empNameInput').value);
+            let rawPhone = document.getElementById('empPhoneInput').value;
+
+            if (!name || !isValidIndonesianPhone(rawPhone)) {
+                showToast("Masukkan nama dan nomor WhatsApp yang valid!");
+                return;
+            }
+
+            let phoneClean = rawPhone.replace(/[^0-9]/g, '');
+            if (phoneClean.startsWith('0')) phoneClean = '62' + phoneClean.slice(1);
+
+            currentEmployer = { name: name, phone: phoneClean };
+            document.getElementById('employerAuthCard').style.display = 'none';
+            document.getElementById('employerDashboard').style.display = 'block';
+            document.getElementById('verifiedEmpLabel').innerText = `${name} (${phoneClean})`;
+        }
+
+        function resetEmployerIdentity() {
+            currentEmployer = null;
+            document.getElementById('employerAuthCard').style.display = 'block';
+            document.getElementById('employerDashboard').style.display = 'none';
+        }
+
+        function switchTab(tab) {
+            const workerSec = document.getElementById('workerSection');
+            const employerSec = document.getElementById('employerSection');
+            const navWorker = document.getElementById('navWorker');
+            const navEmployer = document.getElementById('navEmployer');
+
+            if (tab === 'worker') {
+                workerSec.classList.add('active');
+                employerSec.classList.remove('active');
+                navWorker.classList.add('active');
+                navEmployer.classList.remove('active');
+                window.scrollTo({top: 0, behavior: 'smooth'});
+                setTimeout(() => { map.invalidateSize(); }, 200);
+                loadLiveOrdersFromServer();
+            } else {
+                workerSec.classList.remove('active');
+                employerSec.classList.add('active');
+                navEmployer.classList.add('active');
+                navWorker.classList.remove('active');
+                window.scrollTo({top: 0, behavior: 'smooth'});
+            }
+        }
+
+        function toggleWorkStatus() {
+            const toggle = document.getElementById('workStatusToggle');
+            const title = document.getElementById('workerStatusTitle');
+            if (toggle.checked) {
+                title.innerText = "SIAP TERIMA TUGAS (ONLINE)";
+                title.style.color = "#00aa13";
+            } else {
+                title.innerText = "SEDANG SANTAI (OFFLINE)";
+                title.style.color = "#6b7280";
+            }
+        }
+
+        async function sendAutomaticWANotification(targetPhone, messageContent) {
+            const waToken = "9uBgpH6oaiM2gW3XNp5t"; 
+            try {
+                await fetch('https://api.fonnte.com/send', {
+                    method: 'POST',
+                    headers: { 'Authorization': waToken, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ target: targetPhone, message: messageContent })
+                });
+            } catch (err) { console.error("WA Error:", err); }
+        }
+
+        function generateRealTimeQRISPayment() {
+            if (!currentEmployer) {
+                showToast("Isi identitas pemesan terlebih dahulu!");
+                return;
+            }
+
+            let hours = parseInt(document.getElementById('paramInput').value) || 4;
+            let detailInput = sanitizeInput(document.getElementById('jobCustomDetail').value);
+            
+            let finalJobDesc = `${selectedCategoryName} (${hours} Jam)${detailInput ? ' - ' + detailInput : ''}`;
+            let wageStr = document.getElementById('wageInput').value.replace(/[^0-9]/g, '');
+            let finalWage = parseInt(wageStr) || 100000;
+            let orderIdQRIS = 'QRIS-KH-' + Math.floor(100000 + Math.random() * 900000);
+
+            const modal = document.getElementById('enterpriseModal');
+            document.getElementById('modalTitle').innerText = "Scan QRIS Pembayaran";
+            document.getElementById('modalDesc').innerText = `Scan untuk mengamankan upah Rp ${finalWage.toLocaleString('id-ID')} ke sistem Escrow.`;
+            document.getElementById('qrisContainer').style.display = 'block';
+            document.getElementById('ratingSection').style.display = 'none';
+            
+            let qrisSimulatedString = `00020101021226580016ID.CO.QRIS.WWW01189360091430000000010303UMI5204549953033605802ID5910KerjaHarian6007Jakarta6304`;
+            document.getElementById('qrisDynamicImg').src = `https://api.qrserver.com/v1/create-qr-code/?size=170x170&data=${encodeURIComponent(qrisSimulatedString + '&amount=' + finalWage)}`;
+            document.getElementById('qrisStringText').innerText = orderIdQRIS + " | Rp " + finalWage.toLocaleString('id-ID');
+
+            document.getElementById('modalActions').innerHTML = `
+                <button class="btn-primary" onclick="finalizeOrderToDatabase('${finalJobDesc}', '${finalWage}', '${orderIdQRIS}')">
+                    Konfirmasi Selesai Bayar QRIS
+                </button>
+            `;
+            modal.style.display = 'flex';
+        }
+
+        async function finalizeOrderToDatabase(finalJobDesc, finalWage, orderIdQRIS) {
+            const { error } = await _supabase.from('jobs').insert([
+                { 
+                    name: currentEmployer.name, 
+                    phone: currentEmployer.phone, 
+                    job_type: finalJobDesc, 
+                    wage: parseInt(finalWage).toLocaleString('id-ID'), 
+                    status: 'Menunggu Pekerja...',
+                    payment_status: 'Escrow Secured (QRIS)',
+                    payment_id: orderIdQRIS
+                }
+            ]);
+
+            if (error) {
+                showToast("Gagal memproses tugas: " + error.message);
+            } else {
+                await sendAutomaticWANotification(currentEmployer.phone, `🛡️ *ESCROW TERVERIFIKASI* \n\nTugas: ${finalJobDesc}\nNominal: Rp ${parseInt(finalWage).toLocaleString('id-ID')}\nTugas berhasil disiarkan ke radar pekerja!`);
+                showToast("Pembayaran berhasil diverifikasi & tugas disiarkan!");
+                closeEnterpriseModal();
+                switchTab('worker');
+            }
+        }
+
+        async function loadLiveOrdersFromServer() {
+            let container = document.getElementById('orderListContainer');
+            const { data: jobs, error } = await _supabase.from('jobs').select('*').order('created_at', { ascending: false });
+
+            if (error || !jobs || jobs.length === 0) {
+                container.innerHTML = `<div style="text-align: center; color: #6b7280; font-size: 12px; margin: 20px 0;">Belum ada tugas aktif.</div>`;
+                return;
+            }
+
+            let html = `<div style="font-weight: 700; font-size: 13px; margin-bottom: 10px; color: #111827;">Tugas Tersedia (${jobs.length}):</div>`;
+            
+            jobs.forEach((order) => {
+                let empName = sanitizeInput(order.name || 'Pemesan');
+                let empPhone = order.phone || '628123456789';
+                let jobDesc = sanitizeInput(order.job_type || 'Pekerjaan Harian');
+                let wageVal = order.wage || '100.000';
+                let jobStatus = sanitizeInput(order.status || 'Menunggu Pekerja...');
+                let payStatus = sanitizeInput(order.payment_status || 'Pending');
+                let ratingBadge = order.rating ? `<span class="badge-payment" style="background:#dcfce7; color:#166534;">⭐ ${order.rating}/5</span>` : ``;
+
+                let waMsg = encodeURIComponent(`Halo ${empName}, saya ambil tugas "${jobDesc}" di KerjaHarian.`);
+                let waLink = `https://wa.me/${empPhone}?text=${waMsg}`;
+                let mapsLink = `https://www.google.com/maps?q=${currentLat},${currentLng}`;
+
+                let isTaskInProgress = jobStatus.includes('Sedang Dikerjakan');
+                let isTaskDone = jobStatus.includes('Selesai');
+
+                html += `
+                    <div class="order-card" id="order-card-${order.id}">
+                        <div class="order-title">${jobDesc} ${ratingBadge}</div>
+                        <div class="order-detail">
+                            👤 Pemesan: <strong>${empName} (Terverifikasi)</strong><br>
+                            📞 WhatsApp: <a href="${waLink}" target="_blank" style="color: #00aa13; font-weight: bold; text-decoration: none;">${empPhone}</a><br>
+                            💰 Upah: <strong>Rp ${wageVal}</strong><br>
+                            🛡️ Escrow: <span style="color: #0284c7; font-weight: bold;">${payStatus}</span><br>
+                            📍 Status: <span style="color: #00aa13; font-weight: bold;">${jobStatus}</span>
+                        </div>
+                        
+                        ${!isTaskInProgress && !isTaskDone ? `
+                        <button class="btn-primary" onclick="takeOrder('${order.id}', '${empName}', '${empPhone}', '${waLink}', '${mapsLink}')" style="padding: 12px; font-size: 13px;">
+                            Ambil Tugas Ini
+                        </button>
+                        <button class="btn-danger" onclick="reportFakeOrder('${order.id}')">
+                            Laporkan Tugas Fiktif
+                        </button>
+                        ` : ''}
+
+                        ${isTaskInProgress ? `
+                        <button class="btn-primary" style="background: #eab308; padding: 12px; font-size: 13px;" onclick="openFinishTaskModal('${order.id}')">
+                            Selesaikan & Cairkan Dana
+                        </button>
+                        ` : ''}
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+
+        async function takeOrder(orderId, empName, empPhone, waLink, mapsLink) {
+            if (!currentWorker) {
+                showToast("Masukkan identitas mitra Anda di atas terlebih dahulu!");
+                window.scrollTo({top: 0, behavior: 'smooth'});
+                return;
+            }
+            if (currentWorker.phone === empPhone) {
+                showToast("Anda tidak bisa mengambil tugas buatan sendiri!");
+                return;
+            }
+
+            const { error } = await _supabase.from('jobs').update({ status: `Sedang Dikerjakan oleh ${currentWorker.name}` }).eq('id', orderId);
+            if (!error) {
+                showToast("Tugas dikunci! Silakan hubungi pemesan.");
+                window.open(waLink, '_blank');
+                loadLiveOrdersFromServer();
+            }
+        }
+
+        function openFinishTaskModal(orderId) {
+            activeTakenOrderId = orderId;
+            const modal = document.getElementById('enterpriseModal');
+            document.getElementById('modalTitle').innerText = "Selesaikan Tugas";
+            document.getElementById('modalDesc').innerText = "Konfirmasi tugas selesai untuk mencairkan dana ke dompet Anda.";
+            document.getElementById('qrisContainer').style.display = 'none';
+            document.getElementById('ratingSection').style.display = 'block';
+            document.getElementById('modalActions').innerHTML = '';
+            modal.style.display = 'flex';
+        }
+
+        async function submitReviewAndReleaseEscrow() {
+            if (!activeTakenOrderId) return;
+            let ratingVal = document.getElementById('starRating').value;
+
+            const { error } = await _supabase.from('jobs').update({ 
+                status: `Selesai (${ratingVal}⭐)`,
+                payment_status: 'Released to Worker',
+                rating: parseInt(ratingVal)
+            }).eq('id', activeTakenOrderId);
+
+            if (!error) {
+                showToast("Dana Escrow berhasil dicairkan!");
+                closeEnterpriseModal();
+                loadLiveOrdersFromServer();
+            }
+        }
+
+        async function reportFakeOrder(orderId) {
+            if (!confirm("Hapus tugas ini?")) return;
+            await _supabase.from('jobs').delete().eq('id', orderId);
+            loadLiveOrdersFromServer();
+        }
+
+        function closeEnterpriseModal() {
+            document.getElementById('enterpriseModal').style.display = 'none';
+        }
+    </script>
+</body>
+</html>
