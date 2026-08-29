@@ -22,6 +22,14 @@
       href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap"
       rel="stylesheet"
     />
+    <script>
+      window.addEventListener('error', function(e) {
+        document.body.innerHTML = '<pre style="padding:20px;color:red;background:#fff;white-space:pre-wrap;font-size:14px;">ERROR: ' + e.message + '\nFile: ' + e.filename + '\nLine: ' + e.lineno + '</pre>';
+      });
+      window.addEventListener('unhandledrejection', function(e) {
+        document.body.innerHTML = '<pre style="padding:20px;color:red;background:#fff;white-space:pre-wrap;font-size:14px;">PROMISE ERROR: ' + (e.reason && e.reason.message ? e.reason.message : e.reason) + '</pre>';
+      });
+    </script>
   </head>
   <body>
     <div id="root"></div>
