@@ -19,6 +19,7 @@ export default {
           700: '#1d4ed8',
           800: '#1e40af',
           900: '#1e3a8a',
+          950: '#172554',
         },
         accent: {
           50: '#fff7ed',
@@ -68,6 +69,10 @@ export default {
           800: '#991b1b',
           900: '#7f1d1d',
         },
+      },
+      boxShadow: {
+        soft: '0 2px 8px rgba(0,0,0,0.06)',
+        card: '0 4px 16px rgba(0,0,0,0.08)',
       },
       animation: {
         'fade-in': 'fade-in 0.5s ease-out',
