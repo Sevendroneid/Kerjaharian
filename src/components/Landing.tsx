@@ -1,5 +1,5 @@
 import React from 'react';
-import { calculatePricing } from '../utils/pricingEngine';
+import { calculateOrderPrice } from '../utils/pricingEngine';
 import { Shield, Clock, MapPin, CheckCircle, ArrowRight } from 'lucide-react';
 import type { View } from '@/lib/types';
 
