@@ -93,6 +93,10 @@ export function Employer({ onAuthClick, initialCategory }: EmployerProps) {
     fetchJobs();
   }, [fetchJobs]);
 
+  useEffect(() => {
+  if (initialCategory) setCategory(initialCategory);
+}, [initialCategory]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
