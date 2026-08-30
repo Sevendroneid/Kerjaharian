@@ -385,24 +385,28 @@ export function Employer({ onAuthClick }: EmployerProps) {
               </h2>
               <div className="mt-4 rounded-xl bg-slate-50 p-5 ring-1 ring-slate-200">
                 {wageType === 'hourly' && hoursNum > 0 && (
-                  <SummaryRow
-                    label={`Upah ${formatIDR(wageNum)} x ${hoursNum} jam`}
-                    value={formatIDR(totalWage)}
-                  />
+                  <SummaryRow label={`Upah ${formatIDR(wageNum)} x ${hoursNum} jam`} value={formatIDR(wageAmount)} />
                 )}
                 {wageType === 'daily' && (
-                  <SummaryRow label="Upah bersih pekerja" value={formatIDR(totalWage)} />
+                  <SummaryRow label="Upah dasar pekerja" value={formatIDR(wageAmount)} />
                 )}
-                <SummaryRow label="Biaya layanan (transparan, incl. asuransi & pajak)" value={formatIDR(fee)} muted />
+                {nightShift && (
+                  <SummaryRow label="  Tambahan shift malam (+20%)" value={formatIDR(nightShiftAdd)} muted small />
+                )}
+                {needsTools && (
+                  <SummaryRow label="  Tunjangan alat kerja" value={formatIDR(toolAllowance)} muted small />
+                )}
+                <SummaryRow label="Biaya layanan (transparan, incl. asuransi & pajak)" value={formatIDR(adminFee + ppn + insurance.totalMicroInsurance)} muted />
                 <div className="ml-4 mt-1 space-y-0.5">
-                  <SummaryRow label="  Asuransi pekerja" value={formatIDR(FEE_INSURANCE)} muted small />
-                  <SummaryRow label="  Pajak" value={formatIDR(FEE_TAX)} muted small />
-                  <SummaryRow label="  Biaya platform" value={formatIDR(FEE_PLATFORM)} muted small />
+                  <SummaryRow label="  Biaya admin platform (10%)" value={formatIDR(adminFee)} muted small />
+                  <SummaryRow label="  PPN (11% dari admin)" value={formatIDR(ppn)} muted small />
+                  <SummaryRow label="  BPJS Ketenagakerjaan" value={formatIDR(insurance.bpjsCoverage)} muted small />
+                  <SummaryRow label="  FWD Asuransi Kecelakaan" value={formatIDR(insurance.fwdCoverage)} muted small />
                 </div>
                 <div className="my-3 border-t border-dashed border-slate-300" />
                 <div className="flex items-center justify-between">
                   <span className="font-display text-base font-bold text-slate-900">Total Pembayaran</span>
-                  <span className="font-display text-xl font-extrabold text-primary-700">{formatIDR(total)}</span>
+                  <span className="font-display text-xl font-extrabold text-primary-700">{formatIDR(totalPrice)}</span>
                 </div>
               </div>
 
