@@ -14,10 +14,18 @@ export default function App() {
     mode: 'signin',
   });
 
-  const navigate = useCallback((v: View) => {
-    setView(v);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, []);
+  const [authModal, setAuthModal] = useState<{ open: boolean; mode: 'signin' | 'signup' }>({
+    open: false,
+    mode: 'signin',
+  });
+
+  const [pendingCategory, setPendingCategory] = useState<CategoryId | null>(null);   ← SISIPKAN DI SINI
+
+  const navigate = useCallback((v: View, category?: CategoryId) => {
+  setView(v);
+  setPendingCategory(category ?? null);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}, []);
 
   const openAuth = useCallback((mode: 'signin' | 'signup') => {
     setAuthModal({ open: true, mode });
