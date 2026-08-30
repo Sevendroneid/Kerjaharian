@@ -1,4 +1,4 @@
-import React from 'react';
+aimport React from 'react';
 import { calculateOrderPrice } from '../utils/pricingEngine';
 import { Shield, Clock, MapPin, CheckCircle, ArrowRight } from 'lucide-react';
 import type { View } from '@/lib/types';
@@ -91,10 +91,6 @@ export function Landing({ onNavigate }: LandingProps) {
             </span>
           </div>
 
-          <div className="border-b pb-4">
-            <h4 className="font-bold text-slate-900 text-sm">Spesialis Renovasi & Tukang Terampil</h4>
-            <p className="text-xs text-slate-500 mt-0.5">Durasi 4 Jam + Tunjangan Alat + Beban Fisik</p>
-          </div>
 
           {/* Rincian Kalkulasi Harga Transparan */}
           <div className="border-b pb-4">
