@@ -1,9 +1,5 @@
 export const MIN_WAGE_DAILY = 75000;
 export const MIN_WAGE_HOURLY = 12000;
-export const SERVICE_FEE_FLAT = 15000;
-export const FEE_INSURANCE = 5000;
-export const FEE_TAX = 3000;
-export const FEE_PLATFORM = 7000;
 
 const idrFormatter = new Intl.NumberFormat('id-ID', {
   style: 'currency',
@@ -48,20 +44,4 @@ export function calculateWage(wagePerUnit: number, wageType: WageType, estimated
     return wagePerUnit * (estimatedHours ?? 1);
   }
   return wagePerUnit;
-}
-
-export function calculateFee(): { fee: number; breakdown: { insurance: number; tax: number; platform: number } } {
-  return {
-    fee: SERVICE_FEE_FLAT,
-    breakdown: {
-      insurance: FEE_INSURANCE,
-      tax: FEE_TAX,
-      platform: FEE_PLATFORM,
-    },
-  };
-}
-
-export function calculateTotal(wage: number): { fee: number; total: number; breakdown: { insurance: number; tax: number; platform: number } } {
-  const { fee, breakdown } = calculateFee();
-  return { fee, total: wage + fee, breakdown };
 }
