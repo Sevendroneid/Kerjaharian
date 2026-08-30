@@ -55,9 +55,9 @@ export function Employer({ onAuthClick }: EmployerProps) {
   const belowMin = wageNum > 0 && wageNum < minWage;
   const selectedCat = CATEGORY_MAP[category];
 
-  const totalWage = calculateWage(wageNum, wageType, wageType === 'hourly' ? hoursNum : undefined);
-  const fee = SERVICE_FEE_FLAT;
-  const total = totalWage + fee;
+  const wageAmount = calculateWage(wageNum, wageType, wageType === 'hourly' ? hoursNum : undefined); 
+  const pricing = calculateOrderPrice({ wageAmount, nightShift, needsTools }); 
+  const { nightShiftAdd, toolAllowance, baseWage, adminFee, ppn, insurance, totalPrice } = pricing;
 
   const fetchJobTypes = useCallback(async () => {
     const { data, error } = await supabase
