@@ -118,12 +118,19 @@ export function Employer({ onAuthClick }: EmployerProps) {
         job_type_id: jobTypeId,
         title: title.trim(),
         location: location.trim(),
-        wage: totalWage,
+        wage: baseWage,
         wage_type: wageType,
         estimated_hours: wageType === 'hourly' ? hoursNum : null,
-        fee,
-        fee_breakdown: { insurance: FEE_INSURANCE, tax: FEE_TAX, platform: FEE_PLATFORM },
-        total,
+        night_shift: nightShift,
+        needs_tools: needsTools,
+        fee: adminFee + ppn + insurance.totalMicroInsurance,
+        fee_breakdown: {
+          adminFee,
+          ppn,
+          bpjsInsurance: insurance.bpjsCoverage,
+          fwdInsurance: insurance.fwdCoverage,
+        },
+        total: totalPrice,
         status: 'open',
       })
       .select('*, job_type:job_types(name, description)')
