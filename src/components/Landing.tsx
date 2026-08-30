@@ -9,11 +9,10 @@ interface LandingProps {
 
 export function Landing({ onNavigate }: LandingProps) {
   // Simulasi kalkulasi dinamis menggunakan Pricing Engine (Contoh: Kategori Skilled, 4 Jam, dengan Asuransi & PPN)
-  const samplePricing = calculatePricing({
-    basePrice4h: 250000,
-    isNightShift: false,
-    hasPhysicalLoad: true,
-    toolAllowance: 25000,
+  const samplePricing = calculateOrderPrice({
+    wageAmount: 250000,
+    nightShift: true,
+    needsTools: true,
   });
 
   return (
