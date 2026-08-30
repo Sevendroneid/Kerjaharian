@@ -20,10 +20,6 @@ import {
   formatIDR,
   MIN_WAGE_DAILY,
   MIN_WAGE_HOURLY,
-  SERVICE_FEE_FLAT,
-  FEE_INSURANCE,
-  FEE_TAX,
-  FEE_PLATFORM,
   calculateWage,
   timeAgo,
 } from '@/lib/format';
