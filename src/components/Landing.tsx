@@ -97,32 +97,43 @@ export function Landing({ onNavigate }: LandingProps) {
           </div>
 
           {/* Rincian Kalkulasi Harga Transparan */}
+          <div className="border-b pb-4">
+            <h4 className="font-bold text-slate-900 text-sm">Spesialis Renovasi & Tukang Terampil</h4>
+            <p className="text-xs text-slate-500 mt-0.5">Shift Malam + Tunjangan Alat Kerja</p>
+          </div>
+
           <div className="space-y-2 text-xs text-slate-600 bg-slate-50 p-3.5 rounded-xl border">
             <div className="flex justify-between">
-              <span>Upah Dasar (4 Jam):</span>
-              <span className="font-semibold text-slate-800">Rp {samplePricing.basePrice4h.toLocaleString('id-ID')}</span>
+              <span>Upah Dasar:</span>
+              <span className="font-semibold text-slate-800">Rp {samplePricing.wageAmount.toLocaleString('id-ID')}</span>
             </div>
-            {samplePricing.physicalLoadAmount > 0 && (
+            {samplePricing.nightShiftAdd > 0 && (
               <div className="flex justify-between text-amber-700">
-                <span>Penyesuaian Beban Fisik (+15%):</span>
-                <span>+ Rp {samplePricing.physicalLoadAmount.toLocaleString('id-ID')}</span>
+                <span>Tambahan Shift Malam (+20%):</span>
+                <span>+ Rp {samplePricing.nightShiftAdd.toLocaleString('id-ID')}</span>
+              </div>
+            )}
+            {samplePricing.toolAllowance > 0 && (
+              <div className="flex justify-between">
+                <span>Tunjangan Alat Kerja:</span>
+                <span>+ Rp {samplePricing.toolAllowance.toLocaleString('id-ID')}</span>
               </div>
             )}
             <div className="flex justify-between">
-              <span>Tunjangan Alat Kerja:</span>
-              <span>+ Rp {samplePricing.toolAllowance.toLocaleString('id-ID')}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Biaya Layanan & Asuransi:</span>
+              <span>Biaya Admin Platform (10%):</span>
               <span>+ Rp {samplePricing.adminFee.toLocaleString('id-ID')}</span>
             </div>
             <div className="flex justify-between">
-              <span>PPN (11%):</span>
-              <span>+ Rp {samplePricing.taxAmount.toLocaleString('id-ID')}</span>
+              <span>PPN (11% dari admin):</span>
+              <span>+ Rp {samplePricing.ppn.toLocaleString('id-ID')}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Perlindungan Kerja (BPJS + FWD):</span>
+              <span>+ Rp {samplePricing.insurance.totalMicroInsurance.toLocaleString('id-ID')}</span>
             </div>
             <div className="border-t pt-2 flex justify-between font-bold text-sm text-slate-900">
               <span>Total Tagihan Final:</span>
-              <span className="text-green-600">Rp {samplePricing.finalTotal.toLocaleString('id-ID')}</span>
+              <span className="text-green-600">Rp {samplePricing.totalPrice.toLocaleString('id-ID')}</span>
             </div>
           </div>
 
