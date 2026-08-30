@@ -364,7 +364,7 @@ export function Employer({ onAuthClick }: EmployerProps) {
                 {wageType === 'daily' && (
                   <SummaryRow label="Upah bersih pekerja" value={formatIDR(totalWage)} />
                 )}
-                <SummaryRow label="Biaya layanan (flat, incl. asuransi & pajak)" value={formatIDR(fee)} muted />
+                <SummaryRow label="Biaya layanan (transparan, incl. asuransi & pajak)" value={formatIDR(fee)} muted />
                 <div className="ml-4 mt-1 space-y-0.5">
                   <SummaryRow label="  Asuransi pekerja" value={formatIDR(FEE_INSURANCE)} muted small />
                   <SummaryRow label="  Pajak" value={formatIDR(FEE_TAX)} muted small />
