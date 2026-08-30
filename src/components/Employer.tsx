@@ -29,6 +29,7 @@ import { supabase, type Job, type JobType } from '@/lib/supabase';
 
 interface EmployerProps {
   onAuthClick: (mode: 'signin' | 'signup') => void;
+  initialCategory?: CategoryId | null;
 }
 
 export function Employer({ onAuthClick }: EmployerProps) {
