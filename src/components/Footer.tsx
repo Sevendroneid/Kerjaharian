@@ -37,9 +37,26 @@ export function Footer({ onNavigate }: FooterProps) {
                   Jadi Mitra Pekerja
                 </button>
               </li>
-              <li className="text-slate-500">Logistik & Pindahan</li>
-              <li className="text-slate-500">Tukang & Renovasi</li>
-              <li className="text-slate-500">Jasa Kebersihan & Drone</li>
+              <li>
+                <button onClick={() => onNavigate('employer', 'logistik')} className="text-slate-500 transition hover:text-white text-left">
+                  Logistik & Pindahan
+                </button>
+              </li>
+              <li>
+                <button onClick={() => onNavigate('employer', 'tukang')} className="text-slate-500 transition hover:text-white text-left">
+                  Tukang & Renovasi
+                </button>
+              </li>
+              <li>
+                <button onClick={() => onNavigate('employer', 'kebersihan')} className="text-slate-500 transition hover:text-white text-left">
+                  Jasa Kebersihan Rumah
+                </button>
+              </li>
+              <li>
+                <button onClick={() => onNavigate('employer', 'serabutan')} className="text-slate-500 transition hover:text-white text-left">
+                  Tenaga Serabutan Profesional
+                </button>
+              </li>
             </ul>
           </div>
 
