@@ -3,7 +3,7 @@ import { Logo } from './Logo';
 import type { View, CategoryId } from '@/lib/types';
 
 interface FooterProps {
-  onNavigate: (view: View) => void;
+  onNavigate: (view: View, category?: CategoryId) => void;
 }
 
 export function Footer({ onNavigate }: FooterProps) {
