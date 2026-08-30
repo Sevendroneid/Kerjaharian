@@ -40,7 +40,7 @@ export default function App() {
       <Header view={view} onNavigate={navigate} onAuthClick={openAuth} />
       <main className="flex-1">
         {view === 'landing' && <Landing onNavigate={navigate} onAuthClick={openAuth} />}
-        {view === 'employer' && <Employer onAuthClick={openAuth} />}
+        {view === 'employer' && <Employer onAuthClick={openAuth} initialCategory={pendingCategory} />}
         {view === 'worker' && <Worker onAuthClick={openAuth} />}
       </main>
       <Footer onNavigate={navigate} />
