@@ -41,6 +41,8 @@ export function Employer({ onAuthClick }: EmployerProps) {
   const [wage, setWage] = useState('');
   const [wageType, setWageType] = useState<WageType>('daily');
   const [estimatedHours, setEstimatedHours] = useState('');
+  const [nightShift, setNightShift] = useState(false); 
+  const [needsTools, setNeedsTools] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [submitting, setSubmitting] = useState(false);
