@@ -480,7 +480,7 @@ export function Employer({ onAuthClick }: EmployerProps) {
                 </li>
                 <li className="flex gap-2">
                   <CheckCircle2 className="h-4 w-4 shrink-0 text-success-500" />
-                  Biaya layanan flat Rp 15.000 (incl. asuransi & pajak)
+                  Biaya layanan dihitung transparan (admin, pajak & asuransi kerja)
                 </li>
               </ul>
             </div>
