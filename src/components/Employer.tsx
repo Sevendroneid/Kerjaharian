@@ -300,7 +300,30 @@ export function Employer({ onAuthClick }: EmployerProps) {
                     </button>
                   </div>
                 </div>
-
+<div className="flex gap-2">
+  <button
+    type="button"
+    onClick={() => setNightShift(!nightShift)}
+    className={`flex-1 rounded-lg border-2 px-4 py-2.5 text-sm font-semibold transition ${
+      nightShift
+        ? 'border-primary-500 bg-primary-50 text-primary-700'
+        : 'border-slate-200 text-slate-600 hover:border-slate-300'
+    }`}
+  >
+    🌙 Shift Malam (+20%)
+  </button>
+  <button
+    type="button"
+    onClick={() => setNeedsTools(!needsTools)}
+    className={`flex-1 rounded-lg border-2 px-4 py-2.5 text-sm font-semibold transition ${
+      needsTools
+        ? 'border-primary-500 bg-primary-50 text-primary-700'
+        : 'border-slate-200 text-slate-600 hover:border-slate-300'
+    }`}
+  >
+    🧰 Butuh Alat Kerja
+  </button>
+</div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <label className="label">
