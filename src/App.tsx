@@ -5,7 +5,7 @@ import { Landing } from '@/components/Landing';
 import { Employer } from '@/components/Employer';
 import { Worker } from '@/components/Worker';
 import { AuthModal } from '@/components/AuthModal';
-import type { View, CategoryId } from '@/lib/types';a
+import type { View, CategoryId } from '@/lib/types';
 
 export default function App() {
   const [view, setView] = useState<View>('landing');
