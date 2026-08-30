@@ -32,9 +32,9 @@ interface EmployerProps {
   initialCategory?: CategoryId | null;
 }
 
-export function Employer({ onAuthClick }: EmployerProps) {
+export function Employer({ onAuthClick, initialCategory }: EmployerProps) {
   const { user, loading: authLoading } = useAuth();
-  const [category, setCategory] = useState<CategoryId>('logistik');
+  const [category, setCategory] = useState<CategoryId>(initialCategory ?? 'logistik');
   const [jobTypeId, setJobTypeId] = useState<string | null>(null);
   const [jobTypes, setJobTypes] = useState<JobType[]>([]);
   const [title, setTitle] = useState('');
