@@ -23,6 +23,7 @@ import {
   calculateWage,
   timeAgo,
 } from '@/lib/format';
+import { calculateOrderPrice } from '@/utils/pricingEngine';
 import { useAuth } from '@/lib/auth';
 import { supabase, type Job, type JobType } from '@/lib/supabase';
 
