@@ -19,7 +19,7 @@ export default function App() {
     mode: 'signin',
   });
 
-  const [pendingCategory, setPendingCategory] = useState<CategoryId | null>(null);   ← SISIPKAN DI SINI
+  const [pendingCategory, setPendingCategory] = useState<CategoryId | null>(null); 
 
   const navigate = useCallback((v: View, category?: CategoryId) => {
   setView(v);
