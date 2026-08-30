@@ -13,12 +13,7 @@ export default function App() {
     open: false,
     mode: 'signin',
   });
-
-  const [authModal, setAuthModal] = useState<{ open: boolean; mode: 'signin' | 'signup' }>({
-    open: false,
-    mode: 'signin',
-  });
-
+  
   const [pendingCategory, setPendingCategory] = useState<CategoryId | null>(null); 
 
   const navigate = useCallback((v: View, category?: CategoryId) => {
