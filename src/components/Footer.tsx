@@ -1,6 +1,6 @@
 import { HardHat, MapPin, Phone, Shield, MessageCircle } from 'lucide-react';
 import { Logo } from './Logo';
-import type { View } from '@/lib/types';
+import type { View, CategoryId } from '@/lib/types';
 
 interface FooterProps {
   onNavigate: (view: View) => void;
