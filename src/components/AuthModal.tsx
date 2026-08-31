@@ -133,7 +133,7 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
         id: user.id,
         full_name: fullName,
         role: finalRole,
-        phone: `+${cleanPhone}`,
+        whatsapp: `+${cleanPhone}`,
       });
 
       if (profileError) throw profileError;
