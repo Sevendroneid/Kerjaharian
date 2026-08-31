@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
-import { supabase } from '@/lib/supabaseClient';
+import { supabase } from '@/lib/supabase';
 
 type Step = 'phone' | 'otp' | 'profile';
 
@@ -38,7 +38,7 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Gagal kirim OTP');
 
-      setGeneratedOtp(data.debug_otp); // Untuk simpan pembanding lokal jika dev mode
+      setGeneratedOtp(data.debug_otp);
       setStep('otp');
     } catch (err: any) {
       setError(err.message);
@@ -55,7 +55,6 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
     const dummyPassword = `Pwd_${cleanPhone}_2026!`;
 
     try {
-      // Coba login dulu, jika belum ada maka sign up otomatis dengan email dummy
       let { error: authError } = await supabase.auth.signInWithPassword({
         email: dummyEmail,
         password: dummyPassword,
@@ -74,7 +73,6 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
         });
       }
 
-      // Cek apakah profil sudah ada
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Autentikasi gagal');
 
@@ -178,4 +176,4 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
     </div>
   );
   }
-    
+                                             
