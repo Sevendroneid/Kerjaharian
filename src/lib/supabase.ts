@@ -19,7 +19,7 @@ export interface Profile {
   id: string;
   full_name: string;
   phone: string | null;
-  role: 'employer' | 'worker';
+  role: 'employer' | 'worker' | 'admin';
   kyc_verified: boolean;
   ktp_photo_url: string | null;
   is_online: boolean;
