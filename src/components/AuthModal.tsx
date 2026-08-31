@@ -77,10 +77,12 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
       }
 
       // ===== PROSES LOGIN / DAFTAR =====
-      let { error: authError } = await supabase.auth.signInWithPassword({
-        email: dummyEmail,
-        password: dummyPassword,
-      });
+      let { error: authError } = const { error: secondSignInError } = await supabase.auth.signInWithPassword({
+          email: dummyEmail,
+          password: dummyPassword,
+        });
+        if (secondSignInError) throw secondSignInError;
+      }
 
       if (authError) {
         const { error: signUpError } = await supabase.auth.signUp({
