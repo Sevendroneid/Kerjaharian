@@ -37,7 +37,7 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Gagal kirim OTP');
 
-      // ✅ HAPUS: debug_otp tidak lagi dikirim dari Edge Function
+      // ✅ PERBAIKAN 1: HAPUS debug_otp (tidak usah disimpan)
       // setGeneratedOtp(data.debug_otp);  // BARIS INI DIHAPUS
       setStep('otp');
     } catch (err: any) {
@@ -51,12 +51,13 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
     setLoading(true);
     setError('');
     const cleanPhone = formatPhone(phone);
-    // ✅ DIUBAH: dari @kerjaharian.internal menjadi @kerjaharian.app
+    
+    // ✅ PERBAIKAN 2: Ganti @kerjaharian.internal → @kerjaharian.app
     const dummyEmail = `${cleanPhone}@kerjaharian.app`;
     const dummyPassword = `Pwd_${cleanPhone}_2026!`;
 
     try {
-      // ===== TAMBAHAN BARU: VERIFIKASI OTP KE DATABASE =====
+      // ✅ PERBAIKAN 3: TAMBAH VERIFIKASI OTP KE DATABASE
       const verifyResponse = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-otp-fonnte`,
         {
@@ -67,11 +68,11 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
       );
       const verifyData = await verifyResponse.json();
 
-      // JIKA OTP TIDAK VALID → STOP DI SINI
+      // JIKA OTP TIDAK VALID → STOP
       if (!verifyData.valid) {
         setError('Kode OTP salah atau kadaluarsa');
         setLoading(false);
-        return; // LANGSUNG BERHENTI, TIDAK LANJUT LOGIN
+        return; // STOP DI SINI, TIDAK LANJUT LOGIN
       }
 
       // ===== PROSES LOGIN / DAFTAR =====
@@ -122,9 +123,9 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
       if (!user) throw new Error('Sesi habis');
 
       const cleanPhone = formatPhone(phone);
-      // ✅ DIUBAH: HAPUS role admin otomatis
-      // const finalRole = cleanPhone === '6282340871029' ? 'admin' : role;
-      const finalRole = role; // SEMUA USER ROLE NYA SESUAI PILIHAN
+      
+      // ✅ PERBAIKAN 4: HAPUS ROLE ADMIN OTOMATIS
+      const finalRole = role; // SEMUA USER ROLE SESUAI PILIHAN
 
       const { error: profileError } = await supabase.from('profiles').insert({
         id: user.id,
@@ -152,7 +153,7 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
             <h2 className="text-xl font-bold mb-1">Masuk KerjaHarian</h2>
             <p className="text-sm text-gray-500 mb-4">Masuk atau daftar instan via WhatsApp</p>
             <label className="text-xs font-semibold text-gray-600">Nomor WhatsApp</label>
-            {/* ✅ DIUBAH: placeholder dari 082340871029 menjadi 08xxxxxxxxxx */}
+            {/* ✅ PERBAIKAN 5: GANTI PLACEHOLDER */}
             <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="08xxxxxxxxxx"
               className="w-full border rounded-lg px-3 py-2 mt-1 mb-4 text-sm focus:outline-blue-600" />
             {error && <p className="text-red-500 text-xs mb-3">{error}</p>}
@@ -198,4 +199,4 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
       </div>
     </div>
   );
-            }
+        }
