@@ -15,7 +15,6 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
   const [step, setStep] = useState<Step>('phone');
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
-  const [generatedOtp, setGeneratedOtp] = useState('');
   const [fullName, setFullName] = useState('');
   const [role, setRole] = useState<'mitra' | 'employer'>('employer');
   const [loading, setLoading] = useState(false);
@@ -38,7 +37,8 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Gagal kirim OTP');
 
-      setGeneratedOtp(data.debug_otp);
+      // ✅ HAPUS: debug_otp tidak lagi dikirim dari Edge Function
+      // setGeneratedOtp(data.debug_otp);  // BARIS INI DIHAPUS
       setStep('otp');
     } catch (err: any) {
       setError(err.message);
@@ -51,10 +51,30 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
     setLoading(true);
     setError('');
     const cleanPhone = formatPhone(phone);
-    const dummyEmail = `${cleanPhone}@kerjaharian.internal`;
+    // ✅ DIUBAH: dari @kerjaharian.internal menjadi @kerjaharian.app
+    const dummyEmail = `${cleanPhone}@kerjaharian.app`;
     const dummyPassword = `Pwd_${cleanPhone}_2026!`;
 
     try {
+      // ===== TAMBAHAN BARU: VERIFIKASI OTP KE DATABASE =====
+      const verifyResponse = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-otp-fonnte`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: cleanPhone, code: otp }),
+        }
+      );
+      const verifyData = await verifyResponse.json();
+
+      // JIKA OTP TIDAK VALID → STOP DI SINI
+      if (!verifyData.valid) {
+        setError('Kode OTP salah atau kadaluarsa');
+        setLoading(false);
+        return; // LANGSUNG BERHENTI, TIDAK LANJUT LOGIN
+      }
+
+      // ===== PROSES LOGIN / DAFTAR =====
       let { error: authError } = await supabase.auth.signInWithPassword({
         email: dummyEmail,
         password: dummyPassword,
@@ -102,7 +122,9 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
       if (!user) throw new Error('Sesi habis');
 
       const cleanPhone = formatPhone(phone);
-      const finalRole = cleanPhone === '6282340871029' ? 'admin' : role;
+      // ✅ DIUBAH: HAPUS role admin otomatis
+      // const finalRole = cleanPhone === '6282340871029' ? 'admin' : role;
+      const finalRole = role; // SEMUA USER ROLE NYA SESUAI PILIHAN
 
       const { error: profileError } = await supabase.from('profiles').insert({
         id: user.id,
@@ -130,7 +152,8 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
             <h2 className="text-xl font-bold mb-1">Masuk KerjaHarian</h2>
             <p className="text-sm text-gray-500 mb-4">Masuk atau daftar instan via WhatsApp</p>
             <label className="text-xs font-semibold text-gray-600">Nomor WhatsApp</label>
-            <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="082340871029"
+            {/* ✅ DIUBAH: placeholder dari 082340871029 menjadi 08xxxxxxxxxx */}
+            <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="08xxxxxxxxxx"
               className="w-full border rounded-lg px-3 py-2 mt-1 mb-4 text-sm focus:outline-blue-600" />
             {error && <p className="text-red-500 text-xs mb-3">{error}</p>}
             <button onClick={handleSendOtp} disabled={loading} className="w-full bg-blue-600 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-blue-700">
@@ -175,5 +198,4 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
       </div>
     </div>
   );
-  }
-                                             
+            }
