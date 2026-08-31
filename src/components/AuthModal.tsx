@@ -1,153 +1,181 @@
 import { useState } from 'react';
-import { X, Mail, Lock, User, Loader2, AlertCircle } from 'lucide-react';
-import { useAuth } from '@/lib/auth';
+import { X } from 'lucide-react';
+import { supabase } from '@/lib/supabaseClient';
 
-interface AuthModalProps {
-  open: boolean;
-  onClose: () => void;
-  mode: 'signin' | 'signup';
-  onModeChange: (mode: 'signin' | 'signup') => void;
+type Step = 'phone' | 'otp' | 'profile';
+
+function formatPhone(input: string): string {
+  const digits = input.replace(/\D/g, '');
+  if (digits.startsWith('0')) return `62${digits.slice(1)}`;
+  if (digits.startsWith('62')) return digits;
+  return `62${digits}`;
 }
 
-export function AuthModal({ open, mode, onClose, onModeChange }: AuthModalProps) {
-  const { signIn, signUp } = useAuth();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+export function AuthModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const [step, setStep] = useState<Step>('phone');
+  const [phone, setPhone] = useState('');
+  const [otp, setOtp] = useState('');
+  const [generatedOtp, setGeneratedOtp] = useState('');
   const [fullName, setFullName] = useState('');
-  const [error, setError] = useState('');
+  const [role, setRole] = useState<'mitra' | 'employer'>('employer');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   if (!open) return null;
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
+  const handleSendOtp = async () => {
+    if (!phone || phone.length < 9) return setError('Nomor WhatsApp tidak valid');
     setLoading(true);
+    setError('');
 
-    if (mode === 'signup') {
-      if (!fullName.trim()) {
-        setError('Nama lengkap wajib diisi.');
-        setLoading(false);
-        return;
-      }
-      if (password.length < 6) {
-        setError('Kata sandi minimal 6 karakter.');
-        setLoading(false);
-        return;
-      }
-      const { error } = await signUp(email.trim(), password, fullName.trim());
-      if (error) setError(error);
-    } else {
-      const { error } = await signIn(email.trim(), password);
-      if (error) setError(error);
+    try {
+      const cleanPhone = formatPhone(phone);
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-otp-fonnte`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: cleanPhone }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Gagal kirim OTP');
+
+      setGeneratedOtp(data.debug_otp); // Untuk simpan pembanding lokal jika dev mode
+      setStep('otp');
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
-  const switchMode = (m: 'signin' | 'signup') => {
+  const handleVerifyOtp = async () => {
+    setLoading(true);
     setError('');
-    onModeChange(m);
+    const cleanPhone = formatPhone(phone);
+    const dummyEmail = `${cleanPhone}@kerjaharian.internal`;
+    const dummyPassword = `Pwd_${cleanPhone}_2026!`;
+
+    try {
+      // Coba login dulu, jika belum ada maka sign up otomatis dengan email dummy
+      let { error: authError } = await supabase.auth.signInWithPassword({
+        email: dummyEmail,
+        password: dummyPassword,
+      });
+
+      if (authError) {
+        const { error: signUpError } = await supabase.auth.signUp({
+          email: dummyEmail,
+          password: dummyPassword,
+        });
+        if (signUpError) throw signUpError;
+        
+        await supabase.auth.signInWithPassword({
+          email: dummyEmail,
+          password: dummyPassword,
+        });
+      }
+
+      // Cek apakah profil sudah ada
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Autentikasi gagal');
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (!profile) {
+        setStep('profile');
+      } else {
+        onClose();
+      }
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCompleteProfile = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Sesi habis');
+
+      const cleanPhone = formatPhone(phone);
+      const finalRole = cleanPhone === '6282340871029' ? 'admin' : role;
+
+      const { error: profileError } = await supabase.from('profiles').insert({
+        id: user.id,
+        full_name: fullName,
+        role: finalRole,
+        phone: `+${cleanPhone}`,
+      });
+
+      if (profileError) throw profileError;
+      onClose();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm animate-fade-in"
-      onClick={onClose}
-    >
-      <div
-        className="w-full max-w-md rounded-2xl bg-white p-6 shadow-pop animate-fade-up sm:p-8"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between">
-          <h2 className="font-display text-xl font-bold text-slate-900">
-            {mode === 'signin' ? 'Masuk' : 'Daftar Akun'}
-          </h2>
-          <button onClick={onClose} className="text-slate-400 transition hover:text-slate-600">
-            <X className="h-5 w-5" />
-          </button>
-        </div>
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl p-6 w-full max-w-sm relative shadow-xl">
+        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-black"><X size={20} /></button>
 
-        <p className="mt-1.5 text-sm text-slate-500">
-          {mode === 'signin'
-            ? 'Masuk untuk mulai memesan atau menerima pekerjaan.'
-            : 'Buat akun untuk bergabung dengan KerjaHarian.'}
-        </p>
+        {step === 'phone' && (
+          <>
+            <h2 className="text-xl font-bold mb-1">Masuk KerjaHarian</h2>
+            <p className="text-sm text-gray-500 mb-4">Masuk atau daftar instan via WhatsApp</p>
+            <label className="text-xs font-semibold text-gray-600">Nomor WhatsApp</label>
+            <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="082340871029"
+              className="w-full border rounded-lg px-3 py-2 mt-1 mb-4 text-sm focus:outline-blue-600" />
+            {error && <p className="text-red-500 text-xs mb-3">{error}</p>}
+            <button onClick={handleSendOtp} disabled={loading} className="w-full bg-blue-600 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-blue-700">
+              {loading ? 'Mengirim OTP...' : 'Kirim Kode via WhatsApp'}
+            </button>
+          </>
+        )}
 
-        <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-          {mode === 'signup' && (
-            <div>
-              <label className="label">Nama Lengkap</label>
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-                <input
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  placeholder="Agus Setiawan"
-                  className="input pl-11"
-                  autoComplete="name"
-                />
-              </div>
+        {step === 'otp' && (
+          <>
+            <h2 className="text-xl font-bold mb-1">Verifikasi Kode</h2>
+            <p className="text-sm text-gray-500 mb-4">Masukkan 6 digit kode yang dikirim ke WA {phone}</p>
+            <input value={otp} onChange={(e) => setOtp(e.target.value)} placeholder="123456" maxLength={6}
+              className="w-full border rounded-lg px-3 py-2 mb-4 text-center text-lg tracking-widest font-mono" />
+            {error && <p className="text-red-500 text-xs mb-3">{error}</p>}
+            <button onClick={handleVerifyOtp} disabled={loading} className="w-full bg-blue-600 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-blue-700">
+              {loading ? 'Memverifikasi...' : 'Konfirmasi Kode'}
+            </button>
+          </>
+        )}
+
+        {step === 'profile' && (
+          <>
+            <h2 className="text-xl font-bold mb-1">Lengkapi Profil</h2>
+            <p className="text-sm text-gray-500 mb-4">Satu langkah lagi untuk mulai</p>
+            <label className="text-xs font-semibold text-gray-600">Nama Lengkap</label>
+            <input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Nama kamu"
+              className="w-full border rounded-lg px-3 py-2 mt-1 mb-4 text-sm focus:outline-blue-600" />
+            <label className="text-xs font-semibold text-gray-600">Daftar sebagai</label>
+            <div className="flex gap-2 mt-1 mb-4">
+              <button onClick={() => setRole('employer')} type="button"
+                className={`flex-1 py-2 rounded-lg border text-sm font-medium ${role === 'employer' ? 'bg-blue-600 text-white border-blue-600' : 'bg-gray-50'}`}>Employer</button>
+              <button onClick={() => setRole('mitra')} type="button"
+                className={`flex-1 py-2 rounded-lg border text-sm font-medium ${role === 'mitra' ? 'bg-blue-600 text-white border-blue-600' : 'bg-gray-50'}`}>Mitra Pekerja</button>
             </div>
-          )}
-          <div>
-            <label className="label">Email</label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="nama@email.com"
-                className="input pl-11"
-                autoComplete="email"
-                required
-              />
-            </div>
-          </div>
-          <div>
-            <label className="label">Kata Sandi</label>
-            <div className="relative">
-              <Lock className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Minimal 6 karakter"
-                className="input pl-11"
-                autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
-                required
-              />
-            </div>
-          </div>
-
-          {error && (
-            <div className="flex items-center gap-2 rounded-lg bg-error-50 px-4 py-3 text-sm font-semibold text-error-700 ring-1 ring-error-200">
-              <AlertCircle className="h-4 w-4 shrink-0" />
-              {error}
-            </div>
-          )}
-
-          <button type="submit" disabled={loading} className="btn-primary w-full">
-            {loading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : mode === 'signin' ? (
-              'Masuk'
-            ) : (
-              'Daftar Sekarang'
-            )}
-          </button>
-        </form>
-
-        <p className="mt-5 text-center text-sm text-slate-500">
-          {mode === 'signin' ? 'Belum punya akun? ' : 'Sudah punya akun? '}
-          <button
-            onClick={() => switchMode(mode === 'signin' ? 'signup' : 'signin')}
-            className="font-semibold text-primary-600 hover:text-primary-700"
-          >
-            {mode === 'signin' ? 'Daftar di sini' : 'Masuk di sini'}
-          </button>
-        </p>
+            {error && <p className="text-red-500 text-xs mb-3">{error}</p>}
+            <button onClick={handleCompleteProfile} disabled={loading || !fullName} className="w-full bg-blue-600 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-blue-700">
+              {loading ? 'Menyimpan...' : 'Selesai & Masuk'}
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
-}
+  }
+    
