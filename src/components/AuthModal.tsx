@@ -131,12 +131,14 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
       // const finalRole = cleanPhone === '6282340871029' ? 'admin' : role;
       const finalRole = role; // SEMUA USER SESUAI PILIHAN
 
-      const { error: profileError } = await supabase.from('profiles').insert({
-        id: user.id,
-        full_name: fullName,
-        role: finalRole,
-        whatsapp: `+${cleanPhone}`,
-      });
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({
+          full_name: fullName,
+          role: finalRole,
+          whatsapp: `+${cleanPhone}`,
+        })
+        .eq('id', user.id);
 
       if (profileError) throw profileError;
       onClose();
