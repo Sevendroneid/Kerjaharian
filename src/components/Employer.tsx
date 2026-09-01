@@ -360,27 +360,25 @@ export function Employer({ onAuthClick, initialCategory }: EmployerProps) {
                 3. Kalkulasi Transparan
               </h2>
               <div className="mt-4 rounded-xl bg-slate-50 p-5 ring-1 ring-slate-200">
-                **Summary:**
+                <SummaryRow label="Upah Pokok" value={formatIDR(baseWage)} />
 
                 {nightShift && (
-                  **Summary:**
-
+                  <SummaryRow label="Shift Malam (+20%)" value={formatIDR(nightShiftAdd)} />
                 )}
                 {needsTools && (
-                  **Summary:**
-
+                  <SummaryRow label="Alat Kerja" value={formatIDR(toolAllowance)} />
                 )}
-                **Summary:**
+                <SummaryRow
+                  label="Biaya Layanan & Asuransi"
+                  value={formatIDR(adminFee + ppn + insurance.totalMicroInsurance)}
+                  muted
+                />
 
                 <div className="ml-4 mt-1 space-y-0.5">
-                  **Summary:**
-
-                  **Summary:**
-
-                  **Summary:**
-
-                  **Summary:**
-
+                  <SummaryRow label="Biaya Admin (10%)" value={formatIDR(adminFee)} muted small />
+                  <SummaryRow label="PPN (11%)" value={formatIDR(ppn)} muted small />
+                  <SummaryRow label="Asuransi BPJS" value={formatIDR(insurance.bpjsCoverage)} muted small />
+                  <SummaryRow label="Asuransi FWD" value={formatIDR(insurance.fwdCoverage)} muted small />
                 </div>
                 <div className="my-3 border-t border-dashed border-slate-300" />
                 <div className="flex items-center justify-between">
@@ -494,4 +492,4 @@ function SummaryRow({
       <span className={`font-semibold ${muted ? 'text-slate-500' : 'text-slate-900'}`}>{value}</span>
     </div>
   );
-}
+         }
