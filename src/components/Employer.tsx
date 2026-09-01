@@ -106,7 +106,25 @@ export function Employer({ onAuthClick, initialCategory }: EmployerProps) {
       onAuthClick('signup');
       return;
     }
+    const { data: profileCheck } = await supabase
+      .from('profiles')
+      .select('ktp_photo_url')
+      .eq('id', user.id)
+      .single();
 
+    if (!profileCheck?.ktp_photo_url) {
+      return setError('Verifikasi KTP wajib diselesaikan sebelum membuat pesanan. Hubungi CS untuk bantuan verifikasi.');
+    }
+
+    const { count } = await supabase
+      .from('jobs')
+      .select('*', { count: 'exact', head: true })
+      .eq('employer_id', user.id)
+      .eq('status', 'open');
+
+    if ((count ?? 0) >= 3) {
+      return setError('Kamu sudah punya 3 pesanan aktif. Selesaikan salah satu dulu sebelum membuat yang baru.');
+    }
     if (!title.trim()) return setError('Rincian pekerjaan wajib diisi.');
     if (!location.trim()) return setError('Lokasi pengerjaan wajib diisi.');
     if (wageNum < minWage)
