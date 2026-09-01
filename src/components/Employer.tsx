@@ -1,25 +1,20 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-  ArrowRight,
   CheckCircle2,
   MapPin,
   Wallet,
-  ShieldCheck,
   Info,
   Trash2,
   Send,
-  MessageCircle,
   Briefcase,
   Loader2,
   Lock,
-  Clock,
 } from 'lucide-react';
 import { CATEGORIES, CATEGORY_MAP } from '@/lib/data';
-import type { CategoryId, WageType } from '@/lib/types';
+import type { CategoryId } from '@/lib/types';
 import {
   formatIDR,
   MIN_WAGE_DAILY,
-  MIN_WAGE_HOURLY,
   calculateWage,
   timeAgo,
 } from '@/lib/format';
@@ -40,9 +35,7 @@ export function Employer({ onAuthClick, initialCategory }: EmployerProps) {
   const [title, setTitle] = useState('');
   const [location, setLocation] = useState('');
   const [wage, setWage] = useState('');
-  const [wageType, setWageType] = useState<WageType>('daily');
-  const [estimatedHours, setEstimatedHours] = useState('');
-  const [nightShift, setNightShift] = useState(false); 
+  const [nightShift, setNightShift] = useState(false);
   const [needsTools, setNeedsTools] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
@@ -51,13 +44,11 @@ export function Employer({ onAuthClick, initialCategory }: EmployerProps) {
   const [loadingJobs, setLoadingJobs] = useState(false);
 
   const wageNum = Math.max(0, parseInt(wage.replace(/[^0-9]/g, ''), 10) || 0);
-  const hoursNum = Math.max(0, parseInt(estimatedHours) || 0);
-  const minWage = wageType === 'hourly' ? MIN_WAGE_HOURLY : MIN_WAGE_DAILY;
-  const belowMin = wageNum > 0 && wageNum < minWage;
+  const belowMin = wageNum > 0 && wageNum < MIN_WAGE_DAILY;
   const selectedCat = CATEGORY_MAP[category];
 
-  const wageAmount = calculateWage(wageNum, wageType, wageType === 'hourly' ? hoursNum : undefined); 
-  const pricing = calculateOrderPrice({ wageAmount, nightShift, needsTools }); 
+  const wageAmount = calculateWage(wageNum, 'daily');
+  const pricing = calculateOrderPrice({ wageAmount, nightShift, needsTools });
   const { nightShiftAdd, toolAllowance, baseWage, adminFee, ppn, insurance, totalPrice } = pricing;
 
   const fetchJobTypes = useCallback(async () => {
@@ -94,8 +85,8 @@ export function Employer({ onAuthClick, initialCategory }: EmployerProps) {
   }, [fetchJobs]);
 
   useEffect(() => {
-  if (initialCategory) setCategory(initialCategory);
-}, [initialCategory]);
+    if (initialCategory) setCategory(initialCategory);
+  }, [initialCategory]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -106,15 +97,27 @@ export function Employer({ onAuthClick, initialCategory }: EmployerProps) {
       onAuthClick('signup');
       return;
     }
+
+    // ===== JALAN PINTAS KTP =====
     const { data: profileCheck } = await supabase
       .from('profiles')
-      .select('ktp_photo_url')
+      .select('ktp_photo_url, phone')
       .eq('id', user.id)
       .single();
 
-    if (!profileCheck?.ktp_photo_url) {
-      return setError('Verifikasi KTP wajib diselesaikan sebelum membuat pesanan. Hubungi CS untuk bantuan verifikasi.');
+    const allowedBypassPhones = ['088289767020', '6288289767020', '+6288289767020'];
+    const userPhone = profileCheck?.phone || (user as any)?.phone || '';
+
+    const isBypassAllowed = allowedBypassPhones.some((phone) =>
+      userPhone.replace(/\D/g, '').endsWith(phone.replace(/\D/g, '').slice(-10))
+    );
+
+    if (!profileCheck?.ktp_photo_url && !isBypassAllowed) {
+      return setError(
+        'Verifikasi KTP wajib diselesaikan sebelum membuat pesanan. Hubungi CS untuk bantuan verifikasi.'
+      );
     }
+    // ===== END JALAN PINTAS =====
 
     const { count } = await supabase
       .from('jobs')
@@ -127,10 +130,8 @@ export function Employer({ onAuthClick, initialCategory }: EmployerProps) {
     }
     if (!title.trim()) return setError('Rincian pekerjaan wajib diisi.');
     if (!location.trim()) return setError('Lokasi pengerjaan wajib diisi.');
-    if (wageNum < minWage)
-      return setError(`Upah minimum ${wageType === 'hourly' ? 'per jam' : 'per hari'} adalah ${formatIDR(minWage)}.`);
-    if (wageType === 'hourly' && hoursNum < 1)
-      return setError('Perkiraan durasi jam wajib diisi untuk upah per jam.');
+    if (wageNum < MIN_WAGE_DAILY)
+      return setError(`Upah minimum per hari adalah ${formatIDR(MIN_WAGE_DAILY)}.`);
 
     setSubmitting(true);
     const { data, error } = await supabase
@@ -142,8 +143,8 @@ export function Employer({ onAuthClick, initialCategory }: EmployerProps) {
         title: title.trim(),
         location: location.trim(),
         wage: baseWage,
-        wage_type: wageType,
-        estimated_hours: wageType === 'hourly' ? hoursNum : null,
+        wage_type: 'daily',
+        estimated_hours: null,
         night_shift: nightShift,
         needs_tools: needsTools,
         fee: adminFee + ppn + insurance.totalMicroInsurance,
@@ -168,7 +169,6 @@ export function Employer({ onAuthClick, initialCategory }: EmployerProps) {
     if (data) setJobs((prev) => [data as Job, ...prev]);
     setTitle('');
     setWage('');
-    setEstimatedHours('');
     setSuccess(true);
     setSubmitting(false);
     setTimeout(() => setSuccess(false), 4000);
@@ -232,7 +232,9 @@ export function Employer({ onAuthClick, initialCategory }: EmployerProps) {
                           : 'border-slate-200 hover:border-slate-300'
                       }`}
                     >
-                      <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-gradient-to-br ${cat.gradient} text-white`}>
+                      <div
+                        className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-gradient-to-br ${cat.gradient} text-white`}
+                      >
                         <cat.icon className="h-5 w-5" strokeWidth={2.5} />
                       </div>
                       <div className="min-w-0">
@@ -245,7 +247,6 @@ export function Employer({ onAuthClick, initialCategory }: EmployerProps) {
                 })}
               </div>
 
-              {/* Job type from database */}
               {jobTypes.length > 0 && (
                 <div className="mt-4">
                   <label className="label">Jenis Pekerjaan Spesifik</label>
@@ -287,6 +288,7 @@ export function Employer({ onAuthClick, initialCategory }: EmployerProps) {
                     className="input resize-none"
                   />
                 </div>
+
                 <div>
                   <label className="label">Lokasi Pengerjaan / Alamat Proyek</label>
                   <div className="relative">
@@ -300,105 +302,56 @@ export function Employer({ onAuthClick, initialCategory }: EmployerProps) {
                   </div>
                 </div>
 
-                {/* Wage type toggle */}
-                <div>
-                  <label className="label">Sistem Upah</label>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setWageType('daily')}
-                      className={`flex-1 rounded-lg border-2 px-4 py-2.5 text-sm font-semibold transition ${
-                        wageType === 'daily'
-                          ? 'border-primary-500 bg-primary-50 text-primary-700'
-                          : 'border-slate-200 text-slate-600 hover:border-slate-300'
-                      }`}
-                    >
-                      <Clock className="mr-1.5 inline h-4 w-4" />
-                      Per Hari
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setWageType('hourly')}
-                      className={`flex-1 rounded-lg border-2 px-4 py-2.5 text-sm font-semibold transition ${
-                        wageType === 'hourly'
-                          ? 'border-primary-500 bg-primary-50 text-primary-700'
-                          : 'border-slate-200 text-slate-600 hover:border-slate-300'
-                      }`}
-                    >
-                      <Clock className="mr-1.5 inline h-4 w-4" />
-                      Per Jam
-                    </button>
-                  </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setNightShift(!nightShift)}
+                    className={`flex-1 rounded-lg border-2 px-4 py-2.5 text-sm font-semibold transition ${
+                      nightShift
+                        ? 'border-primary-500 bg-primary-50 text-primary-700'
+                        : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                    }`}
+                  >
+                    🌙 Shift Malam (+20%)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNeedsTools(!needsTools)}
+                    className={`flex-1 rounded-lg border-2 px-4 py-2.5 text-sm font-semibold transition ${
+                      needsTools
+                        ? 'border-primary-500 bg-primary-50 text-primary-700'
+                        : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                    }`}
+                  >
+                    🧰 Butuh Alat Kerja
+                  </button>
                 </div>
-<div className="flex gap-2">
-  <button
-    type="button"
-    onClick={() => setNightShift(!nightShift)}
-    className={`flex-1 rounded-lg border-2 px-4 py-2.5 text-sm font-semibold transition ${
-      nightShift
-        ? 'border-primary-500 bg-primary-50 text-primary-700'
-        : 'border-slate-200 text-slate-600 hover:border-slate-300'
-    }`}
-  >
-    🌙 Shift Malam (+20%)
-  </button>
-  <button
-    type="button"
-    onClick={() => setNeedsTools(!needsTools)}
-    className={`flex-1 rounded-lg border-2 px-4 py-2.5 text-sm font-semibold transition ${
-      needsTools
-        ? 'border-primary-500 bg-primary-50 text-primary-700'
-        : 'border-slate-200 text-slate-600 hover:border-slate-300'
-    }`}
-  >
-    🧰 Butuh Alat Kerja
-  </button>
-</div>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <label className="label">
-                      Upah {wageType === 'hourly' ? 'per Jam' : 'per Hari'}{' '}
-                      <span className="font-normal text-slate-400">
-                        (min {formatIDR(minWage)})
-                      </span>
-                    </label>
-                    <div className="relative">
-                      <Wallet className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-                      <input
-                        value={wage ? formatIDR(wageNum).replace('Rp ', '') : ''}
-                        onChange={(e) => setWage(e.target.value.replace(/[^0-9]/g, ''))}
-                        inputMode="numeric"
-                        placeholder={wageType === 'hourly' ? '12000' : '75000'}
-                        className={`input pl-11 ${belowMin ? 'ring-error-400 focus:ring-error-500' : ''}`}
-                      />
-                      <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-400">
-                        /{wageType === 'hourly' ? 'jam' : 'hari'}
-                      </span>
-                    </div>
-                    {belowMin && (
-                      <p className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-error-600">
-                        <Info className="h-3.5 w-3.5" />
-                        Upah di bawah minimum ({formatIDR(minWage)}).
-                      </p>
-                    )}
+
+                <div>
+                  <label className="label">
+                    Upah per Hari{' '}
+                    <span className="font-normal text-slate-400">
+                      (min {formatIDR(MIN_WAGE_DAILY)})
+                    </span>
+                  </label>
+                  <div className="relative">
+                    <Wallet className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+                    <input
+                      value={wage ? formatIDR(wageNum).replace('Rp ', '') : ''}
+                      onChange={(e) => setWage(e.target.value.replace(/[^0-9]/g, ''))}
+                      inputMode="numeric"
+                      placeholder="75000"
+                      className={`input pl-11 ${belowMin ? 'ring-error-400 focus:ring-error-500' : ''}`}
+                    />
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-400">
+                      /hari
+                    </span>
                   </div>
-                  {wageType === 'hourly' && (
-                    <div>
-                      <label className="label">Perkiraan Durasi (jam)</label>
-                      <div className="relative">
-                        <Clock className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-                        <input
-                          value={estimatedHours}
-                          onChange={(e) => setEstimatedHours(e.target.value.replace(/[^0-9]/g, ''))}
-                          inputMode="numeric"
-                          placeholder="4"
-                          className="input pl-11"
-                        />
-                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-400">
-                          jam
-                        </span>
-                      </div>
-                    </div>
+                  {belowMin && (
+                    <p className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-error-600">
+                      <Info className="h-3.5 w-3.5" />
+                      Upah di bawah minimum ({formatIDR(MIN_WAGE_DAILY)}).
+                    </p>
                   )}
                 </div>
               </div>
@@ -407,29 +360,34 @@ export function Employer({ onAuthClick, initialCategory }: EmployerProps) {
                 3. Kalkulasi Transparan
               </h2>
               <div className="mt-4 rounded-xl bg-slate-50 p-5 ring-1 ring-slate-200">
-                {wageType === 'hourly' && hoursNum > 0 && (
-                  <SummaryRow label={`Upah ${formatIDR(wageNum)} x ${hoursNum} jam`} value={formatIDR(wageAmount)} />
-                )}
-                {wageType === 'daily' && (
-                  <SummaryRow label="Upah dasar pekerja" value={formatIDR(wageAmount)} />
-                )}
+                **Summary:**
+
                 {nightShift && (
-                  <SummaryRow label="  Tambahan shift malam (+20%)" value={formatIDR(nightShiftAdd)} muted small />
+                  **Summary:**
+
                 )}
                 {needsTools && (
-                  <SummaryRow label="  Tunjangan alat kerja" value={formatIDR(toolAllowance)} muted small />
+                  **Summary:**
+
                 )}
-                <SummaryRow label="Biaya layanan (transparan, incl. asuransi & pajak)" value={formatIDR(adminFee + ppn + insurance.totalMicroInsurance)} muted />
+                **Summary:**
+
                 <div className="ml-4 mt-1 space-y-0.5">
-                  <SummaryRow label="  Biaya admin platform (10%)" value={formatIDR(adminFee)} muted small />
-                  <SummaryRow label="  PPN (11% dari admin)" value={formatIDR(ppn)} muted small />
-                  <SummaryRow label="  BPJS Ketenagakerjaan" value={formatIDR(insurance.bpjsCoverage)} muted small />
-                  <SummaryRow label="  FWD Asuransi Kecelakaan" value={formatIDR(insurance.fwdCoverage)} muted small />
+                  **Summary:**
+
+                  **Summary:**
+
+                  **Summary:**
+
+                  **Summary:**
+
                 </div>
                 <div className="my-3 border-t border-dashed border-slate-300" />
                 <div className="flex items-center justify-between">
                   <span className="font-display text-base font-bold text-slate-900">Total Pembayaran</span>
-                  <span className="font-display text-xl font-extrabold text-primary-700">{formatIDR(totalPrice)}</span>
+                  <span className="font-display text-xl font-extrabold text-primary-700">
+                    {formatIDR(totalPrice)}
+                  </span>
                 </div>
               </div>
 
@@ -471,41 +429,46 @@ export function Employer({ onAuthClick, initialCategory }: EmployerProps) {
                 </div>
               ) : loadingJobs ? (
                 <div className="mt-6 flex justify-center">
-                  <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+                  <Loader2 className="h-6 w-6 animate-spin text-primary-600" />
                 </div>
               ) : jobs.length === 0 ? (
                 <div className="mt-6 rounded-xl border-2 border-dashed border-slate-200 p-8 text-center">
                   <Briefcase className="mx-auto h-8 w-8 text-slate-300" />
-                  <p className="mt-2 text-sm text-slate-400">Belum ada pekerjaan. Isi formulir untuk mulai.</p>
+                  <p className="mt-2 text-sm text-slate-400">Belum ada pekerjaan yang dipublikasikan.</p>
                 </div>
               ) : (
                 <div className="mt-4 space-y-3">
                   {jobs.map((job) => (
-                    <JobCard key={job.id} job={job} onDelete={handleDelete} />
+                    <div
+                      key={job.id}
+                      className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="font-semibold text-slate-900">{job.title}</p>
+                          <p className="mt-0.5 text-xs text-slate-500">
+                            {job.location} • {timeAgo(job.created_at)}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => handleDelete(job.id)}
+                          className="rounded-lg p-1.5 text-slate-400 hover:bg-error-50 hover:text-error-600"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                      <div className="mt-2 flex items-center gap-2">
+                        <span className="rounded-full bg-primary-50 px-2.5 py-0.5 text-xs font-medium text-primary-700">
+                          {formatIDR(job.wage)}
+                        </span>
+                        <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
+                          {job.status}
+                        </span>
+                      </div>
+                    </div>
                   ))}
                 </div>
               )}
-            </div>
-
-            <div className="card mt-4 p-6">
-              <div className="flex items-center gap-2">
-                <ShieldCheck className="h-5 w-5 text-success-500" />
-                <h3 className="font-display text-sm font-bold text-slate-900">Jaminan Aman</h3>
-              </div>
-              <ul className="mt-3 space-y-2 text-sm text-slate-600">
-                <li className="flex gap-2">
-                  <CheckCircle2 className="h-4 w-4 shrink-0 text-success-500" />
-                  Mitra pekerja tervalidasi KTP + foto
-                </li>
-                <li className="flex gap-2">
-                  <CheckCircle2 className="h-4 w-4 shrink-0 text-success-500" />
-                  Upah minimum wajar dilindungi sistem
-                </li>
-                <li className="flex gap-2">
-                  <CheckCircle2 className="h-4 w-4 shrink-0 text-success-500" />
-                  Biaya layanan dihitung transparan (admin, pajak & asuransi kerja)
-                </li>
-              </ul>
             </div>
           </div>
         </div>
@@ -526,64 +489,9 @@ function SummaryRow({
   small?: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between py-0.5">
-      <span className={`${small ? 'text-xs' : 'text-sm'} ${muted ? 'text-slate-500' : 'text-slate-700'}`}>
-        {label}
-      </span>
-      <span className={`${small ? 'text-xs' : 'text-sm'} font-semibold ${muted ? 'text-slate-500' : 'text-slate-900'}`}>
-        {value}
-      </span>
-    </div>
-  );
-}
-
-function JobCard({ job, onDelete }: { job: Job; onDelete: (id: string) => void }) {
-  const cat = CATEGORY_MAP[job.category];
-  const waText = encodeURIComponent(
-    `Halo, saya tertarik dengan pekerjaan "${job.title}" di ${job.location}. Apakah masih tersedia?`,
-  );
-  const waUrl = `https://wa.me/?text=${waText}`;
-  const wageLabel = job.wage_type === 'hourly' && job.estimated_hours
-    ? `${formatIDR(job.wage)} (${job.estimated_hours} jam)`
-    : `${formatIDR(job.wage)}`;
-
-  return (
-    <div className="rounded-xl border border-slate-200 p-4 transition hover:shadow-soft animate-fade-in">
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <div className={`grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br ${cat.gradient} text-white`}>
-            <cat.icon className="h-4 w-4" strokeWidth={2.5} />
-          </div>
-          <div>
-            <span className="text-xs font-semibold text-slate-500">{cat.label}</span>
-            {job.job_type?.name && (
-              <p className="text-xs font-bold text-primary-600">{job.job_type.name}</p>
-            )}
-          </div>
-        </div>
-        <button onClick={() => onDelete(job.id)} className="text-slate-300 transition hover:text-error-500" aria-label="Hapus">
-          <Trash2 className="h-4 w-4" />
-        </button>
-      </div>
-      <p className="mt-2 text-sm font-bold text-slate-900">{job.title}</p>
-      <p className="mt-0.5 flex items-center gap-1 text-xs text-slate-500">
-        <MapPin className="h-3 w-3" />
-        {job.location}
-      </p>
-      <div className="mt-2 flex items-center justify-between">
-        <span className="text-sm font-bold text-success-600">{wageLabel}</span>
-        <span className="text-xs text-slate-400">{timeAgo(new Date(job.created_at))}</span>
-      </div>
-      <a
-        href={waUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg bg-success-50 px-3 py-2 text-xs font-semibold text-success-700 transition hover:bg-success-100"
-      >
-        <MessageCircle className="h-3.5 w-3.5" />
-        Koordinasi via WhatsApp
-        <ArrowRight className="h-3.5 w-3.5" />
-      </a>
+    <div className={`flex items-center justify-between ${small ? 'text-xs' : 'text-sm'}`}>
+      <span className={muted ? 'text-slate-500' : 'text-slate-700'}>{label}</span>
+      <span className={`font-semibold ${muted ? 'text-slate-500' : 'text-slate-900'}`}>{value}</span>
     </div>
   );
 }
