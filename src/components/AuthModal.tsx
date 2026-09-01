@@ -235,5 +235,4 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
       </div>
     </div>
   );
-             }
-      
+                 }
