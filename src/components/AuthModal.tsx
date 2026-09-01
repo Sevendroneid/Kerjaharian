@@ -17,6 +17,7 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
   const [otp, setOtp] = useState('');
   const [fullName, setFullName] = useState('');
   const [role, setRole] = useState<'mitra' | 'employer'>('employer');
+  const [ktpFile, setKtpFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -37,9 +38,6 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Gagal kirim OTP');
 
-      // ✅ HAPUS: debug_otp tidak dipakai lagi
-      // setGeneratedOtp(data.debug_otp);
-      
       setStep('otp');
     } catch (err: any) {
       setError(err.message);
@@ -53,12 +51,10 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
     setError('');
     const cleanPhone = formatPhone(phone);
     
-    // ✅ GANTI: dari @kerjaharian.internal → @kerjaharian.app
     const dummyEmail = `${cleanPhone}@kerjaharian.app`;
     const dummyPassword = `Pwd_${cleanPhone}_2026!`;
 
     try {
-      // ✅ TAMBAH: Verifikasi OTP ke Edge Function
       const verifyResponse = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-otp-fonnte`,
         {
@@ -69,20 +65,16 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
       );
       const verifyData = await verifyResponse.json();
 
-      // ✅ TAMBAH: Jika OTP tidak valid, STOP
       if (!verifyData.valid) {
         setError('Kode OTP salah atau kadaluarsa');
         setLoading(false);
         return;
       }
 
-      // ===== PROSES LOGIN / DAFTAR =====
-      let { error: authError } = const { error: secondSignInError } = await supabase.auth.signInWithPassword({
-          email: dummyEmail,
-          password: dummyPassword,
-        });
-        if (secondSignInError) throw secondSignInError;
-      }
+      let { error: authError } = await supabase.auth.signInWithPassword({
+        email: dummyEmail,
+        password: dummyPassword,
+      });
 
       if (authError) {
         const { error: signUpError } = await supabase.auth.signUp({
@@ -91,10 +83,11 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
         });
         if (signUpError) throw signUpError;
         
-        await supabase.auth.signInWithPassword({
+        const { error: secondSignInError } = await supabase.auth.signInWithPassword({
           email: dummyEmail,
           password: dummyPassword,
         });
+        if (secondSignInError) throw secondSignInError;
       }
 
       const { data: { user } } = await supabase.auth.getUser();
@@ -126,10 +119,7 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
       if (!user) throw new Error('Sesi habis');
 
       const cleanPhone = formatPhone(phone);
-      
-      // ✅ HAPUS: Role admin otomatis
-      // const finalRole = cleanPhone === '6282340871029' ? 'admin' : role;
-      const finalRole = role; // SEMUA USER SESUAI PILIHAN
+      const finalRole = role;
 
       const { error: profileError } = await supabase
         .from('profiles')
@@ -141,6 +131,34 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
         .eq('id', user.id);
 
       if (profileError) throw profileError;
+
+      if (finalRole === 'employer') {
+        setStep('ktp');
+      } else {
+        onClose();
+      }
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUploadKtp = async () => {
+    if (!ktpFile) return setError('Pilih foto KTP terlebih dahulu');
+    setLoading(true);
+    setError('');
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Sesi habis');
+
+      const filePath = `${user.id}/ktp-${Date.now()}.jpg`;
+      const { error: uploadError } = await supabase.storage.from('ktp-photos').upload(filePath, ktpFile);
+      if (uploadError) throw uploadError;
+
+      const { error: updateError } = await supabase.from('profiles').update({ ktp_photo_url: filePath }).eq('id', user.id);
+      if (updateError) throw updateError;
+
       onClose();
     } catch (err: any) {
       setError(err.message);
@@ -159,7 +177,6 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
             <h2 className="text-xl font-bold mb-1">Masuk KerjaHarian</h2>
             <p className="text-sm text-gray-500 mb-4">Masuk atau daftar instan via WhatsApp</p>
             <label className="text-xs font-semibold text-gray-600">Nomor WhatsApp</label>
-            {/* ✅ GANTI: placeholder */}
             <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="08xxxxxxxxxx"
               className="w-full border rounded-lg px-3 py-2 mt-1 mb-4 text-sm focus:outline-blue-600" />
             {error && <p className="text-red-500 text-xs mb-3">{error}</p>}
@@ -202,7 +219,21 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
             </button>
           </>
         )}
+
+        {step === 'ktp' && (
+          <>
+            <h2 className="text-xl font-bold mb-1">Verifikasi KTP</h2>
+            <p className="text-sm text-gray-500 mb-4">Wajib untuk employer, membantu mencegah pesanan fiktif.</p>
+            <input type="file" accept="image/*" onChange={(e) => setKtpFile(e.target.files?.[0] || null)}
+              className="w-full border rounded-lg px-3 py-2 mb-4 text-sm" />
+            {error && <p className="text-red-500 text-xs mb-3">{error}</p>}
+            <button onClick={handleUploadKtp} disabled={loading || !ktpFile} className="w-full bg-blue-600 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-blue-700">
+              {loading ? 'Mengunggah...' : 'Unggah & Selesai'}
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
-    }
+             }
+      
