@@ -106,7 +106,7 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
         .eq('id', user.id)
         .maybeSingle();
 
-      if (!profile) {
+      if (!profile?.full_name) {
         setStep('profile');
       } else {
         onClose();
