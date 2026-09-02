@@ -71,7 +71,7 @@ export function Employer({ onAuthClick, initialCategory }: EmployerProps) {
     if (wageNum < floorPrice) return setError(`Upah min ${formatIDR(floorPrice)}.`);
 
     setSubmitting(true);
-    const { data: orderData, error: orderError } = await supabase.from('orders').insert({ employer_id: user.id, worker_id: null, job_price_id: selectedJobPrice.id, status: 'pending_payment', hours: null, tier: String(selectedJobPrice.tier), night_shift: nightShift, tool_allowance: needsTools ? toolAllowance : 0, physical_load: false, subtotal: baseWage + nightShiftAdd + (needsTools ? toolAllowance : 0), admin_fee: adminFee, ppn: ppn, insurance: insurance.totalMicroInsurance, total_price: totalPrice }).select('*, job_prices(job_name)').single();
+    const { data: orderData, error: orderError } = await supabase.from('orders').insert({ employer_id: user.id, worker_id: null, job_price_id: selectedJobPrice.id, status: 'pending_payment', hours: 4, tier: String(selectedJobPrice.tier), night_shift: nightShift, tool_allowance: needsTools ? toolAllowance : 0, physical_load: false, subtotal: baseWage + nightShiftAdd + (needsTools ? toolAllowance : 0), admin_fee: adminFee, ppn: ppn, insurance: insurance.totalMicroInsurance, total_price: totalPrice }).select('*, job_prices(job_name)').single();
     if (orderError) { setError(orderError.message); setSubmitting(false); return; }
 
     // GEOCODING KE OPENSTREETMAP & INSERT LOKASI
