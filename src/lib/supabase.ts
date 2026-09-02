@@ -31,6 +31,7 @@ export interface Profile {
 export interface Job {
   id: string;
   employer_id: string;
+  worker_id: string | null;
   category: 'logistik' | 'tukang' | 'kebersihan' | 'serabutan';
   job_type_id: string | null;
   title: string;
@@ -42,6 +43,14 @@ export interface Job {
   fee_breakdown: { insurance: number; tax: number; platform: number } | null;
   total: number;
   status: 'open' | 'assigned' | 'completed' | 'cancelled';
+  duration_minutes: number | null;
+  overtime_rate_per_minute: number | null;
+  started_at: string | null;
+  scheduled_end_at: string | null;
+  completed_at: string | null;
+  overtime_minutes: number;
+  overtime_amount: number;
+  completion_decision: 'finished' | 'continued' | null;
   created_at: string;
   employer?: Profile;
   job_type?: { name: string; description: string | null } | null;
