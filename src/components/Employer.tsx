@@ -101,12 +101,12 @@ export function Employer({ onAuthClick, initialCategory }: EmployerProps) {
     // ===== JALAN PINTAS KTP =====
     const { data: profileCheck } = await supabase
       .from('profiles')
-      .select('ktp_photo_url, phone')
+      .select('ktp_photo_url, whatsapp')
       .eq('id', user.id)
       .single();
 
     const allowedBypassPhones = ['088289767020', '6288289767020', '+6288289767020'];
-    const userPhone = profileCheck?.phone || (user as any)?.phone || '';
+    const userPhone = profileCheck?.whatsapp || (user as any)?.phone || '';
 
     const isBypassAllowed = allowedBypassPhones.some((phone) =>
       userPhone.replace(/\D/g, '').endsWith(phone.replace(/\D/g, '').slice(-10))
