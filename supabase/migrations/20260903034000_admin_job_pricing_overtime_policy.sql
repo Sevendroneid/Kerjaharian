@@ -36,7 +36,7 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.admin_set_job_pricing(uuid, integer, integer, integer) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.admin_set_job_pricing(uuid, integer, integer, integer, integer) TO authenticated;
 
 UPDATE public.job_prices
 SET overtime_rate_per_minute = CEIL((base_price::numeric / NULLIF(duration_minutes, 0)) * 1.5)::integer
