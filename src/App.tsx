@@ -7,16 +7,21 @@ import { Worker } from '@/components/Worker';
 import { AuthModal } from '@/components/AuthModal';
 import AdminRoute from '@/components/AdminRoute';
 import AdminPricingReview from '@/components/AdminPricingReview';
+import { I18n } from '@/lib/i18n';
 import type { View, CategoryId } from '@/lib/types';
 
 export default function App() {
   const [view, setView] = useState<View>('landing');
+  const [lang, setLang] = useState<'id' | 'en'>(() => {
+    return (localStorage.getItem('kerjaharian_lang') as 'id' | 'en') || 'id';
+  });
   const [authModal, setAuthModal] = useState<{ open: boolean; mode: 'signin' | 'signup' }>({
     open: false,
     mode: 'signin',
   });
-
   const [pendingCategory, setPendingCategory] = useState<CategoryId | null>(null);
+
+  const i18n = new I18n(lang);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -39,6 +44,11 @@ export default function App() {
     setAuthModal((prev) => ({ ...prev, open: false }));
   }, []);
 
+  const handleLangChange = useCallback((newLang: 'id' | 'en') => {
+    setLang(newLang);
+    localStorage.setItem('kerjaharian_lang', newLang);
+  }, []);
+
   if (view === 'admin') {
     return (
       <AdminRoute>
@@ -49,14 +59,27 @@ export default function App() {
 
   return (
     <div className="flex min-h-screen flex-col">
-      <Header view={view} onNavigate={navigate} onAuthClick={openAuth} />
+      <Header
+        view={view}
+        onNavigate={navigate}
+        onAuthClick={openAuth}
+        lang={lang}
+        onLangChange={handleLangChange}
+      />
       <main className="flex-1">
-        {view === 'landing' && <Landing onNavigate={navigate} onAuthClick={openAuth} />}
-        {view === 'employer' && <Employer onAuthClick={openAuth} initialCategory={pendingCategory} />}
-        {view === 'worker' && <Worker onAuthClick={openAuth} />}
+        {view === 'landing' && <Landing onNavigate={navigate} lang={lang} />}
+        {view === 'employer' && (
+          <Employer
+            onAuthClick={openAuth}
+            initialCategory={pendingCategory}
+            lang={lang}
+            i18n={i18n}
+          />
+        )}
+        {view === 'worker' && <Worker onAuthClick={openAuth} lang={lang} />}
       </main>
-      <Footer onNavigate={navigate} />
-      <AuthModal open={authModal.open} onClose={closeAuth} />
+      <Footer onNavigate={navigate} lang={lang} />
+      <AuthModal open={authModal.open} onClose={closeAuth} lang={lang} />
     </div>
   );
 }
