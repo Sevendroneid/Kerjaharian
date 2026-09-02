@@ -7,6 +7,7 @@ import { Worker } from '@/components/Worker';
 import { AuthModal } from '@/components/AuthModal';
 import AdminRoute from '@/components/AdminRoute';
 import AdminPricingReview from '@/components/AdminPricingReview';
+import { JobTimer } from '@/components/JobTimer';
 import { I18n } from '@/lib/i18n';
 import type { View, CategoryId } from '@/lib/types';
 
@@ -77,6 +78,8 @@ export default function App() {
           />
         )}
         {view === 'worker' && <Worker onAuthClick={openAuth} lang={lang} />}
+        {view === 'employer' && <JobTimer role="employer" lang={lang} />}
+        {view === 'worker' && <JobTimer role="worker" lang={lang} />}
       </main>
       <Footer onNavigate={navigate} lang={lang} />
       <AuthModal open={authModal.open} onClose={closeAuth} lang={lang} />
