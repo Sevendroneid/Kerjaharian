@@ -3,39 +3,42 @@ import { supabase } from '@/lib/supabase';
 
 export default function AdminRoute({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<'loading' | 'allowed' | 'denied'>('loading');
-  const [debugInfo, setDebugInfo] = useState('');
 
   useEffect(() => {
+    let active = true;
     (async () => {
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        setDebugInfo(`Tidak ada user login. Error: ${userError?.message || 'tidak ada sesi aktif'}`);
-        return setStatus('denied');
+        if (active) setStatus('denied');
+        return;
       }
 
-      const { data: profile, error: profileError } = await supabase
+      // `role=admin` is the canonical authorization gate used by the
+      // current KYC/server-side admin functions. Keep the UI gate aligned
+      // with the database security model rather than relying on a debug flag.
+      const { data: profile, error } = await supabase
         .from('profiles')
-        .select('is_admin')
+        .select('role')
         .eq('id', user.id)
         .single();
 
-      if (profileError) {
-        setDebugInfo(`User login (id: ${user.id}), tapi gagal ambil profil. Error: ${profileError.message}`);
-        return setStatus('denied');
+      if (!active) return;
+      if (error || profile?.role !== 'admin') {
+        setStatus('denied');
+        return;
       }
-
-      setDebugInfo(`User login (id: ${user.id}). is_admin di database: ${profile?.is_admin}`);
-      setStatus(profile?.is_admin ? 'allowed' : 'denied');
+      setStatus('allowed');
     })();
+    return () => { active = false; };
   }, []);
 
-  if (status === 'loading') return <div className="p-6">Memuat...</div>;
-  if (status === 'denied') return (
-    <div className="p-6">
-      <p>Akses ditolak — halaman ini khusus admin.</p>
-      <p className="text-xs text-gray-400 mt-4 break-all">{debugInfo}</p>
-    </div>
-  );
+  if (status === 'loading') {
+    return <div className="min-h-screen grid place-items-center bg-slate-950 text-white"><div className="text-sm font-semibold">Memverifikasi akses admin…</div></div>;
+  }
+
+  if (status === 'denied') {
+    return <div className="min-h-screen grid place-items-center bg-slate-950 p-6 text-white"><div className="w-full max-w-md rounded-2xl bg-white/10 p-6 text-center ring-1 ring-white/10"><h1 className="text-lg font-extrabold">Akses ditolak</h1><p className="mt-2 text-sm text-slate-300">Console ini hanya dapat dibuka oleh akun dengan role Admin.</p><button onClick={() => window.location.assign('/')} className="mt-5 rounded-xl bg-white px-4 py-2 text-sm font-bold text-slate-900">Kembali ke KerjaHarian</button></div></div>;
+  }
+
   return <>{children}</>;
 }
