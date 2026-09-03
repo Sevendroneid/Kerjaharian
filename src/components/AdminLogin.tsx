@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Fingerprint, LockKeyhole, ShieldCheck, MessageCircle, RefreshCw } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
@@ -18,7 +18,7 @@ export default function AdminLogin({ onClose }: AdminLoginProps) {
 
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); pollRef.current = null; pollInFlightRef.current = false; }, []);
 
-  const invokePhoneAuth = async (body: Record<string, unknown>) => {
+  const invokePhoneAuth = useCallback(async (body: Record<string, unknown>) => {
     const result = await supabase.functions.invoke('phone-auth-otpid', { body });
     if (result.error) {
       const context = result.error.context;
@@ -32,7 +32,7 @@ export default function AdminLogin({ onClose }: AdminLoginProps) {
       throw new Error(detail || result.error.message || 'Gagal menghubungi layanan verifikasi.');
     }
     return result.data;
-  };
+  }, []);
 
   const handlePin = async () => {
     if (!/^\d{8}$/.test(pin)) return setError('Masukkan PIN Admin 8 digit.');
@@ -62,13 +62,13 @@ export default function AdminLogin({ onClose }: AdminLoginProps) {
     finally { setLoading(false); }
   };
 
-  const stopRecoveryPolling = () => {
+  const stopRecoveryPolling = useCallback(() => {
     if (pollRef.current) clearInterval(pollRef.current);
     pollRef.current = null;
     pollInFlightRef.current = false;
-  };
+  }, []);
 
-  const checkRecoveryStatus = async () => {
+  const checkRecoveryStatus = useCallback(async () => {
     if (!challengeId || pollInFlightRef.current) return false;
     pollInFlightRef.current = true;
     setCheckingRecovery(true);
@@ -89,7 +89,7 @@ export default function AdminLogin({ onClose }: AdminLoginProps) {
         setRecoveryMessage('Sesi WhatsApp kedaluwarsa. Silakan mulai lagi.');
         return true;
       }
-      setRecoveryMessage('Belum terverifikasi. Jika sudah menekan Kirim di WhatsApp, kembali ke sini dan cek lagi.');
+      setRecoveryMessage('Belum terverifikasi. Jika sudah menekan Kirim di WhatsApp, kembali ke KerjaHarian dan cek lagi.');
       return false;
     } catch (err: any) {
       stopRecoveryPolling();
@@ -101,21 +101,22 @@ export default function AdminLogin({ onClose }: AdminLoginProps) {
       pollInFlightRef.current = false;
       setCheckingRecovery(false);
     }
-  };
+  }, [challengeId, invokePhoneAuth, stopRecoveryPolling]);
 
   useEffect(() => {
     if (!challengeId) return;
     const onVisible = () => { if (document.visibilityState === 'visible') void checkRecoveryStatus(); };
     document.addEventListener('visibilitychange', onVisible);
     return () => document.removeEventListener('visibilitychange', onVisible);
-  }, [challengeId]);
+  }, [challengeId, checkRecoveryStatus]);
 
   const handleWhatsAppRecovery = async () => {
     setLoading(true); setError(''); setRecoveryMessage('Menyiapkan verifikasi WhatsApp...'); setChallengeId(''); stopRecoveryPolling();
     try {
       const data = await invokePhoneAuth({ action: 'request', phone: ADMIN_CANONICAL });
       if (!data?.challenge_id || !data?.verification?.wa_link) throw new Error('OTP.ID tidak mengembalikan sesi WhatsApp.');
-      setChallengeId(data.challenge_id);
+      const newChallengeId = data.challenge_id as string;
+      setChallengeId(newChallengeId);
       setRecoveryMessage('WhatsApp sudah disiapkan. Tekan Kirim pada pesan verifikasi, lalu kembali ke KerjaHarian.');
       window.open(data.verification.wa_link, '_blank', 'noopener,noreferrer');
       const startedAt = Date.now();
