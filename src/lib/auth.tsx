@@ -22,14 +22,15 @@ async function ensureProfile(user: User): Promise<Profile | null> {
     .select('*')
     .eq('id', user.id)
     .maybeSingle();
+
   if (readError) {
     console.error('Failed to fetch profile:', readError.message);
     return null;
   }
   if (existing) return existing as Profile;
 
-  // Do not silently choose a role for a new Google user. The first profile
-  // screen asks the person whether they are a worker or an employer.
+  // A new authenticated user gets a minimal profile. Role selection is still
+  // completed in AuthModal before the account is treated as fully onboarded.
   const { data: created, error: insertError } = await supabase
     .from('profiles')
     .insert({ id: user.id, full_name: null, role: 'worker', is_admin: false })
@@ -37,11 +38,17 @@ async function ensureProfile(user: User): Promise<Profile | null> {
     .single();
 
   if (insertError) {
-    const { data: retry } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
+    // Handle a concurrent insert/auth event without creating a second row.
+    const { data: retry } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .maybeSingle();
     if (retry) return retry as Profile;
     console.error('Failed to create profile:', insertError.message);
     return null;
   }
+
   return created as Profile;
 }
 
@@ -52,7 +59,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = useCallback(async (uid: string) => {
-    const { data, error } = await supabase.from('profiles').select('*').eq('id', uid).maybeSingle();
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', uid)
+      .maybeSingle();
     if (error) {
       console.error('Failed to fetch profile:', error.message);
       return;
@@ -75,15 +86,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let mounted = true;
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+
+    const bootstrap = async () => {
+      const { data: { session: initialSession } } = await supabase.auth.getSession();
       if (!mounted) return;
-      setSession(session);
-      setUser(session?.user ?? null);
-      await hydrateUser(session?.user ?? null);
+      setSession(initialSession);
+      setUser(initialSession?.user ?? null);
+      await hydrateUser(initialSession?.user ?? null);
       if (mounted) setLoading(false);
-    });
+    };
+
+    void bootstrap();
 
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      if (!mounted) return;
       setSession(newSession);
       setUser(newSession?.user ?? null);
       void hydrateUser(newSession?.user ?? null);
@@ -119,6 +135,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
+    setSession(null);
+    setUser(null);
     setProfile(null);
   }, []);
 
