@@ -1,5 +1,6 @@
 create extension if not exists pg_net;
 create extension if not exists pg_cron;
+select cron.unschedule(jobid) from cron.job where jobname = 'kerjaharian-fonnte-health';
 select cron.schedule('kerjaharian-fonnte-health','*/5 * * * *', $$
   select net.http_post(
     url := 'https://cgulvtbyqkixpxxqzcet.supabase.co/functions/v1/fonnte-health-check',
