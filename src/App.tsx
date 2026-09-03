@@ -16,6 +16,8 @@ import { I18n } from '@/lib/i18n';
 import { useAuth } from '@/lib/auth';
 import type { View, CategoryId } from '@/lib/types';
 
+const SECRET_PATH = '/rahasia';
+
 export default function App() {
   const [view, setView] = useState<View>('landing');
   const [lang, setLang] = useState<'id' | 'en'>(() => (localStorage.getItem('kerjaharian_lang') as 'id' | 'en') || 'id');
@@ -27,8 +29,8 @@ export default function App() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const adminEntry = window.location.pathname === '/admin' || params.get('admin') === 'true';
-    if (adminEntry) setAdminLoginOpen(true);
+    const secretEntry = window.location.pathname === SECRET_PATH;
+    if (secretEntry || params.get('admin') === 'true') setAdminLoginOpen(true);
   }, []);
 
   useEffect(() => {
