@@ -24,14 +24,48 @@ export default function App() {
   const [pendingCategory, setPendingCategory] = useState<CategoryId | null>(null);
   const { user, profile, loading: authLoading } = useAuth();
   const i18n = new I18n(lang);
-  useEffect(() => { const params = new URLSearchParams(window.location.search); if (params.get('admin') === 'true') setAdminLoginOpen(true); }, []);
-  useEffect(() => { if (authLoading || !user || !profile?.full_name) return; if (profile.role === 'admin') { setView('admin'); setAdminLoginOpen(false); return; } if (profile.role === 'employer') setView('employer'); else if (profile.role === 'worker') setView('worker'); }, [authLoading, user, profile?.full_name, profile?.role]);
-  useEffect(() => { if (!authLoading && user && !profile?.full_name) setAuthModal((prev) => ({ ...prev, open: true, mode: 'signup' })); }, [authLoading, user, profile?.full_name]);
-  const navigate = useCallback((v: View, category?: CategoryId) => { setView(v); setPendingCategory(category ?? null); window.scrollTo({ top: 0, behavior: 'smooth' }); }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const adminEntry = window.location.pathname === '/admin' || params.get('admin') === 'true';
+    if (adminEntry) setAdminLoginOpen(true);
+  }, []);
+
+  useEffect(() => {
+    if (authLoading || !user || !profile?.full_name) return;
+    if (profile.role === 'admin') {
+      setView('admin');
+      setAdminLoginOpen(false);
+      return;
+    }
+    if (profile.role === 'employer') setView('employer');
+    else if (profile.role === 'worker') setView('worker');
+  }, [authLoading, user, profile?.full_name, profile?.role]);
+
+  useEffect(() => {
+    if (!authLoading && user && !profile?.full_name) setAuthModal((prev) => ({ ...prev, open: true, mode: 'signup' }));
+  }, [authLoading, user, profile?.full_name]);
+
+  const navigate = useCallback((v: View, category?: CategoryId) => {
+    setView(v);
+    setPendingCategory(category ?? null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
   const openAuth = useCallback((mode: 'signin' | 'signup') => setAuthModal({ open: true, mode }), []);
   const closeAuth = useCallback(() => setAuthModal((prev) => ({ ...prev, open: false })), []);
   const handleLangChange = useCallback((newLang: 'id' | 'en') => { setLang(newLang); localStorage.setItem('kerjaharian_lang', newLang); }, []);
+
   if (view === 'admin') return <AppErrorBoundary><AdminRoute><AdminDashboard onNavigate={navigate} /></AdminRoute></AppErrorBoundary>;
+
   const protectedDashboard = view === 'employer' || view === 'worker';
-  return <AppErrorBoundary><div className="flex min-h-screen flex-col"><Header view={view} onNavigate={navigate} onAuthClick={openAuth} lang={lang} onLangChange={handleLangChange} /><button onClick={() => setAdminLoginOpen(true)} className="fixed bottom-4 right-4 z-40 rounded-full bg-slate-900 text-white px-4 py-2 text-xs font-semibold shadow-lg">Login Admin</button><main className="flex-1">{view === 'landing' && <Landing onNavigate={navigate} lang={lang} />}{protectedDashboard ? <KycGate><div>{view === 'worker' && <WorkerDispatchPanel />} {view === 'employer' && <EmployerDispatchWatcher />} {view === 'employer' ? <Employer onAuthClick={openAuth} initialCategory={pendingCategory} lang={lang} i18n={i18n} /> : <Worker onAuthClick={openAuth} />} {view === 'employer' && <JobTimer role="employer" lang={lang} />} {view === 'worker' && <JobTimer role="worker" />} </div></KycGate> : null}</main><Footer onNavigate={navigate} /><AuthModal open={authModal.open} onClose={closeAuth} />{adminLoginOpen && <AdminLogin onClose={() => setAdminLoginOpen(false)} />}</div></AppErrorBoundary>;
+  return <AppErrorBoundary><div className="flex min-h-screen flex-col">
+    <Header view={view} onNavigate={navigate} onAuthClick={openAuth} lang={lang} onLangChange={handleLangChange} />
+    <main className="flex-1">
+      {view === 'landing' && <Landing onNavigate={navigate} lang={lang} />}
+      {protectedDashboard ? <KycGate><div>{view === 'worker' && <WorkerDispatchPanel />} {view === 'employer' && <EmployerDispatchWatcher />} {view === 'employer' ? <Employer onAuthClick={openAuth} initialCategory={pendingCategory} lang={lang} i18n={i18n} /> : <Worker onAuthClick={openAuth} />} {view === 'employer' && <JobTimer role="employer" lang={lang} />} {view === 'worker' && <JobTimer role="worker" />}</div></KycGate> : null}
+    </main>
+    <Footer onNavigate={navigate} />
+    <AuthModal open={authModal.open} onClose={closeAuth} />
+    {adminLoginOpen && <AdminLogin onClose={() => setAdminLoginOpen(false)} />}
+  </div></AppErrorBoundary>;
 }
