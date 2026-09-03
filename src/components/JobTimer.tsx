@@ -27,7 +27,9 @@ export function JobTimer({ role, lang = 'id' }: JobTimerProps) {
     if (role === 'employer') {
       query = query.eq('employer_id', user.id).eq('status', 'assigned');
     } else {
-      query = query.or(`worker_id.eq.${user.id},status.eq.open`).in('status', ['open', 'assigned']);
+      // Worker timer must show only jobs already claimed by this worker.
+      // Open jobs remain in the Worker marketplace and must not appear as "Pekerjaan Saya" here.
+      query = query.eq('worker_id', user.id).eq('status', 'assigned');
     }
     const { data, error: queryError } = await query;
     if (queryError) setError(queryError.message); else setJobs((data ?? []) as Job[]);
