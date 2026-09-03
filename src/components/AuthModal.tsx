@@ -36,10 +36,15 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
         body: JSON.stringify({ phone: cleanPhone }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Gagal kirim OTP');
+      if (!res.ok) {
+        const detail = typeof data.detail === 'string'
+          ? data.detail
+          : data.detail?.reason || data.detail?.message || data.detail?.status || '';
+        throw new Error(detail ? `${data.error || 'Gagal kirim OTP'}: ${detail}` : (data.error || 'Gagal kirim OTP'));
+      }
       setStep('otp');
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || 'Gagal kirim OTP');
     } finally {
       setLoading(false);
     }
@@ -98,9 +103,6 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
         .maybeSingle();
       if (currentProfileError) throw currentProfileError;
 
-      // Recover legacy test profiles whose old profile ID is no longer the Auth user ID.
-      // This preserves the existing role/name/phone and prevents the test account from
-      // being forced through a fresh KTP/profile setup after OTP re-login.
       const { data: legacyProfile, error: legacyProfileError } = await supabase
         .from('profiles')
         .select('id, full_name, whatsapp, role, is_admin, ktp_photo_url')
@@ -131,7 +133,7 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
         onClose();
       }
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || 'Autentikasi gagal');
     } finally {
       setLoading(false);
     }
@@ -164,7 +166,7 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
         onClose();
       }
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || 'Gagal menyimpan profil');
     } finally {
       setLoading(false);
     }
@@ -187,7 +189,7 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
 
       onClose();
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || 'Gagal mengunggah KTP');
     } finally {
       setLoading(false);
     }
