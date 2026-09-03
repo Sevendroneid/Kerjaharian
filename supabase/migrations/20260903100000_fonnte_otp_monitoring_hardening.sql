@@ -28,6 +28,7 @@ alter table public.otp_codes add column if not exists attempts integer not null 
 alter table public.otp_codes add column if not exists sent_at timestamptz;
 alter table public.otp_codes add column if not exists provider_status text;
 alter table public.otp_codes add column if not exists provider_detail text;
+alter table public.otp_codes alter column code drop not null;
 create index if not exists otp_codes_phone_created_idx on public.otp_codes(phone,created_at desc);
 alter table public.fonnte_device_status enable row level security;
 alter table public.fonnte_monitor_config enable row level security;
