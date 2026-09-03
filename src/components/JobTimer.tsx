@@ -23,13 +23,11 @@ export function JobTimer({ role, lang = 'id' }: JobTimerProps) {
   const load = useCallback(async () => {
     if (!user) { setJobs([]); setLoading(false); return; }
     setLoading(true);
-    let query = supabase.from('jobs').select('*').order('created_at', { ascending: false });
+    let query = supabase.from('jobs').select('*').order('created_at', { ascending: false }).limit(20);
     if (role === 'employer') {
-      query = query.eq('employer_id', user.id).eq('status', 'assigned');
+      query = query.eq('employer_id', user.id).in('status', ['assigned', 'completed']);
     } else {
-      // Worker timer must show only jobs already claimed by this worker.
-      // Open jobs remain in the Worker marketplace and must not appear as "Pekerjaan Saya" here.
-      query = query.eq('worker_id', user.id).eq('status', 'assigned');
+      query = query.eq('worker_id', user.id).in('status', ['assigned', 'completed']);
     }
     const { data, error: queryError } = await query;
     if (queryError) setError(queryError.message); else setJobs((data ?? []) as Job[]);
@@ -45,24 +43,17 @@ export function JobTimer({ role, lang = 'id' }: JobTimerProps) {
   }, [load, role, user?.id]);
 
   useEffect(() => {
-    if (jobs.some((job) => job.started_at && job.scheduled_end_at)) {
+    if (jobs.some((job) => job.status === 'assigned' && job.started_at && job.scheduled_end_at)) {
       const interval = window.setInterval(() => setNow(new Date().toISOString()), 1000);
       return () => window.clearInterval(interval);
     }
   }, [jobs]);
 
-  const active = useMemo(() => jobs.find((job) => job.started_at && job.scheduled_end_at), [jobs]);
+  const active = useMemo(() => jobs.find((job) => job.status === 'assigned' && job.started_at && job.scheduled_end_at), [jobs]);
   const timing = active && active.duration_minutes ? calculateJobTiming(
     { durationMinutes: active.duration_minutes, basePrice: active.wage, overtimeRatePerMinute: active.overtime_rate_per_minute ?? 0, alertBeforeMinutes: 15 },
     { startedAt: active.started_at!, scheduledEndAt: active.scheduled_end_at!, now },
   ) : null;
-
-  const claim = async (jobId: string) => {
-    setBusyId(jobId); setError('');
-    const { error: rpcError } = await supabase.rpc('claim_job', { p_job_id: jobId });
-    if (rpcError) setError(rpcError.message);
-    await load(); setBusyId(null);
-  };
 
   const start = async (jobId: string) => {
     setBusyId(jobId); setError('');
@@ -94,18 +85,25 @@ export function JobTimer({ role, lang = 'id' }: JobTimerProps) {
       {jobs.map((job) => {
         const jobTiming = job === active ? timing : null;
         const overtimeAmount = jobTiming?.overtimeAmount ?? job.overtime_amount ?? 0;
+        const finalAmount = job.final_amount ?? job.employer_total ?? job.total ?? 0;
+        const workerAmount = job.worker_amount ?? job.wage + (job.worker_overtime_amount ?? job.overtime_amount ?? 0);
+
         return (
           <div key={job.id} className="mt-4 rounded-xl bg-slate-50 p-4 ring-1 ring-slate-200">
             <div className="flex items-start justify-between gap-3">
               <div><p className="text-sm font-bold text-slate-900">{job.title}</p><p className="mt-1 text-xs text-slate-500">{job.location}</p></div>
-              {job.status === 'open' ? <span className="rounded-full bg-primary-50 px-2.5 py-1 text-[11px] font-bold text-primary-700">TERSEDIA</span> : job.started_at ? <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${jobTiming?.isOvertime ? 'bg-warning-100 text-warning-700' : jobTiming?.isAlert ? 'bg-warning-50 text-warning-700' : 'bg-success-50 text-success-700'}`}>{jobTiming?.isOvertime ? 'LEMBUR' : jobTiming?.isAlert ? 'SEGERA SELESAI' : 'BERJALAN'}</span> : <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-600">MENUNGGU MULAI</span>}
+              {job.status === 'completed' ? <span className="rounded-full bg-success-50 px-2.5 py-1 text-[11px] font-bold text-success-700">SELESAI</span> : jobTiming?.isOvertime ? <span className="rounded-full bg-warning-100 px-2.5 py-1 text-[11px] font-bold text-warning-700">LEMBUR</span> : jobTiming?.isAlert ? <span className="rounded-full bg-warning-50 px-2.5 py-1 text-[11px] font-bold text-warning-700">SEGERA SELESAI</span> : job.started_at ? <span className="rounded-full bg-success-50 px-2.5 py-1 text-[11px] font-bold text-success-700">BERJALAN</span> : <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-600">MENUNGGU MULAI</span>}
             </div>
 
-            {job.status === 'open' && role === 'worker' ? (
-              <button onClick={() => claim(job.id)} disabled={busyId === job.id} className="btn-primary mt-4 w-full">
-                {busyId === job.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                Ambil Pekerjaan
-              </button>
+            {job.status === 'completed' ? (
+              <div className="mt-4 rounded-xl bg-white p-4 ring-1 ring-slate-200">
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">{lang === 'id' ? 'Ringkasan Pembayaran' : 'Payment Summary'}</p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                  <div><p className="text-[11px] text-slate-400">{role === 'worker' ? 'Pendapatan' : 'Upah Pekerja'}</p><p className="font-bold text-slate-900">{formatIDR(workerAmount)}</p></div>
+                  <div><p className="text-[11px] text-slate-400">Lembur ({job.overtime_minutes ?? 0} menit)</p><p className="font-bold text-warning-700">{formatIDR(job.worker_overtime_amount ?? overtimeAmount)}</p></div>
+                  <div><p className="text-[11px] text-slate-400">{role === 'worker' ? 'Status' : 'Total Tagihan'}</p><p className="font-bold text-primary-700">{role === 'worker' ? (job.payment_status === 'settled' ? 'Sudah dibayar' : 'Menunggu pembayaran') : formatIDR(finalAmount)}</p></div>
+                </div>
+              </div>
             ) : !job.started_at || !job.scheduled_end_at ? (
               role === 'employer' ? (
                 <button onClick={() => start(job.id)} disabled={busyId === job.id || !job.duration_minutes} className="btn-primary mt-4 w-full">
