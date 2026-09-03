@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { CheckCircle2, MapPin, Wallet, Info, Trash2, Send, Briefcase, Loader2 } from 'lucide-react';
+import { CheckCircle2, MapPin, Wallet, Info, Trash2, Send, Briefcase, Loader2, Clock3 } from 'lucide-react';
 import { CATEGORIES, CATEGORY_MAP } from '@/lib/data';
 import type { CategoryId } from '@/lib/types';
 import { formatIDR, MIN_WAGE_DAILY, timeAgo } from '@/lib/format';
@@ -20,6 +20,8 @@ interface JobPrice {
   category_id: string;
   job_name: string;
   base_price: number;
+  duration_minutes: number | null;
+  overtime_rate_per_minute: number | null;
 }
 
 interface OrderItem {
@@ -29,6 +31,16 @@ interface OrderItem {
   created_at: string;
   job_prices?: { job_name: string } | null;
   order_locations?: Array<{ lat: number | null; lng: number | null }>;
+}
+
+function formatDuration(minutes: number | null, lang: 'id' | 'en') {
+  if (!minutes || minutes <= 0) return lang === 'id' ? 'Durasi belum dikonfigurasi' : 'Duration not configured';
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  if (lang === 'en') {
+    return `${hours > 0 ? `${hours} hr${hours !== 1 ? 's' : ''}` : ''}${hours > 0 && mins > 0 ? ' ' : ''}${mins > 0 ? `${mins} min` : ''}`;
+  }
+  return `${hours > 0 ? `${hours} jam` : ''}${hours > 0 && mins > 0 ? ' ' : ''}${mins > 0 ? `${mins} menit` : ''}`;
 }
 
 export function Employer({ onAuthClick, initialCategory, lang, i18n }: EmployerProps) {
@@ -57,7 +69,7 @@ export function Employer({ onAuthClick, initialCategory, lang, i18n }: EmployerP
   const fetchJobPrices = useCallback(async () => {
     const { data, error } = await supabase
       .from('job_prices')
-      .select('id, category_id, job_name, base_price')
+      .select('id, category_id, job_name, base_price, duration_minutes, overtime_rate_per_minute')
       .eq('category_id', category)
       .eq('is_active', true)
       .order('job_name', { ascending: true });
@@ -109,6 +121,11 @@ export function Employer({ onAuthClick, initialCategory, lang, i18n }: EmployerP
       return;
     }
 
+    if (!selectedJobPrice.duration_minutes || selectedJobPrice.duration_minutes <= 0) {
+      setError(lang === 'id' ? 'Durasi pekerjaan belum dikonfigurasi untuk jenis pekerjaan ini.' : 'Job duration is not configured for this job type.');
+      return;
+    }
+
     // Lightweight validation - NO KTP requirement
     const { count } = await supabase
       .from('orders')
@@ -141,7 +158,7 @@ export function Employer({ onAuthClick, initialCategory, lang, i18n }: EmployerP
       worker_id: null,
       job_price_id: selectedJobPrice.id,
       status: 'open', // INSTANT PUBLISHING - NO PENDING_PAYMENT
-      hours: Math.ceil(wageNum / 150000), // estimate ~150k per hour
+      hours: Math.ceil(selectedJobPrice.duration_minutes / 60),
       wage: wageNum,
       total: totalPrice,
       night_shift: nightShift,
@@ -209,8 +226,8 @@ export function Employer({ onAuthClick, initialCategory, lang, i18n }: EmployerP
           </h1>
           <p className="mt-2 max-w-xl text-slate-500">
             {lang === 'id'
-              ? 'Pilih jenis pekerjaan, harga patokan muncul otomatis. Publikasikan langsung!'
-              : 'Select job type, pricing appears automatically. Publish instantly!'}
+              ? 'Pilih jenis pekerjaan, harga dan durasi deal muncul otomatis. Publikasikan langsung!'
+              : 'Select a job type; deal price and duration appear automatically. Publish instantly!'}
           </p>
         </div>
 
@@ -269,6 +286,40 @@ export function Employer({ onAuthClick, initialCategory, lang, i18n }: EmployerP
                     </select>
                   )}
                 </div>
+
+                {selectedJobPrice && (
+                  <div className="rounded-xl border border-primary-100 bg-primary-50/70 p-4">
+                    <div className="flex items-start gap-3">
+                      <Clock3 className="mt-0.5 h-5 w-5 shrink-0 text-primary-600" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-primary-700">
+                          {lang === 'id' ? 'Ketentuan Deal' : 'Deal Terms'}
+                        </p>
+                        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                          <div>
+                            <p className="text-xs text-slate-500">{lang === 'id' ? 'Durasi' : 'Duration'}</p>
+                            <p className="font-display text-base font-bold text-slate-900">
+                              {formatDuration(selectedJobPrice.duration_minutes, lang)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-slate-500">{lang === 'id' ? 'Tarif lembur' : 'Overtime rate'}</p>
+                            <p className="font-display text-base font-bold text-slate-900">
+                              {selectedJobPrice.overtime_rate_per_minute && selectedJobPrice.overtime_rate_per_minute > 0
+                                ? `${formatIDR(selectedJobPrice.overtime_rate_per_minute)}/${lang === 'id' ? 'menit' : 'min'}`
+                                : lang === 'id' ? 'Belum dikonfigurasi' : 'Not configured'}
+                            </p>
+                          </div>
+                        </div>
+                        <p className="mt-3 text-xs leading-5 text-slate-600">
+                          {lang === 'id'
+                            ? 'Jika selesai sebelum durasi berakhir, deal tetap dibayar sesuai upah pokok. Jika dilanjutkan melewati durasi, lembur mulai dihitung per menit setelah waktu deal berakhir.'
+                            : 'If finished before the deal duration ends, the base wage remains payable. If continued past the duration, overtime starts counting per minute after the deal ends.'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <div>
                   <label className="label">{lang === 'id' ? 'Detail (opsional)' : 'Details (optional)'}</label>
@@ -337,6 +388,7 @@ export function Employer({ onAuthClick, initialCategory, lang, i18n }: EmployerP
                 {lang === 'id' ? '3. Ringkasan Biaya' : '3. Price Summary'}
               </h2>
               <div className="mt-4 rounded-xl bg-slate-50 p-5 ring-1 ring-slate-200">
+                <SummaryRow label={lang === 'id' ? 'Durasi Deal' : 'Deal Duration'} value={formatDuration(selectedJobPrice?.duration_minutes ?? null, lang)} />
                 <SummaryRow label={lang === 'id' ? 'Upah Pokok' : 'Base Wage'} value={formatIDR(baseWage)} />
                 {nightShift && (
                   <SummaryRow
