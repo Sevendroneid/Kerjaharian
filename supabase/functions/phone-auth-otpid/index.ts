@@ -26,6 +26,10 @@ const cors = {
   'Content-Type': 'application/json',
 };
 
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), { status, headers: cors });
+}
+
 function normalizePhone(input: string) {
   const digits = String(input || '').replace(/\D/g, '');
   if (!digits) return '';
@@ -61,10 +65,11 @@ async function requestInbound(phone: string) {
 }
 
 async function findOrCreateUser(phone: string) {
+  const variants = [phone, `+${phone}`];
   const { data: profile } = await supabaseAdmin
     .from('profiles')
     .select('id')
-    .or(`phone.eq.${phone},whatsapp.eq.${phone}`)
+    .or(`phone.in.(${variants.join(',')}),whatsapp.in.(${variants.join(',')})`)
     .limit(1)
     .maybeSingle();
 
@@ -123,16 +128,28 @@ async function createSessionLink(phone: string) {
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
-  if (req.method !== 'POST') return new Response(JSON.stringify({ error: 'Method Not Allowed' }), { status: 405, headers: cors });
-  if (!OTPID_API_KEY || !adminKey()) return new Response(JSON.stringify({ error: 'OTP.ID belum dikonfigurasi' }), { status: 500, headers: cors });
+  if (req.method !== 'POST') return json({ error: 'Method Not Allowed' }, 405);
+  if (!OTPID_API_KEY || !adminKey()) return json({ error: 'OTP.ID belum dikonfigurasi' }, 500);
 
   try {
     const body = await req.json();
     const action = body?.action;
     const phone = normalizePhone(body?.phone);
-    if (!validPhone(phone)) return new Response(JSON.stringify({ error: 'Nomor HP Indonesia tidak valid' }), { status: 400, headers: cors });
+    if (!validPhone(phone)) return json({ error: 'Nomor HP Indonesia tidak valid' }, 400);
 
     if (action === 'request') {
+      const cutoff = new Date(Date.now() - 60 * 1000).toISOString();
+      const { data: recentChallenge, error: recentError } = await supabaseAdmin
+        .from('phone_auth_otpid_challenges')
+        .select('id')
+        .eq('phone', phone)
+        .is('consumed_at', null)
+        .gt('created_at', cutoff)
+        .limit(1)
+        .maybeSingle();
+      if (recentError) throw recentError;
+      if (recentChallenge) return json({ error: 'Permintaan verifikasi baru saja dibuat. Silakan lanjutkan WhatsApp yang sudah dibuka.' }, 429);
+
       const data = await requestInbound(phone);
       const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
       const { data: challenge, error } = await supabaseAdmin
@@ -141,21 +158,25 @@ Deno.serve(async (req) => {
         .select('id, expires_at')
         .single();
       if (error) throw error;
-      return new Response(JSON.stringify({ challenge_id: challenge.id, expires_at: challenge.expires_at, verification: data.verification }), { status: 200, headers: cors });
+      return json({ challenge_id: challenge.id, expires_at: challenge.expires_at, verification: data.verification });
     }
 
     if (action === 'status') {
       const challengeId = String(body?.challenge_id || '');
-      if (!/^[0-9a-f-]{36}$/i.test(challengeId)) return new Response(JSON.stringify({ error: 'Sesi verifikasi tidak valid' }), { status: 400, headers: cors });
+      if (!/^[0-9a-f-]{36}$/i.test(challengeId)) return json({ error: 'Sesi verifikasi tidak valid' }, 400);
       const { data: challenge, error: challengeError } = await supabaseAdmin
         .from('phone_auth_otpid_challenges')
         .select('id, phone, otp_id, expires_at, consumed_at')
         .eq('id', challengeId)
         .eq('phone', phone)
         .maybeSingle();
-      if (challengeError || !challenge) return new Response(JSON.stringify({ error: 'Sesi verifikasi tidak ditemukan' }), { status: 404, headers: cors });
-      if (challenge.consumed_at) return new Response(JSON.stringify({ status: 'success' }), { status: 200, headers: cors });
-      if (new Date(challenge.expires_at).getTime() < Date.now()) return new Response(JSON.stringify({ status: 'expired' }), { status: 200, headers: cors });
+      if (challengeError || !challenge) return json({ error: 'Sesi verifikasi tidak ditemukan' }, 404);
+
+      if (challenge.consumed_at) {
+        const actionLink = await createSessionLink(phone);
+        return json({ status: 'success', action_link: actionLink });
+      }
+      if (new Date(challenge.expires_at).getTime() < Date.now()) return json({ status: 'expired' });
 
       const response = await fetch(`${OTPID_BASE_URL}/v3/otp/${encodeURIComponent(challenge.otp_id)}`, {
         headers: { Authorization: `Bearer ${OTPID_API_KEY}` },
@@ -163,16 +184,21 @@ Deno.serve(async (req) => {
       const result = await response.json().catch(() => null);
       if (!response.ok) throw new Error('Gagal membaca status OTP.ID');
       const status = String(result?.data?.status || result?.status || 'pending').toLowerCase();
-      if (status !== 'success' && status !== 'verified') return new Response(JSON.stringify({ status }), { status: 200, headers: cors });
+      if (status !== 'success' && status !== 'verified') return json({ status });
 
       const actionLink = await createSessionLink(phone);
-      await supabaseAdmin.from('phone_auth_otpid_challenges').update({ consumed_at: new Date().toISOString() }).eq('id', challenge.id);
-      return new Response(JSON.stringify({ status: 'success', action_link: actionLink }), { status: 200, headers: cors });
+      const { error: consumeError } = await supabaseAdmin
+        .from('phone_auth_otpid_challenges')
+        .update({ consumed_at: new Date().toISOString() })
+        .eq('id', challenge.id)
+        .is('consumed_at', null);
+      if (consumeError) throw consumeError;
+      return json({ status: 'success', action_link: actionLink });
     }
 
-    return new Response(JSON.stringify({ error: 'Unknown action' }), { status: 400, headers: cors });
+    return json({ error: 'Unknown action' }, 400);
   } catch (error) {
     console.error('phone-auth-otpid:', error);
-    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Verifikasi gagal' }), { status: 500, headers: cors });
+    return json({ error: error instanceof Error ? error.message : 'Verifikasi gagal' }, 500);
   }
 });
