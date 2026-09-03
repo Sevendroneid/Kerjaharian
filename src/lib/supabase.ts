@@ -10,6 +10,8 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, { auth: { per
 export interface Profile {
   id: string; full_name: string | null; phone: string | null; whatsapp: string | null;
   role: 'employer' | 'worker' | 'admin'; kyc_verified: boolean; ktp_photo_url: string | null;
+  kyc_status: 'not_started' | 'pending' | 'approved' | 'rejected';
+  kyc_submitted_at: string | null; kyc_reviewed_at: string | null; kyc_rejection_reason: string | null;
   is_online: boolean; rating: number; jobs_done: number; created_at: string;
 }
 
