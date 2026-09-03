@@ -110,20 +110,17 @@ Deno.serve(async (req) => {
       if (!/^[0-9a-f-]{36}$/i.test(challengeId)) return json({ error: 'Sesi verifikasi tidak valid' }, 400);
       const { data: challenge, error: challengeError } = await supabaseAdmin.from('phone_auth_otpid_challenges').select('id, phone, otp_id, expires_at, consumed_at').eq('id', challengeId).eq('phone', phone).maybeSingle();
       if (challengeError || !challenge) return json({ error: 'Sesi verifikasi tidak ditemukan' }, 404);
-      if (challenge.consumed_at) {
-        const actionLink = await createSessionLink(phone);
-        return json({ status: 'success', action_link: actionLink });
-      }
+      if (challenge.consumed_at) return json({ error: 'Sesi verifikasi sudah digunakan' }, 410);
       if (new Date(challenge.expires_at).getTime() < Date.now()) return json({ status: 'expired' });
       const response = await fetch(`${OTPID_BASE_URL}/v3/otp/${encodeURIComponent(challenge.otp_id)}`, { headers: { Authorization: `Bearer ${OTPID_API_KEY}` } });
       const result = await response.json().catch(() => null);
       if (!response.ok) throw new Error('Gagal membaca status OTP.ID');
       const status = String(result?.data?.status || result?.status || 'pending').toLowerCase();
       if (status !== 'success' && status !== 'verified') return json({ status });
-      const actionLink = await createSessionLink(phone);
       const { data: consumed, error: consumeError } = await supabaseAdmin.from('phone_auth_otpid_challenges').update({ consumed_at: new Date().toISOString() }).eq('id', challenge.id).is('consumed_at', null).select('id').maybeSingle();
       if (consumeError) throw consumeError;
-      if (!consumed) return json({ status: 'success', action_link: actionLink });
+      if (!consumed) return json({ error: 'Sesi verifikasi sudah digunakan' }, 410);
+      const actionLink = await createSessionLink(phone);
       return json({ status: 'success', action_link: actionLink });
     }
     return json({ error: 'Unknown action' }, 400);
