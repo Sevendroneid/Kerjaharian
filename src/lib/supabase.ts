@@ -8,13 +8,19 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    experimental: { passkey: true },
+  },
 });
 
 export interface Profile {
   id: string;
   full_name: string;
   phone: string | null;
+  whatsapp: string | null;
   role: 'employer' | 'worker' | 'admin';
   kyc_verified: boolean;
   ktp_photo_url: string | null;
