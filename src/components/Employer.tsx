@@ -68,10 +68,14 @@ export function Employer({ onAuthClick, initialCategory, lang, i18n }: EmployerP
   const { nightShiftAdd, baseWage, platformFee, insurance, totalPrice } = pricing;
 
   const fetchJobPrices = useCallback(async () => {
+    // The public UI calls the renovation category "tukang"; the live pricing
+    // catalog historically stores those records under "renovasi". Keep this
+    // compatibility mapping here so the employer never sees an empty catalog.
+    const dbCategory = category === 'tukang' ? 'renovasi' : category;
     const { data, error } = await supabase
       .from('job_prices')
       .select('id, category_id, job_name, base_price, duration_minutes, overtime_rate_per_minute')
-      .eq('category_id', category)
+      .eq('category_id', dbCategory)
       .eq('is_active', true)
       .order('job_name', { ascending: true });
     if (!error && data) {
