@@ -1,142 +1,16 @@
 -- Two-sided KYC: worker and employer both require identity review.
--- MVP deliberately avoids paid KYC providers: upload -> pending -> admin review.
--- No client-side action can mark a profile verified.
-
-ALTER TABLE public.profiles
-  ADD COLUMN IF NOT EXISTS kyc_status text NOT NULL DEFAULT 'not_started',
-  ADD COLUMN IF NOT EXISTS kyc_submitted_at timestamptz,
-  ADD COLUMN IF NOT EXISTS kyc_reviewed_at timestamptz,
-  ADD COLUMN IF NOT EXISTS kyc_rejection_reason text;
-
-ALTER TABLE public.profiles
-  DROP CONSTRAINT IF EXISTS profiles_kyc_status_check;
-ALTER TABLE public.profiles
-  ADD CONSTRAINT profiles_kyc_status_check
-  CHECK (kyc_status IN ('not_started','pending','approved','rejected'));
-
-CREATE OR REPLACE FUNCTION public.enforce_kyc_submission()
-RETURNS trigger
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = pg_catalog, public
-AS $$
-BEGIN
-  IF NEW.ktp_photo_url IS DISTINCT FROM OLD.ktp_photo_url THEN
-    NEW.kyc_verified := false;
-    NEW.kyc_status := CASE WHEN NEW.ktp_photo_url IS NULL OR NEW.ktp_photo_url = '' THEN 'not_started' ELSE 'pending' END;
-    NEW.kyc_submitted_at := CASE WHEN NEW.ktp_photo_url IS NULL OR NEW.ktp_photo_url = '' THEN NULL ELSE now() END;
-    NEW.kyc_reviewed_at := NULL;
-    NEW.kyc_rejection_reason := NULL;
-  END IF;
-  RETURN NEW;
-END;
-$$;
-
+-- MVP: upload -> pending -> admin review; no paid KYC provider required.
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS kyc_status text NOT NULL DEFAULT 'not_started', ADD COLUMN IF NOT EXISTS kyc_submitted_at timestamptz, ADD COLUMN IF NOT EXISTS kyc_reviewed_at timestamptz, ADD COLUMN IF NOT EXISTS kyc_rejection_reason text;
+ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_kyc_status_check;
+ALTER TABLE public.profiles ADD CONSTRAINT profiles_kyc_status_check CHECK (kyc_status IN ('not_started','pending','approved','rejected'));
+CREATE OR REPLACE FUNCTION public.enforce_kyc_submission() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public AS $$ BEGIN IF NEW.ktp_photo_url IS DISTINCT FROM OLD.ktp_photo_url THEN NEW.kyc_verified := false; NEW.kyc_status := CASE WHEN NEW.ktp_photo_url IS NULL OR NEW.ktp_photo_url='' THEN 'not_started' ELSE 'pending' END; NEW.kyc_submitted_at := CASE WHEN NEW.ktp_photo_url IS NULL OR NEW.ktp_photo_url='' THEN NULL ELSE now() END; NEW.kyc_reviewed_at := NULL; NEW.kyc_rejection_reason := NULL; END IF; RETURN NEW; END; $$;
 DROP TRIGGER IF EXISTS trg_enforce_kyc_submission ON public.profiles;
-CREATE TRIGGER trg_enforce_kyc_submission
-BEFORE UPDATE OF ktp_photo_url ON public.profiles
-FOR EACH ROW EXECUTE FUNCTION public.enforce_kyc_submission();
-
--- Retire the old self-verification behavior. Existing callers can no longer
--- promote themselves; the function only submits/re-submits the document.
-CREATE OR REPLACE FUNCTION public.verify_kyc()
-RETURNS jsonb
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = pg_catalog, public
-AS $$
-DECLARE
-  v_user uuid := auth.uid();
-BEGIN
-  IF v_user IS NULL THEN RAISE EXCEPTION 'Authentication required'; END IF;
-  UPDATE public.profiles
-  SET kyc_verified = false,
-      kyc_status = CASE WHEN ktp_photo_url IS NULL OR ktp_photo_url = '' THEN 'not_started' ELSE 'pending' END,
-      kyc_submitted_at = CASE WHEN ktp_photo_url IS NULL OR ktp_photo_url = '' THEN NULL ELSE now() END,
-      kyc_reviewed_at = NULL,
-      kyc_rejection_reason = NULL
-  WHERE id = v_user;
-  RETURN jsonb_build_object('status', 'pending');
-END;
-$$;
-
-REVOKE EXECUTE ON FUNCTION public.verify_kyc() FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.verify_kyc() TO authenticated;
-
-CREATE OR REPLACE FUNCTION public.admin_list_kyc()
-RETURNS TABLE (
-  id uuid,
-  full_name text,
-  role text,
-  phone text,
-  ktp_photo_url text,
-  kyc_verified boolean,
-  kyc_status text,
-  kyc_submitted_at timestamptz,
-  kyc_reviewed_at timestamptz,
-  kyc_rejection_reason text
-)
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = pg_catalog, public
-AS $$
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin') THEN
-    RAISE EXCEPTION 'Admin access required';
-  END IF;
-  RETURN QUERY
-  SELECT p.id, p.full_name, p.role::text, p.phone::text, p.ktp_photo_url,
-         COALESCE(p.kyc_verified,false), p.kyc_status, p.kyc_submitted_at,
-         p.kyc_reviewed_at, p.kyc_rejection_reason
-  FROM public.profiles p
-  WHERE p.role IN ('worker','employer')
-    AND p.ktp_photo_url IS NOT NULL
-  ORDER BY CASE p.kyc_status WHEN 'pending' THEN 0 WHEN 'rejected' THEN 1 ELSE 2 END,
-           p.kyc_submitted_at DESC NULLS LAST;
-END;
-$$;
-
-CREATE OR REPLACE FUNCTION public.admin_review_kyc(
-  p_user_id uuid,
-  p_approve boolean,
-  p_rejection_reason text DEFAULT NULL
-)
-RETURNS jsonb
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = pg_catalog, public
-AS $$
-DECLARE
-  v_status text;
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin') THEN
-    RAISE EXCEPTION 'Admin access required';
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = p_user_id AND p.role IN ('worker','employer') AND p.ktp_photo_url IS NOT NULL) THEN
-    RAISE EXCEPTION 'KYC submission not found';
-  END IF;
-  v_status := CASE WHEN p_approve THEN 'approved' ELSE 'rejected' END;
-  UPDATE public.profiles
-  SET kyc_verified = p_approve,
-      kyc_status = v_status,
-      kyc_reviewed_at = now(),
-      kyc_rejection_reason = CASE WHEN p_approve THEN NULL ELSE NULLIF(trim(p_rejection_reason), '') END
-  WHERE id = p_user_id;
-  RETURN jsonb_build_object('status', v_status, 'user_id', p_user_id);
-END;
-$$;
-
-REVOKE EXECUTE ON FUNCTION public.admin_list_kyc() FROM PUBLIC, anon, authenticated;
-REVOKE EXECUTE ON FUNCTION public.admin_review_kyc(uuid, boolean, text) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.admin_list_kyc() TO authenticated;
-GRANT EXECUTE ON FUNCTION public.admin_review_kyc(uuid, boolean, text) TO authenticated;
-
--- Prevent direct client promotion of the sensitive flags/status.
-DROP POLICY IF EXISTS "Users can update own profile" ON public.profiles;
-CREATE POLICY "Users can update own profile"
-ON public.profiles FOR UPDATE TO authenticated
-USING (auth.uid() = id)
-WITH CHECK (auth.uid() = id);
-
--- Sensitive columns are protected by the trigger above; role/admin protections
--- already exist in the project and remain authoritative.
+CREATE TRIGGER trg_enforce_kyc_submission BEFORE UPDATE OF ktp_photo_url ON public.profiles FOR EACH ROW EXECUTE FUNCTION public.enforce_kyc_submission();
+DROP FUNCTION IF EXISTS public.verify_kyc();
+CREATE FUNCTION public.verify_kyc() RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public AS $$ DECLARE v_user uuid:=auth.uid(); BEGIN IF v_user IS NULL THEN RAISE EXCEPTION 'Authentication required'; END IF; UPDATE public.profiles SET kyc_verified=false,kyc_status=CASE WHEN ktp_photo_url IS NULL OR ktp_photo_url='' THEN 'not_started' ELSE 'pending' END,kyc_submitted_at=CASE WHEN ktp_photo_url IS NULL OR ktp_photo_url='' THEN NULL ELSE now() END,kyc_reviewed_at=NULL,kyc_rejection_reason=NULL WHERE id=v_user; RETURN jsonb_build_object('status','pending'); END; $$;
+REVOKE EXECUTE ON FUNCTION public.verify_kyc() FROM PUBLIC,anon; GRANT EXECUTE ON FUNCTION public.verify_kyc() TO authenticated;
+DROP FUNCTION IF EXISTS public.admin_list_kyc();
+CREATE FUNCTION public.admin_list_kyc() RETURNS TABLE(id uuid,full_name text,role text,phone text,ktp_photo_url text,kyc_verified boolean,kyc_status text,kyc_submitted_at timestamptz,kyc_reviewed_at timestamptz,kyc_rejection_reason text) LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$ BEGIN IF NOT EXISTS(SELECT 1 FROM public.profiles p WHERE p.id=auth.uid() AND p.role='admin') THEN RAISE EXCEPTION 'Admin access required'; END IF; RETURN QUERY SELECT p.id,p.full_name,p.role::text,p.phone::text,p.ktp_photo_url,COALESCE(p.kyc_verified,false),p.kyc_status,p.kyc_submitted_at,p.kyc_reviewed_at,p.kyc_rejection_reason FROM public.profiles p WHERE p.role IN('worker','employer') AND p.ktp_photo_url IS NOT NULL ORDER BY CASE p.kyc_status WHEN 'pending' THEN 0 WHEN 'rejected' THEN 1 ELSE 2 END,p.kyc_submitted_at DESC NULLS LAST; END; $$;
+DROP FUNCTION IF EXISTS public.admin_review_kyc(uuid,boolean,text);
+CREATE FUNCTION public.admin_review_kyc(p_user_id uuid,p_approve boolean,p_rejection_reason text DEFAULT NULL) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$ DECLARE v_status text; BEGIN IF NOT EXISTS(SELECT 1 FROM public.profiles p WHERE p.id=auth.uid() AND p.role='admin') THEN RAISE EXCEPTION 'Admin access required'; END IF; IF NOT EXISTS(SELECT 1 FROM public.profiles p WHERE p.id=p_user_id AND p.role IN('worker','employer') AND p.ktp_photo_url IS NOT NULL) THEN RAISE EXCEPTION 'KYC submission not found'; END IF; v_status:=CASE WHEN p_approve THEN 'approved' ELSE 'rejected' END; UPDATE public.profiles SET kyc_verified=p_approve,kyc_status=v_status,kyc_reviewed_at=now(),kyc_rejection_reason=CASE WHEN p_approve THEN NULL ELSE NULLIF(trim(p_rejection_reason),'') END WHERE id=p_user_id; RETURN jsonb_build_object('status',v_status,'user_id',p_user_id); END; $$;
+REVOKE EXECUTE ON FUNCTION public.admin_list_kyc() FROM PUBLIC,anon,authenticated; REVOKE EXECUTE ON FUNCTION public.admin_review_kyc(uuid,boolean,text) FROM PUBLIC,anon,authenticated; GRANT EXECUTE ON FUNCTION public.admin_list_kyc() TO authenticated; GRANT EXECUTE ON FUNCTION public.admin_review_kyc(uuid,boolean,text) TO authenticated;
