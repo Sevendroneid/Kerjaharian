@@ -85,7 +85,7 @@ export function AuthModal({ open, onClose, lang = 'id' }: AuthModalProps) {
         const { error: signInError } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
         if (signInError) throw signInError;
       }
-      const { data: { currentUser } } = await supabase.auth.getUser();
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
       if (!currentUser) throw new Error('Sesi login tidak ditemukan');
       if (!profile?.full_name) setStep('profile'); else onClose();
     } catch (err: any) {
@@ -100,10 +100,12 @@ export function AuthModal({ open, onClose, lang = 'id' }: AuthModalProps) {
     setLoading(true);
     setError('');
     try {
-      const { data: { currentUser } } = await supabase.auth.getUser();
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
       if (!currentUser) throw new Error('Sesi habis. Silakan masuk lagi.');
       const normalizedPhone = phone.replace(/\D/g, '');
-      const whatsapp = normalizedPhone ? `+${normalizedPhone.startsWith('0') ? `62${normalizedPhone.slice(1)}` : normalizedPhone}` : null;
+      const whatsapp = normalizedPhone
+        ? `+${normalizedPhone.startsWith('0') ? `62${normalizedPhone.slice(1)}` : normalizedPhone}`
+        : null;
       const { error: profileError } = await supabase
         .from('profiles')
         .update({ full_name: fullName.trim(), role, whatsapp, phone: whatsapp })
@@ -123,7 +125,7 @@ export function AuthModal({ open, onClose, lang = 'id' }: AuthModalProps) {
     setLoading(true);
     setError('');
     try {
-      const { data: { currentUser } } = await supabase.auth.getUser();
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
       if (!currentUser) throw new Error('Sesi habis. Silakan masuk lagi.');
       const extension = ktpFile.name.split('.').pop()?.toLowerCase() || 'jpg';
       const filePath = `${currentUser.id}/ktp-${Date.now()}.${extension}`;
