@@ -4,7 +4,7 @@ export function HelpCenter() {
   return (
     <div className="max-w-2xl mx-auto p-6 bg-white rounded-xl shadow-md my-8 space-y-6 text-gray-800">
       <h1 className="text-2xl font-bold border-b pb-4">Pusat Bantuan & Layanan Pelanggan</h1>
-      
+
       <p className="text-sm text-gray-600">
         Butuh bantuan terkait pesanan harian, kendala pembayaran, atau verifikasi akun di <strong>www.kerjaharian.my.id</strong>? Tim *Customer Support* kami siap membantu Anda.
       </p>
@@ -26,7 +26,7 @@ export function HelpCenter() {
 
       <div className="space-y-3">
         <h2 className="font-semibold text-gray-900 text-base">Pertanyaan Umum (FAQ)</h2>
-        
+
         <div className="border p-4 rounded-lg space-y-1">
           <h4 className="font-medium text-sm text-gray-900">Bagaimana cara kerja sistem pembayaran dan tarif?</h4>
           <p className="text-xs text-gray-600">Tarif dihitung secara transparan menggunakan <em>Pricing Engine</em> berbasis paket 4 jam ditambah jam tambahan, serta modifier shift malam atau beban fisik yang diproses secara otomatis.</p>
@@ -40,4 +40,3 @@ export function HelpCenter() {
     </div>
   );
 }
-a
