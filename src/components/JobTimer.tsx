@@ -194,7 +194,7 @@ export function JobTimer({ role, lang = 'id' }: JobTimerProps) {
         const finalAmount = Number(job.final_amount ?? job.employer_total ?? job.total ?? 0);
         const workerAmount = Number(job.worker_amount ?? ((job.wage ?? 0) + (job.worker_overtime_amount ?? job.overtime_amount ?? 0)));
         const alreadyContinued = job.completion_decision === 'continued';
-        const ready = job.workflow_status === 'ready_to_start' || !!job.employer_start_authorized_at;
+        const ready = job.workflow_status === 'ready_to_start';
         const statusLabel = job.status === 'completed' ? 'SELESAI' : job.workflow_status === 'active' ? 'BERJALAN' : job.workflow_status === 'overtime' ? 'LEMBUR' : ready ? 'SIAP MULAI' : job.workflow_status === 'worker_checked_in' ? 'MITRA SUDAH TIBA' : job.workflow_status === 'employer_checked_in' ? 'EMPLOYER SUDAH TIBA' : 'ORDER DIAMBIL';
         return (
           <div key={job.id} className="mt-4 rounded-xl bg-slate-50 p-4 ring-1 ring-slate-200">
