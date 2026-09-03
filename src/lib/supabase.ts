@@ -18,7 +18,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 
 export interface Profile {
   id: string;
-  full_name: string;
+  full_name: string | null;
   phone: string | null;
   whatsapp: string | null;
   role: 'employer' | 'worker' | 'admin';
