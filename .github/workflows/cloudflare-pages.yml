@@ -53,5 +53,5 @@ jobs:
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          accountId: 489c2e2b374c84561b5b510fa2136016
           command: pages deploy dist --project-name=kerjaharian --branch=main --commit-hash=${{ github.sha }} --commit-message="${{ github.event.head_commit.message }}"
