@@ -9,11 +9,52 @@ interface AuthState {
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: string | null }>;
+  signInWithGoogle: () => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState | undefined>(undefined);
+
+async function ensureProfile(user: User): Promise<Profile | null> {
+  const { data: existing, error: readError } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', user.id)
+    .maybeSingle();
+  if (readError) {
+    console.error('Failed to fetch profile:', readError.message);
+    return null;
+  }
+  if (existing) return existing as Profile;
+
+  const metadata = user.user_metadata ?? {};
+  const fullName = typeof metadata.full_name === 'string'
+    ? metadata.full_name.trim()
+    : typeof metadata.name === 'string'
+      ? metadata.name.trim()
+      : '';
+
+  const { data: created, error: insertError } = await supabase
+    .from('profiles')
+    .insert({
+      id: user.id,
+      full_name: fullName || null,
+      role: 'worker',
+      is_admin: false,
+    })
+    .select('*')
+    .single();
+
+  if (insertError) {
+    // Another tab/session may have created it between SELECT and INSERT.
+    const { data: retry } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
+    if (retry) return retry as Profile;
+    console.error('Failed to create profile:', insertError.message);
+    return null;
+  }
+  return created as Profile;
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -34,35 +75,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfile(data as Profile | null);
   }, []);
 
+  const hydrateUser = useCallback(async (nextUser: User | null) => {
+    if (!nextUser) {
+      setProfile(null);
+      return;
+    }
+    const nextProfile = await ensureProfile(nextUser);
+    setProfile(nextProfile);
+  }, []);
+
   const refreshProfile = useCallback(async () => {
     if (user) await fetchProfile(user.id);
   }, [user, fetchProfile]);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    let mounted = true;
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!mounted) return;
       setSession(session);
       setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchProfile(session.user.id).finally(() => setLoading(false));
-      } else {
-        setLoading(false);
-      }
+      await hydrateUser(session?.user ?? null);
+      if (mounted) setLoading(false);
     });
 
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, newSession) => {
       setSession(newSession);
       setUser(newSession?.user ?? null);
-      if (newSession?.user) {
-        (async () => {
-          await fetchProfile(newSession.user.id);
-        })();
-      } else {
-        setProfile(null);
-      }
+      void hydrateUser(newSession?.user ?? null);
     });
 
-    return () => authListener.subscription.unsubscribe();
-  }, [fetchProfile]);
+    return () => {
+      mounted = false;
+      authListener.subscription.unsubscribe();
+    };
+  }, [hydrateUser]);
 
   const signIn = useCallback(async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -78,6 +124,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: error?.message ?? null };
   }, []);
 
+  const signInWithGoogle = useCallback(async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin },
+    });
+    return { error: error?.message ?? null };
+  }, []);
+
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
     setProfile(null);
@@ -85,7 +139,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ session, user, profile, loading, signIn, signUp, signOut, refreshProfile }}
+      value={{ session, user, profile, loading, signIn, signUp, signInWithGoogle, signOut, refreshProfile }}
     >
       {children}
     </AuthContext.Provider>
