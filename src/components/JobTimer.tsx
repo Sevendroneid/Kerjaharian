@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Clock3, Loader2, Play, TimerReset } from 'lucide-react';
 import { supabase, type Job } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
@@ -16,6 +16,26 @@ function isUsableJob(value: unknown): value is Job {
   if (!value || typeof value !== 'object') return false;
   const job = value as Partial<Job>;
   return typeof job.id === 'string' && typeof job.status === 'string';
+}
+
+function getJobTiming(job: Job, now: string) {
+  if (job.status !== 'assigned' || typeof job.started_at !== 'string' || typeof job.scheduled_end_at !== 'string') return null;
+  const durationMinutes = Number(job.duration_minutes);
+  if (!Number.isFinite(durationMinutes) || durationMinutes <= 0) return null;
+  try {
+    return calculateJobTiming(
+      {
+        durationMinutes,
+        basePrice: Number(job.wage ?? 0),
+        overtimeRatePerMinute: Number(job.overtime_rate_per_minute ?? 0),
+        alertBeforeMinutes: 15,
+      },
+      { startedAt: job.started_at, scheduledEndAt: job.scheduled_end_at, now },
+    );
+  } catch (cause) {
+    console.error('KerjaHarian JobTimer timing error:', cause);
+    return null;
+  }
 }
 
 export function JobTimer({ role, lang = 'id' }: JobTimerProps) {
@@ -63,24 +83,6 @@ export function JobTimer({ role, lang = 'id' }: JobTimerProps) {
     return () => window.clearInterval(interval);
   }, [jobs]);
 
-  const active = useMemo(
-    () => jobs.find((job) => job.status === 'assigned' && typeof job.started_at === 'string' && typeof job.scheduled_end_at === 'string'),
-    [jobs],
-  );
-
-  const timing = useMemo(() => {
-    if (!active?.started_at || !active.scheduled_end_at || !Number.isFinite(Number(active.duration_minutes))) return null;
-    try {
-      return calculateJobTiming(
-        { durationMinutes: Number(active.duration_minutes), basePrice: Number(active.wage ?? 0), overtimeRatePerMinute: Number(active.overtime_rate_per_minute ?? 0), alertBeforeMinutes: 15 },
-        { startedAt: active.started_at, scheduledEndAt: active.scheduled_end_at, now },
-      );
-    } catch (cause) {
-      console.error('KerjaHarian JobTimer timing error:', cause);
-      return null;
-    }
-  }, [active, now]);
-
   const start = async (jobId: string) => {
     setBusyId(jobId); setError('');
     try {
@@ -114,7 +116,7 @@ export function JobTimer({ role, lang = 'id' }: JobTimerProps) {
       </div>
       {error && <div className="mt-4 rounded-lg bg-error-50 p-3 text-xs font-semibold text-error-700">{error}</div>}
       {jobs.map((job) => {
-        const jobTiming = job === active ? timing : null;
+        const jobTiming = getJobTiming(job, now);
         const overtimeAmount = jobTiming?.overtimeAmount ?? Number(job.overtime_amount ?? 0);
         const finalAmount = Number(job.final_amount ?? job.employer_total ?? job.total ?? 0);
         const workerAmount = Number(job.worker_amount ?? ((job.wage ?? 0) + (job.worker_overtime_amount ?? job.overtime_amount ?? 0)));
