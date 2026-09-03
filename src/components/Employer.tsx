@@ -29,6 +29,7 @@ interface OrderItem {
   status: string;
   total_price: number;
   created_at: string;
+  title?: string | null;
   job_prices?: { job_name: string } | null;
   order_locations?: Array<{ lat: number | null; lng: number | null }>;
 }
@@ -468,7 +469,7 @@ export function Employer({ onAuthClick, initialCategory, lang, i18n }: EmployerP
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <p className="font-semibold text-slate-900">
-                            {order.job_prices?.job_name || 'Pekerjaan'}
+                            {order.title || order.job_prices?.job_name || 'Pekerjaan'}
                           </p>
                           <p className="mt-1 text-xs text-slate-500">{timeAgo(order.created_at, lang)}</p>
                         </div>
