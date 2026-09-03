@@ -22,9 +22,9 @@ export interface JobTimingResult {
 }
 
 /**
- * KerjaHarian duration/overtime engine.
- * The first overtime minute starts immediately after the agreed duration ends.
- * Money is calculated from whole elapsed overtime minutes.
+ * KerjaHarian timer engine.
+ * The database scheduled_end_at is the authoritative deal boundary.
+ * Whole minutes after that boundary become overtime.
  */
 export function calculateJobTiming(
   config: JobTimingConfig,
@@ -34,24 +34,24 @@ export function calculateJobTiming(
   const alertBefore = Math.max(0, Math.floor(config.alertBeforeMinutes ?? 15));
   const overtimeRate = Math.max(0, config.overtimeRatePerMinute);
   const started = new Date(state.startedAt).getTime();
+  const scheduledEnd = new Date(state.scheduledEndAt).getTime();
   const now = new Date(state.now ?? new Date().toISOString()).getTime();
 
-  if (!Number.isFinite(started) || !Number.isFinite(now)) {
+  if (!Number.isFinite(started) || !Number.isFinite(scheduledEnd) || !Number.isFinite(now)) {
     throw new Error('Invalid job timing timestamp');
   }
 
   const elapsedMinutes = Math.max(0, Math.floor((now - started) / 60000));
-  const remainingMinutes = Math.max(0, duration - elapsedMinutes);
-  const overtimeMinutes = Math.max(0, elapsedMinutes - duration);
-  const scheduledEndAt = new Date(started + duration * 60000).toISOString();
+  const remainingMinutes = Math.max(0, Math.ceil((scheduledEnd - now) / 60000));
+  const overtimeMinutes = Math.max(0, Math.floor((now - scheduledEnd) / 60000));
 
   return {
     elapsedMinutes,
     remainingMinutes,
     overtimeMinutes,
     isOvertime: overtimeMinutes > 0,
-    isAlert: remainingMinutes > 0 && remainingMinutes <= alertBefore,
-    isFinished: elapsedMinutes >= duration,
+    isAlert: now < scheduledEnd && remainingMinutes > 0 && remainingMinutes <= alertBefore,
+    isFinished: now >= scheduledEnd,
     overtimeAmount: overtimeMinutes * overtimeRate,
   };
 }
