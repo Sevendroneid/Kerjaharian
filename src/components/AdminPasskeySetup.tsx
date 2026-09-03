@@ -19,7 +19,9 @@ export default function AdminPasskeySetup() {
       try {
         const { data } = await supabase.auth.passkey.list();
         if (active) setReady(Boolean(data?.length));
-      } catch (_) {}
+      } catch (error) {
+        if (active) setMessage(error instanceof Error ? error.message : 'Gagal memeriksa Passkey.');
+      }
     })();
     return () => { active = false; };
   }, [supported]);
@@ -31,7 +33,7 @@ export default function AdminPasskeySetup() {
       if (error) throw error;
       setReady(true);
       setMessage(data?.friendly_name ? `Passkey ${data.friendly_name} aktif.` : 'Fingerprint / Passkey berhasil diaktifkan.');
-    } catch (err: any) { setMessage(err?.message || 'Gagal mengaktifkan Passkey.'); }
+    } catch (err: unknown) { setMessage(err instanceof Error ? err.message : 'Gagal mengaktifkan Passkey.'); }
     finally { setLoading(false); }
   };
 
@@ -49,7 +51,7 @@ export default function AdminPasskeySetup() {
       if (error) throw error;
       setPin(''); setPinConfirm('');
       setPinMessage('PIN Admin berhasil disimpan. PIN ini dapat dipakai untuk login berikutnya.');
-    } catch (err: any) { setPinMessage(err?.message || 'Gagal menyimpan PIN Admin.'); }
+    } catch (err: unknown) { setPinMessage(err instanceof Error ? err.message : 'Gagal menyimpan PIN Admin.'); }
     finally { setPinLoading(false); }
   };
 
