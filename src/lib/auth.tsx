@@ -28,26 +28,15 @@ async function ensureProfile(user: User): Promise<Profile | null> {
   }
   if (existing) return existing as Profile;
 
-  const metadata = user.user_metadata ?? {};
-  const fullName = typeof metadata.full_name === 'string'
-    ? metadata.full_name.trim()
-    : typeof metadata.name === 'string'
-      ? metadata.name.trim()
-      : '';
-
+  // Do not silently choose a role for a new Google user. The first profile
+  // screen asks the person whether they are a worker or an employer.
   const { data: created, error: insertError } = await supabase
     .from('profiles')
-    .insert({
-      id: user.id,
-      full_name: fullName || null,
-      role: 'worker',
-      is_admin: false,
-    })
+    .insert({ id: user.id, full_name: null, role: 'worker', is_admin: false })
     .select('*')
     .single();
 
   if (insertError) {
-    // Another tab/session may have created it between SELECT and INSERT.
     const { data: retry } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
     if (retry) return retry as Profile;
     console.error('Failed to create profile:', insertError.message);
@@ -63,11 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = useCallback(async (uid: string) => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', uid)
-      .maybeSingle();
+    const { data, error } = await supabase.from('profiles').select('*').eq('id', uid).maybeSingle();
     if (error) {
       console.error('Failed to fetch profile:', error.message);
       return;
@@ -138,9 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider
-      value={{ session, user, profile, loading, signIn, signUp, signInWithGoogle, signOut, refreshProfile }}
-    >
+    <AuthContext.Provider value={{ session, user, profile, loading, signIn, signUp, signInWithGoogle, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );
