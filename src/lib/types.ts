@@ -1,6 +1,6 @@
 import type { LucideIcon } from 'lucide-react';
 
-export type View = 'landing' | 'worker' | 'employer';
+export type View = 'landing' | 'worker' | 'employer' | 'admin';
 
 export type CategoryId = 'logistik' | 'tukang' | 'kebersihan' | 'serabutan';
 
