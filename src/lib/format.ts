@@ -26,8 +26,19 @@ export function formatDistance(meters: number): string {
   return `${(meters / 1000).toFixed(1)} km`;
 }
 
-export function timeAgo(date: Date): string {
-  const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
+/**
+ * Accept both Date objects and ISO/date strings from Supabase.
+ * Supabase timestamp columns are returned as strings, so callers must not
+ * rely on Date#getTime being available on the raw database value.
+ */
+export function timeAgo(value: Date | string | number | null | undefined, _lang?: 'id' | 'en'): string {
+  if (value === null || value === undefined || value === '') return 'baru saja';
+
+  const date = value instanceof Date ? value : new Date(value);
+  const timestamp = date.getTime();
+  if (!Number.isFinite(timestamp)) return 'baru saja';
+
+  const seconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
   if (seconds < 60) return 'baru saja';
   const minutes = Math.floor(seconds / 60);
   if (minutes < 60) return `${minutes} menit lalu`;
