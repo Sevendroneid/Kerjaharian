@@ -14,8 +14,9 @@ export default function AdminLogin({ onClose }: AdminLoginProps) {
   const [recoveryMessage, setRecoveryMessage] = useState('');
   const [passkeySupported] = useState(() => typeof window !== 'undefined' && !!window.PublicKeyCredential);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollInFlightRef = useRef(false);
 
-  useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
+  useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); pollRef.current = null; pollInFlightRef.current = false; }, []);
 
   const invokePhoneAuth = async (body: Record<string, unknown>) => {
     const result = await supabase.functions.invoke('phone-auth-otpid', { body });
@@ -70,25 +71,29 @@ export default function AdminLogin({ onClose }: AdminLoginProps) {
       window.open(data.verification.wa_link, '_blank', 'noopener,noreferrer');
       const startedAt = Date.now();
       if (pollRef.current) clearInterval(pollRef.current);
+      pollInFlightRef.current = false;
       pollRef.current = setInterval(async () => {
+        if (pollInFlightRef.current) return;
         if (Date.now() - startedAt > 5 * 60 * 1000) {
           if (pollRef.current) clearInterval(pollRef.current);
-          pollRef.current = null; setLoading(false); setRecoveryMessage('Sesi WhatsApp kedaluwarsa. Silakan mulai lagi.'); return;
+          pollRef.current = null; pollInFlightRef.current = false; setLoading(false); setRecoveryMessage('Sesi WhatsApp kedaluwarsa. Silakan mulai lagi.'); return;
         }
+        pollInFlightRef.current = true;
         try {
           const status = await invokePhoneAuth({ action: 'status', phone: ADMIN_CANONICAL, challenge_id: data.challenge_id });
           if (status?.status === 'success' && status?.action_link) {
             if (pollRef.current) clearInterval(pollRef.current);
-            pollRef.current = null; window.location.assign(status.action_link); return;
+            pollRef.current = null; pollInFlightRef.current = false; window.location.assign(status.action_link); return;
           }
           if (status?.status === 'expired') {
             if (pollRef.current) clearInterval(pollRef.current);
-            pollRef.current = null; setLoading(false); setRecoveryMessage('Sesi WhatsApp kedaluwarsa. Silakan mulai lagi.');
+            pollRef.current = null; pollInFlightRef.current = false; setLoading(false); setRecoveryMessage('Sesi WhatsApp kedaluwarsa. Silakan mulai lagi.'); return;
           }
         } catch (err: any) {
           if (pollRef.current) clearInterval(pollRef.current);
-          pollRef.current = null; setLoading(false); setError(err?.message || 'Gagal memeriksa verifikasi WhatsApp.');
+          pollRef.current = null; pollInFlightRef.current = false; setLoading(false); setError(err?.message || 'Gagal memeriksa verifikasi WhatsApp.'); return;
         }
+        pollInFlightRef.current = false;
       }, 2000);
     } catch (err: any) { setLoading(false); setRecoveryMessage(''); setError(err?.message || 'Gagal memulai pemulihan Admin melalui WhatsApp.'); }
   };
