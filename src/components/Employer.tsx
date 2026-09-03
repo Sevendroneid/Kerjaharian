@@ -64,7 +64,7 @@ export function Employer({ onAuthClick, initialCategory, lang, i18n }: EmployerP
   const wageNum = Math.max(0, parseInt(wage.replace(/[^0-9]/g, ''), 10) || 0);
   const selectedCat = CATEGORY_MAP[category];
   const pricing = calculateOrderPrice({ wageAmount: wageNum, nightShift, needsTools });
-  const { nightShiftAdd, toolAllowance, baseWage, platformFee, insurance, totalPrice } = pricing;
+  const { nightShiftAdd, baseWage, platformFee, insurance, totalPrice } = pricing;
 
   const fetchJobPrices = useCallback(async () => {
     const { data, error } = await supabase
@@ -162,10 +162,11 @@ export function Employer({ onAuthClick, initialCategory, lang, i18n }: EmployerP
       wage: wageNum,
       total: totalPrice,
       night_shift: nightShift,
+      // Informational suggestion only. Never used as a requirement or price modifier.
       needs_tools: needsTools,
       title: title || selectedJobPrice.job_name,
       location,
-    });
+    }).select().single();
 
     if (orderError) {
       setError(orderError.message);
@@ -354,7 +355,7 @@ export function Employer({ onAuthClick, initialCategory, lang, i18n }: EmployerP
                       nightShift ? 'border-primary-500 bg-primary-50' : 'border-slate-200 bg-white'
                     }`}
                   >
-                    {lang === 'id' ? '🌙 Shift Malam' : '🌙 Night Shift'}
+                    {lang === 'id' ? '🌙 Shift Malam (mulai 21:00)' : '🌙 Night Shift (starts 21:00)'}
                   </button>
                   <button
                     type="button"
@@ -362,10 +363,16 @@ export function Employer({ onAuthClick, initialCategory, lang, i18n }: EmployerP
                     className={`flex-1 rounded-lg border-2 px-4 py-2.5 text-sm font-semibold ${
                       needsTools ? 'border-primary-500 bg-primary-50' : 'border-slate-200 bg-white'
                     }`}
+                    aria-pressed={needsTools}
                   >
-                    {lang === 'id' ? '🔧 Sediakan Alat' : '🔧 Tools Provided'}
+                    {lang === 'id' ? '🔧 Saran: Bawa Alat' : '🔧 Suggest: Bring Tools'}
                   </button>
                 </div>
+                <p className="text-xs leading-5 text-slate-500">
+                  {lang === 'id'
+                    ? 'Saran alat kerja hanya informasi dari employer. Tidak wajib, tidak memblokir pekerja, dan tidak menambah biaya.'
+                    : 'The tool option is employer information only. It is never required, never blocks workers, and adds no charge.'}
+                </p>
 
                 <div>
                   <label className="label">
@@ -396,12 +403,6 @@ export function Employer({ onAuthClick, initialCategory, lang, i18n }: EmployerP
                     value={formatIDR(nightShiftAdd)}
                   />
                 )}
-                {needsTools && (
-                  <SummaryRow
-                    label={lang === 'id' ? 'Alat Kerja' : 'Tools'}
-                    value={formatIDR(toolAllowance)}
-                  />
-                )}
                 <SummaryRow
                   label={lang === 'id' ? 'Biaya Platform & Asuransi' : 'Fee & Insurance'}
                   value={formatIDR(platformFee + insurance.microInsurance)}
@@ -430,60 +431,66 @@ export function Employer({ onAuthClick, initialCategory, lang, i18n }: EmployerP
                     : 'Job published successfully! Workers will contact you soon.'}
                 </div>
               )}
+
               <button
                 type="submit"
-                disabled={submitting}
-                className="btn-primary mt-5 w-full"
+                disabled={submitting || authLoading}
+                className="btn-primary mt-6 flex w-full items-center justify-center gap-2"
               >
-                {submitting ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <>
-                    <Send className="h-4 w-4" />
-                    {lang === 'id' ? 'Publikasikan Sekarang' : 'Publish Now'}
-                  </>
-                )}
+                {submitting ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
+                {submitting
+                  ? lang === 'id' ? 'Mempublikasikan...' : 'Publishing...'
+                  : lang === 'id' ? 'Publikasikan Pesanan' : 'Publish Job'}
               </button>
             </form>
           </div>
 
           <div className="lg:col-span-2">
-            <div className="card p-6">
-              <h3 className="font-display text-base font-bold">
-                {lang === 'id' ? `Pesanan Aktif (${orders.length})` : `Active Jobs (${orders.length})`}
-              </h3>
-              {!user ? (
-                <p className="mt-4 text-sm text-slate-400">
-                  {lang === 'id' ? 'Masuk untuk melihat pesanan.' : 'Sign in to view jobs.'}
-                </p>
-              ) : loadingOrders ? (
-                <Loader2 className="mt-4 h-6 w-6 animate-spin mx-auto" />
-              ) : orders.length === 0 ? (
-                <p className="mt-4 text-sm text-slate-400">
-                  {lang === 'id' ? 'Belum ada pesanan aktif.' : 'No active jobs yet.'}
-                </p>
-              ) : (
-                <div className="mt-4 space-y-3">
-                  {orders.map((order) => (
-                    <div
-                      key={order.id}
-                      className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm flex justify-between items-start"
-                    >
-                      <div>
-                        <p className="font-semibold text-slate-900">{order.job_prices?.job_name ?? 'Job'}</p>
-                        <p className="mt-0.5 text-xs text-slate-500">{timeAgo(new Date(order.created_at))}</p>
-                        <p className="mt-1 text-sm font-semibold text-primary-600">{formatIDR(order.total_price)}</p>
+            <div className="card p-6 sm:p-8">
+              <div className="flex items-center justify-between">
+                <h2 className="font-display text-lg font-bold text-slate-900">
+                  {lang === 'id' ? 'Pesanan Saya' : 'My Orders'}
+                </h2>
+                {loadingOrders && <Loader2 className="h-4 w-4 animate-spin text-slate-400" />}
+              </div>
+              <div className="mt-4 space-y-3">
+                {!user ? (
+                  <p className="text-sm text-slate-500">
+                    {lang === 'id' ? 'Login untuk melihat pesanan Anda.' : 'Sign in to view your orders.'}
+                  </p>
+                ) : orders.length === 0 ? (
+                  <p className="text-sm text-slate-500">
+                    {lang === 'id' ? 'Belum ada pesanan.' : 'No orders yet.'}
+                  </p>
+                ) : (
+                  orders.map((order) => (
+                    <div key={order.id} className="rounded-xl border border-slate-200 p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="font-semibold text-slate-900">
+                            {order.job_prices?.job_name || 'Pekerjaan'}
+                          </p>
+                          <p className="mt-1 text-xs text-slate-500">{timeAgo(order.created_at, lang)}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(order.id)}
+                          className="rounded-lg p-2 text-slate-400 hover:bg-error-50 hover:text-error-600"
+                          aria-label={lang === 'id' ? 'Hapus pesanan' : 'Delete order'}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
                       </div>
-                      <button
-                        onClick={() => handleDelete(order.id)}
-                        className="p-2 text-slate-400 hover:text-error-600"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                      <div className="mt-3 flex items-center justify-between text-sm">
+                        <span className="rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600">
+                          {order.status}
+                        </span>
+                        <span className="font-bold text-primary-700">{formatIDR(order.total_price)}</span>
+                      </div>
                     </div>
-                  ))}
-                </div>
-              )}
+                  ))
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -494,9 +501,9 @@ export function Employer({ onAuthClick, initialCategory, lang, i18n }: EmployerP
 
 function SummaryRow({ label, value, muted = false }: { label: string; value: string; muted?: boolean }) {
   return (
-    <div className="flex justify-between text-sm mb-2">
+    <div className="flex items-center justify-between gap-4 py-1.5 text-sm">
       <span className={muted ? 'text-slate-500' : 'text-slate-700'}>{label}</span>
-      <span className={muted ? 'text-slate-400' : 'font-semibold'}>{value}</span>
+      <span className={muted ? 'font-medium text-slate-600' : 'font-semibold text-slate-900'}>{value}</span>
     </div>
   );
 }
