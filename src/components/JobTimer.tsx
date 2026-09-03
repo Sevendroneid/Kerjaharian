@@ -24,11 +24,8 @@ export function JobTimer({ role, lang = 'id' }: JobTimerProps) {
     if (!user) { setJobs([]); setLoading(false); return; }
     setLoading(true);
     let query = supabase.from('jobs').select('*').order('created_at', { ascending: false }).limit(20);
-    if (role === 'employer') {
-      query = query.eq('employer_id', user.id).in('status', ['assigned', 'completed']);
-    } else {
-      query = query.eq('worker_id', user.id).in('status', ['assigned', 'completed']);
-    }
+    if (role === 'employer') query = query.eq('employer_id', user.id).in('status', ['assigned', 'completed']);
+    else query = query.eq('worker_id', user.id).in('status', ['assigned', 'completed']);
     const { data, error: queryError } = await query;
     if (queryError) setError(queryError.message); else setJobs((data ?? []) as Job[]);
     setLoading(false);
@@ -117,10 +114,25 @@ export function JobTimer({ role, lang = 'id' }: JobTimerProps) {
                   <div className="rounded-xl bg-white p-3 ring-1 ring-slate-200"><p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Durasi Deal</p><p className="mt-1 text-lg font-bold text-slate-900">{formatDuration(job.duration_minutes!)}</p></div>
                   <div className="rounded-xl bg-white p-3 ring-1 ring-slate-200"><p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Nominal Lembur</p><p className="mt-1 text-lg font-bold text-warning-700">{formatIDR(overtimeAmount)}</p></div>
                 </div>
-                {jobTiming.isAlert && !jobTiming.isOvertime && <div className="mt-3 rounded-xl bg-warning-50 p-3 text-xs font-bold text-warning-800 ring-1 ring-warning-200"><div className="flex items-center gap-2"><AlertTriangle className="h-4 w-4 shrink-0" />Waktu kerja tersisa {jobTiming.remainingMinutes} menit.</div>{role === 'employer' && <><p className="mt-1 font-medium">Selesaikan sekarang = pembayaran tetap sesuai deal. Lanjutkan = waktu setelah durasi deal menjadi lembur.</p><div className="mt-3 grid grid-cols-2 gap-2"><button onClick={() => resolve(job.id, 'finished')} disabled={busyId === job.id} className="flex items-center justify-center gap-1.5 rounded-lg bg-success-600 px-3 py-2.5 text-sm font-bold text-white"><CheckCircle2 className="h-4 w-4" />Selesai</button><button onClick={() => resolve(job.id, 'continued')} disabled={busyId === job.id} className="flex items-center justify-center gap-1.5 rounded-lg bg-warning-500 px-3 py-2.5 text-sm font-bold text-white"><Clock3 className="h-4 w-4" />Lanjutkan</button></div></>}</div>}
-                {jobTiming.isFinished && !jobTiming.isOvertime && role === 'employer' && !jobTiming.isAlert && <div className="mt-3 rounded-xl bg-error-50 p-3 ring-1 ring-error-200"><p className="text-sm font-bold text-error-800">Durasi deal telah berakhir.</p><div className="mt-3 grid grid-cols-2 gap-2"><button onClick={() => resolve(job.id, 'finished')} disabled={busyId === job.id} className="flex items-center justify-center gap-1.5 rounded-lg bg-success-600 px-3 py-2.5 text-sm font-bold text-white"><CheckCircle2 className="h-4 w-4" />Selesai</button><button onClick={() => resolve(job.id, 'continued')} disabled={busyId === job.id} className="flex items-center justify-center gap-1.5 rounded-lg bg-warning-500 px-3 py-2.5 text-sm font-bold text-white"><Clock3 className="h-4 w-4" />Lanjutkan</button></div></div>}
+
+                {jobTiming.isAlert && !jobTiming.isOvertime && (
+                  <div className="mt-3 rounded-xl bg-warning-50 p-3 text-xs font-bold text-warning-800 ring-1 ring-warning-200">
+                    <div className="flex items-center gap-2"><AlertTriangle className="h-4 w-4 shrink-0" />Waktu kerja tersisa {jobTiming.remainingMinutes} menit.</div>
+                    <p className="mt-1 font-medium">Selesaikan sekarang = pembayaran tetap sesuai deal. Lanjutkan = timer tetap berjalan dan waktu setelah durasi deal menjadi lembur.</p>
+                    {role === 'employer' && <div className="mt-3 grid grid-cols-2 gap-2"><button onClick={() => resolve(job.id, 'finished')} disabled={busyId === job.id} className="flex items-center justify-center gap-1.5 rounded-lg bg-success-600 px-3 py-2.5 text-sm font-bold text-white"><CheckCircle2 className="h-4 w-4" />Selesai</button><button onClick={() => resolve(job.id, 'continued')} disabled={busyId === job.id} className="flex items-center justify-center gap-1.5 rounded-lg bg-warning-500 px-3 py-2.5 text-sm font-bold text-white"><Clock3 className="h-4 w-4" />Lanjutkan</button></div>}
+                  </div>
+                )}
+
+                {jobTiming.isFinished && role === 'employer' && (
+                  <div className="mt-3 rounded-xl bg-error-50 p-3 ring-1 ring-error-200">
+                    <p className="text-sm font-bold text-error-800">Durasi deal telah berakhir.</p>
+                    <p className="mt-1 text-xs font-medium text-error-700">Setiap menit penuh setelah batas deal masuk ke lembur.</p>
+                    <div className="mt-3 grid grid-cols-2 gap-2"><button onClick={() => resolve(job.id, 'finished')} disabled={busyId === job.id} className="flex items-center justify-center gap-1.5 rounded-lg bg-success-600 px-3 py-2.5 text-sm font-bold text-white"><CheckCircle2 className="h-4 w-4" />Selesai</button><button onClick={() => resolve(job.id, 'continued')} disabled={busyId === job.id} className="flex items-center justify-center gap-1.5 rounded-lg bg-warning-500 px-3 py-2.5 text-sm font-bold text-white"><Clock3 className="h-4 w-4" />Lanjutkan</button></div>
+                  </div>
+                )}
+
                 {jobTiming.isOvertime && <div className="mt-3 rounded-xl bg-warning-50 p-3 text-sm font-semibold text-warning-800 ring-1 ring-warning-200">Lembur berjalan: {jobTiming.overtimeMinutes} menit — {formatIDR(overtimeAmount)}{role === 'employer' && <button onClick={() => resolve(job.id, 'finished')} disabled={busyId === job.id} className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg bg-success-600 px-3 py-2.5 text-sm font-bold text-white"><CheckCircle2 className="h-4 w-4" />Selesai &amp; Tutup Pembayaran</button>}</div>}
-                {jobTiming.isFinished && role === 'worker' && <p className="mt-3 text-xs font-semibold text-slate-500">Menunggu pemberi kerja memilih Selesai atau Lanjutkan.</p>}
+                {jobTiming.isFinished && role === 'worker' && <p className="mt-3 text-xs font-semibold text-slate-500">Durasi deal selesai. Menunggu pemberi kerja memilih Selesai atau Lanjutkan.</p>}
               </>
             ) : null}
           </div>
