@@ -28,9 +28,10 @@ export default function App() {
   const i18n = new I18n(lang);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const secretEntry = window.location.pathname === SECRET_PATH;
-    if (secretEntry || params.get('admin') === 'true') setAdminLoginOpen(true);
+    // Admin entry is intentionally not exposed in the public navigation.
+    // Keep a single secret route rather than a query-string backdoor that can
+    // accidentally be shared, indexed, or exposed by analytics/referrers.
+    if (window.location.pathname === SECRET_PATH) setAdminLoginOpen(true);
   }, []);
 
   // Admin routing must depend on the canonical role, not profile completeness.
