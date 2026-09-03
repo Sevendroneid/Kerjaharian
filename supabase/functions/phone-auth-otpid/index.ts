@@ -12,7 +12,9 @@ function adminKey() {
     try {
       const keys = JSON.parse(SUPABASE_SECRET_KEYS);
       if (keys.default) return keys.default;
-    } catch (_) {}
+    } catch (error) {
+      console.warn('Invalid SUPABASE_SECRET_KEYS; falling back to legacy key', error);
+    }
   }
   return LEGACY_SERVICE_ROLE || '';
 }
