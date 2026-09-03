@@ -28,9 +28,23 @@ export default function App() {
     if (params.get('admin') === 'true') setView('admin');
   }, []);
 
-  // OAuth returns to the app with a session. If this is a new account,
-  // immediately continue with the simple profile setup instead of leaving
-  // a blue-collar worker wondering what to do next.
+  // One canonical post-login route: a completed profile determines the app
+  // area. This prevents a successful phone OTP session from falling back to
+  // the landing/login UI after verification or page reload.
+  useEffect(() => {
+    if (authLoading || !user || !profile?.full_name) return;
+    if (profile.is_admin) return;
+
+    if (profile.role === 'employer') {
+      setView('employer');
+    } else if (profile.role === 'worker') {
+      setView('worker');
+    }
+  }, [authLoading, user, profile?.full_name, profile?.role, profile?.is_admin]);
+
+  // OAuth/OTP can create an authenticated account without a completed
+  // profile. Keep the user in the unified AuthModal for onboarding rather
+  // than sending them to a separate email/Google login page.
   useEffect(() => {
     if (!authLoading && user && !profile?.full_name) {
       setAuthModal((prev) => ({ ...prev, open: true, mode: 'signup' }));
@@ -42,8 +56,13 @@ export default function App() {
     setPendingCategory(category ?? null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
-  const openAuth = useCallback((mode: 'signin' | 'signup') => setAuthModal({ open: true, mode }), []);
+
+  const openAuth = useCallback((mode: 'signin' | 'signup') => {
+    setAuthModal({ open: true, mode });
+  }, []);
+
   const closeAuth = useCallback(() => setAuthModal((prev) => ({ ...prev, open: false })), []);
+
   const handleLangChange = useCallback((newLang: 'id' | 'en') => {
     setLang(newLang);
     localStorage.setItem('kerjaharian_lang', newLang);
