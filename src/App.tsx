@@ -7,9 +7,7 @@ import { Worker } from '@/components/Worker';
 import { AuthModal } from '@/components/AuthModal';
 import AdminLogin from '@/components/AdminLogin';
 import AdminRoute from '@/components/AdminRoute';
-import AdminPricingReview from '@/components/AdminPricingReview';
-import AdminKycReview from '@/components/AdminKycReview';
-import AdminPasskeySetup from '@/components/AdminPasskeySetup';
+import AdminDashboard from '@/components/AdminDashboard';
 import KycGate from '@/components/KycGate';
 import { JobTimer } from '@/components/JobTimer';
 import { AppErrorBoundary } from '@/components/AppErrorBoundary';
@@ -32,7 +30,7 @@ export default function App() {
   const openAuth = useCallback((mode: 'signin' | 'signup') => setAuthModal({ open: true, mode }), []);
   const closeAuth = useCallback(() => setAuthModal((prev) => ({ ...prev, open: false })), []);
   const handleLangChange = useCallback((newLang: 'id' | 'en') => { setLang(newLang); localStorage.setItem('kerjaharian_lang', newLang); }, []);
-  if (view === 'admin') return <AppErrorBoundary><AdminRoute><div className="space-y-6"><AdminPasskeySetup /><AdminKycReview /><AdminPricingReview /></div></AdminRoute></AppErrorBoundary>;
+  if (view === 'admin') return <AppErrorBoundary><AdminRoute><AdminDashboard onNavigate={navigate} /></AdminRoute></AppErrorBoundary>;
   const protectedDashboard = view === 'employer' || view === 'worker';
   return <AppErrorBoundary><div className="flex min-h-screen flex-col"><Header view={view} onNavigate={navigate} onAuthClick={openAuth} lang={lang} onLangChange={handleLangChange} /><button onClick={() => setAdminLoginOpen(true)} className="fixed bottom-4 right-4 z-40 rounded-full bg-slate-900 text-white px-4 py-2 text-xs font-semibold shadow-lg">Login Admin</button><main className="flex-1">{view === 'landing' && <Landing onNavigate={navigate} lang={lang} />}{protectedDashboard ? <KycGate><div>{view === 'employer' ? <Employer onAuthClick={openAuth} initialCategory={pendingCategory} lang={lang} i18n={i18n} /> : <Worker onAuthClick={openAuth} />} {view === 'employer' && <JobTimer role="employer" lang={lang} />} {view === 'worker' && <JobTimer role="worker" lang={lang} />}</div></KycGate> : null}</main><Footer onNavigate={navigate} /><AuthModal open={authModal.open} onClose={closeAuth} />{adminLoginOpen && <AdminLogin onClose={() => setAdminLoginOpen(false)} />}</div></AppErrorBoundary>;
 }
