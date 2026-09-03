@@ -68,12 +68,12 @@ export default function AdminLogin({ onClose }: AdminLoginProps) {
     pollInFlightRef.current = false;
   }, []);
 
-  const checkRecoveryStatus = useCallback(async () => {
-    if (!challengeId || pollInFlightRef.current) return false;
+  const checkRecoveryStatus = useCallback(async (activeChallengeId = challengeId) => {
+    if (!activeChallengeId || pollInFlightRef.current) return false;
     pollInFlightRef.current = true;
     setCheckingRecovery(true);
     try {
-      const status = await invokePhoneAuth({ action: 'status', phone: ADMIN_CANONICAL, challenge_id: challengeId });
+      const status = await invokePhoneAuth({ action: 'status', phone: ADMIN_CANONICAL, challenge_id: activeChallengeId });
       if (status?.status === 'success' && status?.action_link) {
         stopRecoveryPolling();
         setCheckingRecovery(false);
@@ -124,7 +124,7 @@ export default function AdminLogin({ onClose }: AdminLoginProps) {
         if (Date.now() - startedAt > 5 * 60 * 1000) {
           stopRecoveryPolling(); setLoading(false); setRecoveryMessage('Sesi WhatsApp kedaluwarsa. Silakan mulai lagi.'); return;
         }
-        if (document.visibilityState === 'visible') void checkRecoveryStatus();
+        if (document.visibilityState === 'visible') void checkRecoveryStatus(newChallengeId);
       }, 3000);
     } catch (err: any) { setLoading(false); setRecoveryMessage(''); setError(err?.message || 'Gagal memulai pemulihan Admin melalui WhatsApp.'); }
   };
