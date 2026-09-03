@@ -20,6 +20,7 @@ export function AuthModal({ open, onClose, lang = 'id' }: AuthModalProps) {
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [role, setRole] = useState<'worker' | 'employer'>('worker');
+  const [roleSelected, setRoleSelected] = useState(false);
   const [ktpFile, setKtpFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -31,6 +32,7 @@ export function AuthModal({ open, onClose, lang = 'id' }: AuthModalProps) {
     setError('');
     if (user && !profile?.full_name) {
       setStep('profile');
+      setRoleSelected(false);
       setFullName(typeof user.user_metadata?.full_name === 'string' ? user.user_metadata.full_name : '');
     } else if (user && profile?.full_name) {
       setStep('login');
@@ -97,6 +99,7 @@ export function AuthModal({ open, onClose, lang = 'id' }: AuthModalProps) {
 
   const handleCompleteProfile = async () => {
     if (!fullName.trim()) return setError('Tulis nama lengkap terlebih dahulu');
+    if (!roleSelected) return setError('Pilih Pekerja atau Pemberi Kerja terlebih dahulu');
     setLoading(true);
     setError('');
     try {
@@ -194,11 +197,11 @@ export function AuthModal({ open, onClose, lang = 'id' }: AuthModalProps) {
             <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="08xxxxxxxxxx" inputMode="tel" className="w-full border rounded-lg px-3 py-2.5 mt-1 mb-4 text-sm" />
             <label className="text-xs font-semibold text-gray-600">Saya mendaftar sebagai</label>
             <div className="grid grid-cols-2 gap-2 mt-1 mb-4">
-              <button onClick={() => setRole('worker')} type="button" className={`py-3 rounded-lg border text-sm font-semibold ${role === 'worker' ? 'bg-blue-600 text-white border-blue-600' : 'bg-slate-50'}`}>👷 Pekerja</button>
-              <button onClick={() => setRole('employer')} type="button" className={`py-3 rounded-lg border text-sm font-semibold ${role === 'employer' ? 'bg-blue-600 text-white border-blue-600' : 'bg-slate-50'}`}>🏠 Pemberi Kerja</button>
+              <button onClick={() => { setRole('worker'); setRoleSelected(true); }} type="button" className={`py-3 rounded-lg border text-sm font-semibold ${roleSelected && role === 'worker' ? 'bg-blue-600 text-white border-blue-600' : 'bg-slate-50'}`}>👷 Pekerja</button>
+              <button onClick={() => { setRole('employer'); setRoleSelected(true); }} type="button" className={`py-3 rounded-lg border text-sm font-semibold ${roleSelected && role === 'employer' ? 'bg-blue-600 text-white border-blue-600' : 'bg-slate-50'}`}>🏠 Pemberi Kerja</button>
             </div>
             {error && <p className="text-red-500 text-xs mb-3">{error}</p>}
-            <button onClick={handleCompleteProfile} disabled={loading || !fullName.trim()} className="w-full bg-blue-600 text-white rounded-lg py-3 text-sm font-semibold disabled:opacity-60">{loading ? 'Menyimpan...' : 'Lanjutkan'}</button>
+            <button onClick={handleCompleteProfile} disabled={loading || !fullName.trim() || !roleSelected} className="w-full bg-blue-600 text-white rounded-lg py-3 text-sm font-semibold disabled:opacity-60">{loading ? 'Menyimpan...' : 'Lanjutkan'}</button>
           </>
         )}
 
