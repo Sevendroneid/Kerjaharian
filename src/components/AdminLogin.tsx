@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { Fingerprint, LockKeyhole, ShieldCheck, MessageCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
-const ADMIN_PHONE = '+6282340871029';
 const ADMIN_CANONICAL = '6282340871029';
 interface AdminLoginProps { onClose: () => void; }
 
@@ -10,7 +9,6 @@ export default function AdminLogin({ onClose }: AdminLoginProps) {
   const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [recovery, setRecovery] = useState(false);
   const [recoveryMessage, setRecoveryMessage] = useState('');
   const [passkeySupported] = useState(() => typeof window !== 'undefined' && !!window.PublicKeyCredential);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -63,7 +61,7 @@ export default function AdminLogin({ onClose }: AdminLoginProps) {
   };
 
   const handleWhatsAppRecovery = async () => {
-    setLoading(true); setError(''); setRecovery(true); setRecoveryMessage('Menyiapkan verifikasi WhatsApp...');
+    setLoading(true); setError(''); setRecoveryMessage('Menyiapkan verifikasi WhatsApp...');
     try {
       const data = await invokePhoneAuth({ action: 'request', phone: ADMIN_CANONICAL });
       if (!data?.challenge_id || !data?.verification?.wa_link) throw new Error('OTP.ID tidak mengembalikan sesi WhatsApp.');
