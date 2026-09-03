@@ -10,6 +10,7 @@ import AdminPricingReview from '@/components/AdminPricingReview';
 import { JobTimer } from '@/components/JobTimer';
 import { AppErrorBoundary } from '@/components/AppErrorBoundary';
 import { I18n } from '@/lib/i18n';
+import { useAuth } from '@/lib/auth';
 import type { View, CategoryId } from '@/lib/types';
 
 export default function App() {
@@ -19,12 +20,22 @@ export default function App() {
   });
   const [authModal, setAuthModal] = useState<{ open: boolean; mode: 'signin' | 'signup' }>({ open: false, mode: 'signin' });
   const [pendingCategory, setPendingCategory] = useState<CategoryId | null>(null);
+  const { user, profile, loading: authLoading } = useAuth();
   const i18n = new I18n(lang);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('admin') === 'true') setView('admin');
   }, []);
+
+  // OAuth returns to the app with a session. If this is a new account,
+  // immediately continue with the simple profile setup instead of leaving
+  // a blue-collar worker wondering what to do next.
+  useEffect(() => {
+    if (!authLoading && user && !profile?.full_name) {
+      setAuthModal((prev) => ({ ...prev, open: true, mode: 'signup' }));
+    }
+  }, [authLoading, user, profile?.full_name]);
 
   const navigate = useCallback((v: View, category?: CategoryId) => {
     setView(v);
