@@ -17,6 +17,22 @@ export default function AdminLogin({ onClose }: AdminLoginProps) {
 
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
 
+  const invokePhoneAuth = async (body: Record<string, unknown>) => {
+    const result = await supabase.functions.invoke('phone-auth-otpid', { body });
+    if (result.error) {
+      const context = result.error.context;
+      let detail = '';
+      if (context instanceof Response) {
+        try {
+          const payload = await context.clone().json();
+          detail = payload?.error || payload?.message || '';
+        } catch { /* non-JSON response */ }
+      }
+      throw new Error(detail || result.error.message || 'Gagal menghubungi layanan verifikasi.');
+    }
+    return result.data;
+  };
+
   const handlePin = async () => {
     if (!/^\d{8}$/.test(pin)) return setError('Masukkan PIN Admin 8 digit.');
     setLoading(true); setError('');
@@ -48,8 +64,7 @@ export default function AdminLogin({ onClose }: AdminLoginProps) {
   const handleWhatsAppRecovery = async () => {
     setLoading(true); setError(''); setRecovery(true); setRecoveryMessage('Menyiapkan verifikasi WhatsApp...');
     try {
-      const { data, error: requestError } = await supabase.functions.invoke('phone-auth-otpid', { body: { action: 'request', phone: ADMIN_CANONICAL } });
-      if (requestError) throw requestError;
+      const data = await invokePhoneAuth({ action: 'request', phone: ADMIN_CANONICAL });
       if (!data?.challenge_id || !data?.verification?.wa_link) throw new Error('OTP.ID tidak mengembalikan sesi WhatsApp.');
       setRecoveryMessage('WhatsApp sudah disiapkan. Tekan Kirim pada pesan verifikasi.');
       window.open(data.verification.wa_link, '_blank', 'noopener,noreferrer');
@@ -61,8 +76,7 @@ export default function AdminLogin({ onClose }: AdminLoginProps) {
           pollRef.current = null; setLoading(false); setRecoveryMessage('Sesi WhatsApp kedaluwarsa. Silakan mulai lagi.'); return;
         }
         try {
-          const { data: status, error: statusError } = await supabase.functions.invoke('phone-auth-otpid', { body: { action: 'status', phone: ADMIN_CANONICAL, challenge_id: data.challenge_id } });
-          if (statusError) throw statusError;
+          const status = await invokePhoneAuth({ action: 'status', phone: ADMIN_CANONICAL, challenge_id: data.challenge_id });
           if (status?.status === 'success' && status?.action_link) {
             if (pollRef.current) clearInterval(pollRef.current);
             pollRef.current = null; window.location.assign(status.action_link); return;
