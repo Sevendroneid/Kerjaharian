@@ -1,6 +1,7 @@
 export interface PricingParams {
   wageAmount: number;
   nightShift: boolean;
+  /** Informational employer suggestion only. It must never change the price. */
   needsTools: boolean;
 }
 
@@ -11,6 +12,7 @@ export interface InsuranceBreakdown {
 export interface PricingResult {
   wageAmount: number;
   nightShiftAdd: number;
+  /** Always zero: tools are informational only and are not an employer/worker charge. */
   toolAllowance: number;
   baseWage: number;
   platformFee: number;
@@ -23,22 +25,34 @@ export interface PricingResult {
   };
 }
 
-// Simplified constants for clarity
+// KerjaHarian pricing rules
 export const PLATFORM_FEE_PERCENT = 0.05; // 5% platform fee only
-export const TOOL_ALLOWANCE_FLAT = 25000;
 export const NIGHT_SHIFT_MULTIPLIER = 0.20;
+export const NIGHT_SHIFT_START_HOUR = 21;
+export const NIGHT_SHIFT_END_HOUR = 6;
 export const MICRO_INSURANCE_DAILY = 3227;
 
 /**
- * Simplified pricing engine for Kerjaharian
- * Designed for blue-collar workers to easily understand earnings
+ * Night shift is defined by the actual job start clock: 21:00 through 05:59.
+ * The server/timer should use the actual started_at timestamp as its source of truth.
+ */
+export function isNightShiftStart(date: Date = new Date()): boolean {
+  const hour = date.getHours();
+  return hour >= NIGHT_SHIFT_START_HOUR || hour < NIGHT_SHIFT_END_HOUR;
+}
+
+/**
+ * Simplified pricing engine for KerjaHarian.
+ * Tools are an informational employer suggestion only and never affect worker pay,
+ * platform fees, insurance, or the published total.
  */
 export function calculateOrderPrice(params: PricingParams): PricingResult {
-  const { wageAmount, nightShift, needsTools } = params;
+  const { wageAmount, nightShift } = params;
 
   const nightShiftAdd = nightShift ? Math.round(wageAmount * NIGHT_SHIFT_MULTIPLIER) : 0;
-  const toolAllowance = needsTools ? TOOL_ALLOWANCE_FLAT : 0;
-  const baseWage = wageAmount + nightShiftAdd + toolAllowance;
+  // IMPORTANT: needsTools is deliberately ignored financially.
+  const toolAllowance = 0;
+  const baseWage = wageAmount + nightShiftAdd;
 
   const platformFee = Math.round(baseWage * PLATFORM_FEE_PERCENT);
   const insurance = { microInsurance: MICRO_INSURANCE_DAILY };
