@@ -28,23 +28,19 @@ export default function App() {
     if (params.get('admin') === 'true') setView('admin');
   }, []);
 
-  // One canonical post-login route: a completed profile determines the app
-  // area. This prevents a successful phone OTP session from falling back to
-  // the landing/login UI after verification or page reload.
   useEffect(() => {
     if (authLoading || !user || !profile?.full_name) return;
-    if (profile.is_admin) return;
-
+    if (profile.role === 'admin') {
+      setView('admin');
+      return;
+    }
     if (profile.role === 'employer') {
       setView('employer');
     } else if (profile.role === 'worker') {
       setView('worker');
     }
-  }, [authLoading, user, profile?.full_name, profile?.role, profile?.is_admin]);
+  }, [authLoading, user, profile?.full_name, profile?.role]);
 
-  // OAuth/OTP can create an authenticated account without a completed
-  // profile. Keep the user in the unified AuthModal for onboarding rather
-  // than sending them to a separate email/Google login page.
   useEffect(() => {
     if (!authLoading && user && !profile?.full_name) {
       setAuthModal((prev) => ({ ...prev, open: true, mode: 'signup' }));
@@ -79,12 +75,12 @@ export default function App() {
         <main className="flex-1">
           {view === 'landing' && <Landing onNavigate={navigate} lang={lang} />}
           {view === 'employer' && <Employer onAuthClick={openAuth} initialCategory={pendingCategory} lang={lang} i18n={i18n} />}
-          {view === 'worker' && <Worker onAuthClick={openAuth} lang={lang} />}
+          {view === 'worker' && <Worker onAuthClick={openAuth} />}
           {view === 'employer' && <JobTimer role="employer" lang={lang} />}
           {view === 'worker' && <JobTimer role="worker" lang={lang} />}
         </main>
-        <Footer onNavigate={navigate} lang={lang} />
-        <AuthModal open={authModal.open} onClose={closeAuth} lang={lang} />
+        <Footer onNavigate={navigate} />
+        <AuthModal open={authModal.open} onClose={closeAuth} />
       </div>
     </AppErrorBoundary>
   );
