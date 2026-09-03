@@ -33,20 +33,23 @@ export default function App() {
     if (secretEntry || params.get('admin') === 'true') setAdminLoginOpen(true);
   }, []);
 
+  // Admin routing must depend on the canonical role, not profile completeness.
+  // An admin account may legitimately have no full_name yet; it must still reach
+  // the protected dashboard after successful authentication.
   useEffect(() => {
-    if (authLoading || !user || !profile?.full_name) return;
-    if (profile.role === 'admin') {
+    if (authLoading || !user) return;
+    if (profile?.role === 'admin') {
       setView('admin');
       setAdminLoginOpen(false);
+      return;
+    }
+    if (!profile?.full_name) {
+      setAuthModal((prev) => ({ ...prev, open: true, mode: 'signup' }));
       return;
     }
     if (profile.role === 'employer') setView('employer');
     else if (profile.role === 'worker') setView('worker');
   }, [authLoading, user, profile?.full_name, profile?.role]);
-
-  useEffect(() => {
-    if (!authLoading && user && !profile?.full_name) setAuthModal((prev) => ({ ...prev, open: true, mode: 'signup' }));
-  }, [authLoading, user, profile?.full_name]);
 
   const navigate = useCallback((v: View, category?: CategoryId) => {
     setView(v);
