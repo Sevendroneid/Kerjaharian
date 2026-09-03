@@ -8,11 +8,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-  },
+  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
 });
 
 export interface Profile {
@@ -53,6 +49,13 @@ export interface Job {
   completed_at: string | null;
   overtime_minutes: number;
   overtime_amount: number;
+  worker_base_amount: number | null;
+  worker_overtime_amount: number | null;
+  worker_amount: number | null;
+  platform_fee: number;
+  protection_fee: number;
+  tax_amount: number;
+  employer_total: number | null;
   completion_decision: 'finished' | 'continued' | null;
   created_at: string;
   employer?: Profile;
