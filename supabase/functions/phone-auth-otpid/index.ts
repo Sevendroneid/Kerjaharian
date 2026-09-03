@@ -5,7 +5,7 @@ const OTPID_API_KEY = Deno.env.get('OTPID_API_KEY');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SECRET_KEYS = Deno.env.get('SUPABASE_SECRET_KEYS');
 const LEGACY_SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-const SITE_URL = Deno.env.get('KERJAHARIAN_SITE_URL') || 'https://kerjaharian.vercel.app';
+const SITE_URL = Deno.env.get('KERJAHARIAN_SITE_URL') || 'https://kerjaharian.my.id';
 
 function adminKey() {
   if (SUPABASE_SECRET_KEYS) {
