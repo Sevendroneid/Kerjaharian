@@ -1,188 +1,118 @@
 import { useEffect, useState } from 'react';
-import { X } from 'lucide-react';
+import { X, CheckCircle2, Fingerprint, Mail } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/lib/auth';
 
-type Step = 'phone' | 'otp' | 'profile' | 'ktp';
+type Step = 'login' | 'profile' | 'ktp';
 
-function formatPhone(input: string): string {
-  const digits = input.replace(/\D/g, '');
-  if (digits.startsWith('0')) return `62${digits.slice(1)}`;
-  if (digits.startsWith('62')) return digits;
-  return `62${digits}`;
+interface AuthModalProps {
+  open: boolean;
+  onClose: () => void;
+  lang?: 'id' | 'en';
 }
 
-const OTP_COOLDOWN_SECONDS = 65;
-
-export function AuthModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const [step, setStep] = useState<Step>('phone');
-  const [phone, setPhone] = useState('');
-  const [otp, setOtp] = useState('');
+export function AuthModal({ open, onClose, lang = 'id' }: AuthModalProps) {
+  const { user, profile, refreshProfile } = useAuth();
+  const [step, setStep] = useState<Step>('login');
+  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
-  const [role, setRole] = useState<'mitra' | 'employer'>('employer');
+  const [phone, setPhone] = useState('');
+  const [role, setRole] = useState<'worker' | 'employer'>('worker');
   const [ktpFile, setKtpFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [otpCooldown, setOtpCooldown] = useState(0);
+  const passkeyEnabled = import.meta.env.VITE_ENABLE_PASSKEY === 'true';
+  const passkeySupported = typeof window !== 'undefined' && !!window.PublicKeyCredential;
 
   useEffect(() => {
-    if (otpCooldown <= 0) return;
-    const timer = window.setInterval(() => {
-      setOtpCooldown((value) => Math.max(0, value - 1));
-    }, 1000);
-    return () => window.clearInterval(timer);
-  }, [otpCooldown]);
+    if (!open) return;
+    setError('');
+    if (user && !profile?.full_name) {
+      setStep('profile');
+      setFullName(typeof user.user_metadata?.full_name === 'string' ? user.user_metadata.full_name : '');
+    } else if (user && profile?.full_name) {
+      setStep('login');
+    }
+  }, [open, user, profile]);
 
   if (!open) return null;
 
-  const handleSendOtp = async () => {
-    if (!phone || phone.length < 9) return setError('Nomor WhatsApp tidak valid');
-    if (otpCooldown > 0) return setError(`Tunggu ${otpCooldown} detik sebelum meminta OTP lagi`);
+  const handleGoogle = async () => {
     setLoading(true);
     setError('');
+    const { error: authError } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin },
+    });
+    if (authError) setError(authError.message);
+    setLoading(false);
+  };
 
+  const handlePasskey = async () => {
+    setLoading(true);
+    setError('');
     try {
-      const cleanPhone = formatPhone(phone);
-      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-otp-fonnte`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: cleanPhone }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        const detail = typeof data.detail === 'string'
-          ? data.detail
-          : data.detail?.reason || data.detail?.message || data.detail?.status || '';
-        throw new Error(detail ? `${data.error || 'Gagal kirim OTP'}: ${detail}` : (data.error || 'Gagal kirim OTP'));
-      }
-      setOtpCooldown(OTP_COOLDOWN_SECONDS);
-      setStep('otp');
+      const { error: authError } = await supabase.auth.signInWithPasskey();
+      if (authError) throw authError;
+      onClose();
     } catch (err: any) {
-      // If the backend says it rate-limited us, honor its retry window locally.
-      const retryAfter = Number(err?.retry_after);
-      if (Number.isFinite(retryAfter) && retryAfter > 0) setOtpCooldown(retryAfter);
-      setError(err.message || 'Gagal kirim OTP');
+      setError(err?.message || 'Passkey belum tersedia di perangkat ini');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleVerifyOtp = async () => {
+  const handleEmailAuth = async () => {
+    if (!email.trim() || !password) return setError('Isi email dan kata sandi terlebih dahulu');
+    if (password.length < 8) return setError('Kata sandi minimal 8 karakter');
     setLoading(true);
     setError('');
-    const cleanPhone = formatPhone(phone);
-    const dummyEmail = `${cleanPhone}@kerjaharian.app`;
-    const dummyPassword = `Pwd_${cleanPhone}_2026!`;
-
     try {
-      const verifyResponse = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-otp-fonnte`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phone: cleanPhone, code: otp }),
-        }
-      );
-      const verifyData = await verifyResponse.json();
-
-      if (!verifyData.valid) {
-        setError('Kode OTP salah atau kadaluarsa');
-        setLoading(false);
-        return;
-      }
-
-      const { error: authError } = await supabase.auth.signInWithPassword({
-        email: dummyEmail,
-        password: dummyPassword,
-      });
-
-      if (authError) {
-        const { error: signUpError } = await supabase.auth.signUp({
-          email: dummyEmail,
-          password: dummyPassword,
+      if (mode === 'signup') {
+        const { data, error: signUpError } = await supabase.auth.signUp({
+          email: email.trim(),
+          password,
+          options: { data: { full_name: fullName.trim() } },
         });
         if (signUpError) throw signUpError;
-
-        const { error: secondSignInError } = await supabase.auth.signInWithPassword({
-          email: dummyEmail,
-          password: dummyPassword,
-        });
-        if (secondSignInError) throw secondSignInError;
-      }
-
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Autentikasi gagal');
-
-      const { data: currentProfile, error: currentProfileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .maybeSingle();
-      if (currentProfileError) throw currentProfileError;
-
-      const { data: legacyProfile, error: legacyProfileError } = await supabase
-        .from('profiles')
-        .select('id, full_name, whatsapp, role, is_admin, ktp_photo_url')
-        .eq('whatsapp', `+${cleanPhone}`)
-        .neq('id', user.id)
-        .maybeSingle();
-      if (legacyProfileError) throw legacyProfileError;
-
-      let effectiveProfile = currentProfile;
-      if (legacyProfile && currentProfile) {
-        const { error: migrateError } = await supabase
-          .from('profiles')
-          .update({
-            full_name: legacyProfile.full_name,
-            whatsapp: legacyProfile.whatsapp,
-            role: legacyProfile.role,
-            is_admin: false,
-            ktp_photo_url: legacyProfile.ktp_photo_url,
-          })
-          .eq('id', user.id);
-        if (migrateError) throw migrateError;
-        effectiveProfile = { ...currentProfile, ...legacyProfile, is_admin: false };
-      }
-
-      if (!effectiveProfile?.full_name) {
-        setStep('profile');
+        if (!data.session) {
+          setError('Pendaftaran berhasil. Cek email untuk konfirmasi, lalu masuk kembali.');
+          return;
+        }
       } else {
-        onClose();
+        const { error: signInError } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+        if (signInError) throw signInError;
       }
+      const { data: { currentUser } } = await supabase.auth.getUser();
+      if (!currentUser) throw new Error('Sesi login tidak ditemukan');
+      if (!profile?.full_name) setStep('profile'); else onClose();
     } catch (err: any) {
-      setError(err.message || 'Autentikasi gagal');
+      setError(err?.message || 'Login gagal');
     } finally {
       setLoading(false);
     }
   };
 
   const handleCompleteProfile = async () => {
+    if (!fullName.trim()) return setError('Tulis nama lengkap terlebih dahulu');
     setLoading(true);
     setError('');
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Sesi habis');
-
-      const cleanPhone = formatPhone(phone);
-      const finalRole = role;
-
+      const { data: { currentUser } } = await supabase.auth.getUser();
+      if (!currentUser) throw new Error('Sesi habis. Silakan masuk lagi.');
+      const normalizedPhone = phone.replace(/\D/g, '');
+      const whatsapp = normalizedPhone ? `+${normalizedPhone.startsWith('0') ? `62${normalizedPhone.slice(1)}` : normalizedPhone}` : null;
       const { error: profileError } = await supabase
         .from('profiles')
-        .update({
-          full_name: fullName,
-          role: finalRole,
-          whatsapp: `+${cleanPhone}`,
-        })
-        .eq('id', user.id);
-
+        .update({ full_name: fullName.trim(), role, whatsapp, phone: whatsapp })
+        .eq('id', currentUser.id);
       if (profileError) throw profileError;
-
-      if (finalRole === 'employer') {
-        setStep('ktp');
-      } else {
-        onClose();
-      }
+      await refreshProfile();
+      if (role === 'employer') setStep('ktp'); else onClose();
     } catch (err: any) {
-      setError(err.message || 'Gagal menyimpan profil');
+      setError(err?.message || 'Gagal menyimpan profil');
     } finally {
       setLoading(false);
     }
@@ -193,19 +123,18 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
     setLoading(true);
     setError('');
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Sesi habis');
-
-      const filePath = `${user.id}/ktp-${Date.now()}.jpg`;
-      const { error: uploadError } = await supabase.storage.from('ktp-photos').upload(filePath, ktpFile);
+      const { data: { currentUser } } = await supabase.auth.getUser();
+      if (!currentUser) throw new Error('Sesi habis. Silakan masuk lagi.');
+      const extension = ktpFile.name.split('.').pop()?.toLowerCase() || 'jpg';
+      const filePath = `${currentUser.id}/ktp-${Date.now()}.${extension}`;
+      const { error: uploadError } = await supabase.storage.from('ktp-photos').upload(filePath, ktpFile, { upsert: false });
       if (uploadError) throw uploadError;
-
-      const { error: updateError } = await supabase.from('profiles').update({ ktp_photo_url: filePath }).eq('id', user.id);
+      const { error: updateError } = await supabase.from('profiles').update({ ktp_photo_url: filePath }).eq('id', currentUser.id);
       if (updateError) throw updateError;
-
+      await refreshProfile();
       onClose();
     } catch (err: any) {
-      setError(err.message || 'Gagal mengunggah KTP');
+      setError(err?.message || 'Gagal mengunggah KTP');
     } finally {
       setLoading(false);
     }
@@ -214,66 +143,70 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl p-6 w-full max-w-sm relative shadow-xl">
-        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-black"><X size={20} /></button>
+        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-black" aria-label="Tutup"><X size={20} /></button>
 
-        {step === 'phone' && (
+        {step === 'login' && (
           <>
             <h2 className="text-xl font-bold mb-1">Masuk KerjaHarian</h2>
-            <p className="text-sm text-gray-500 mb-4">Masuk atau daftar instan via WhatsApp</p>
-            <label className="text-xs font-semibold text-gray-600">Nomor WhatsApp</label>
-            <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="08xxxxxxxxxx"
-              className="w-full border rounded-lg px-3 py-2 mt-1 mb-4 text-sm focus:outline-blue-600" />
-            {error && <p className="text-red-500 text-xs mb-3">{error}</p>}
-            <button onClick={handleSendOtp} disabled={loading || otpCooldown > 0} className="w-full bg-blue-600 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-blue-700 disabled:opacity-60">
-              {loading ? 'Mengirim OTP...' : otpCooldown > 0 ? `Tunggu ${otpCooldown} detik` : 'Kirim Kode via WhatsApp'}
-            </button>
-          </>
-        )}
+            <p className="text-sm text-gray-500 mb-5">Tidak perlu WhatsApp untuk masuk.</p>
 
-        {step === 'otp' && (
-          <>
-            <h2 className="text-xl font-bold mb-1">Verifikasi Kode</h2>
-            <p className="text-sm text-gray-500 mb-4">Masukkan 6 digit kode yang dikirim ke WA {phone}</p>
-            <input value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="123456" maxLength={6}
-              className="w-full border rounded-lg px-3 py-2 mb-4 text-center text-lg tracking-widest font-mono" />
-            {error && <p className="text-red-500 text-xs mb-3">{error}</p>}
-            <button onClick={handleVerifyOtp} disabled={loading || otp.length !== 6} className="w-full bg-blue-600 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-blue-700 disabled:opacity-60">
-              {loading ? 'Memverifikasi...' : 'Konfirmasi Kode'}
+            <button onClick={handleGoogle} disabled={loading} className="w-full border border-slate-300 rounded-lg py-3 text-sm font-semibold flex items-center justify-center gap-2 hover:bg-slate-50 disabled:opacity-60">
+              <span className="text-lg font-bold">G</span>
+              {loading ? 'Membuka Google...' : 'Lanjut dengan Google'}
             </button>
+
+            {passkeyEnabled && passkeySupported && (
+              <button onClick={handlePasskey} disabled={loading} className="w-full mt-2 border border-slate-300 rounded-lg py-3 text-sm font-semibold flex items-center justify-center gap-2 hover:bg-slate-50 disabled:opacity-60">
+                <Fingerprint size={18} /> Masuk dengan Passkey
+              </button>
+            )}
+
+            <div className="flex items-center gap-3 my-5 text-xs text-slate-400"><span className="h-px bg-slate-200 flex-1" />atau<span className="h-px bg-slate-200 flex-1" /></div>
+
+            <div className="flex gap-2 mb-4">
+              <button onClick={() => setMode('signin')} className={`flex-1 py-2 rounded-lg text-sm font-semibold ${mode === 'signin' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600'}`}>Masuk</button>
+              <button onClick={() => setMode('signup')} className={`flex-1 py-2 rounded-lg text-sm font-semibold ${mode === 'signup' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600'}`}>Daftar</button>
+            </div>
+
+            {mode === 'signup' && (
+              <input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Nama lengkap" className="w-full border rounded-lg px-3 py-2.5 mb-2.5 text-sm" />
+            )}
+            <div className="relative mb-2.5"><Mail size={16} className="absolute left-3 top-3 text-slate-400" /><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" className="w-full border rounded-lg pl-9 pr-3 py-2.5 text-sm" /></div>
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Kata sandi (min. 8 karakter)" className="w-full border rounded-lg px-3 py-2.5 text-sm" />
+            {error && <p className="text-red-500 text-xs mt-3">{error}</p>}
+            <button onClick={handleEmailAuth} disabled={loading} className="w-full mt-3 bg-blue-600 text-white rounded-lg py-2.5 text-sm font-semibold disabled:opacity-60">
+              {loading ? 'Memproses...' : mode === 'signup' ? 'Buat Akun' : 'Masuk dengan Email'}
+            </button>
+
+            <p className="text-[11px] text-slate-400 mt-4 text-center">WhatsApp hanya dipakai untuk pengingat pekerjaan dan pemberitahuan, bukan untuk login.</p>
           </>
         )}
 
         {step === 'profile' && (
           <>
-            <h2 className="text-xl font-bold mb-1">Lengkapi Profil</h2>
-            <p className="text-sm text-gray-500 mb-4">Satu langkah lagi untuk mulai</p>
-            <label className="text-xs font-semibold text-gray-600">Nama Lengkap</label>
-            <input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Nama kamu"
-              className="w-full border rounded-lg px-3 py-2 mt-1 mb-4 text-sm focus:outline-blue-600" />
-            <label className="text-xs font-semibold text-gray-600">Daftar sebagai</label>
-            <div className="flex gap-2 mt-1 mb-4">
-              <button onClick={() => setRole('employer')} type="button"
-                className={`flex-1 py-2 rounded-lg border text-sm font-medium ${role === 'employer' ? 'bg-blue-600 text-white border-blue-600' : 'bg-gray-50'}`}>Employer</button>
-              <button onClick={() => setRole('mitra')} type="button"
-                className={`flex-1 py-2 rounded-lg border text-sm font-medium ${role === 'mitra' ? 'bg-blue-600 text-white border-blue-600' : 'bg-gray-50'}`}>Mitra Pekerja</button>
+            <h2 className="text-xl font-bold mb-1">Buat Profil</h2>
+            <p className="text-sm text-gray-500 mb-4">Pilih yang sesuai. Bisa diubah nanti.</p>
+            <label className="text-xs font-semibold text-gray-600">Nama lengkap</label>
+            <input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Contoh: Budi Santoso" className="w-full border rounded-lg px-3 py-2.5 mt-1 mb-3 text-sm" />
+            <label className="text-xs font-semibold text-gray-600">Nomor WhatsApp untuk pengingat (opsional)</label>
+            <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="08xxxxxxxxxx" inputMode="tel" className="w-full border rounded-lg px-3 py-2.5 mt-1 mb-4 text-sm" />
+            <label className="text-xs font-semibold text-gray-600">Saya mendaftar sebagai</label>
+            <div className="grid grid-cols-2 gap-2 mt-1 mb-4">
+              <button onClick={() => setRole('worker')} type="button" className={`py-3 rounded-lg border text-sm font-semibold ${role === 'worker' ? 'bg-blue-600 text-white border-blue-600' : 'bg-slate-50'}`}>👷 Pekerja</button>
+              <button onClick={() => setRole('employer')} type="button" className={`py-3 rounded-lg border text-sm font-semibold ${role === 'employer' ? 'bg-blue-600 text-white border-blue-600' : 'bg-slate-50'}`}>🏠 Pemberi Kerja</button>
             </div>
             {error && <p className="text-red-500 text-xs mb-3">{error}</p>}
-            <button onClick={handleCompleteProfile} disabled={loading || !fullName} className="w-full bg-blue-600 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-blue-700">
-              {loading ? 'Menyimpan...' : 'Selesai & Masuk'}
-            </button>
+            <button onClick={handleCompleteProfile} disabled={loading || !fullName.trim()} className="w-full bg-blue-600 text-white rounded-lg py-3 text-sm font-semibold disabled:opacity-60">{loading ? 'Menyimpan...' : 'Lanjutkan'}</button>
           </>
         )}
 
         {step === 'ktp' && (
           <>
-            <h2 className="text-xl font-bold mb-1">Verifikasi KTP</h2>
-            <p className="text-sm text-gray-500 mb-4">Wajib untuk employer, membantu mencegah pesanan fiktif.</p>
-            <input type="file" accept="image/*" onChange={(e) => setKtpFile(e.target.files?.[0] || null)}
-              className="w-full border rounded-lg px-3 py-2 mb-4 text-sm" />
+            <div className="flex items-center gap-2 mb-2"><CheckCircle2 className="text-green-600" size={20} /><h2 className="text-xl font-bold">Verifikasi Pemberi Kerja</h2></div>
+            <p className="text-sm text-gray-500 mb-4">Foto KTP membantu mengurangi pesanan palsu. Data digunakan untuk verifikasi.</p>
+            <input type="file" accept="image/*" onChange={(e) => setKtpFile(e.target.files?.[0] || null)} className="w-full border rounded-lg px-3 py-2 mb-4 text-sm" />
             {error && <p className="text-red-500 text-xs mb-3">{error}</p>}
-            <button onClick={handleUploadKtp} disabled={loading || !ktpFile} className="w-full bg-blue-600 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-blue-700">
-              {loading ? 'Mengunggah...' : 'Unggah & Selesai'}
-            </button>
+            <button onClick={handleUploadKtp} disabled={loading || !ktpFile} className="w-full bg-blue-600 text-white rounded-lg py-3 text-sm font-semibold disabled:opacity-60">{loading ? 'Mengunggah...' : 'Unggah KTP & Selesai'}</button>
           </>
         )}
       </div>
