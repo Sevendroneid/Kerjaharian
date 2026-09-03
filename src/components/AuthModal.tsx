@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
@@ -11,6 +11,8 @@ function formatPhone(input: string): string {
   return `62${digits}`;
 }
 
+const OTP_COOLDOWN_SECONDS = 65;
+
 export function AuthModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [step, setStep] = useState<Step>('phone');
   const [phone, setPhone] = useState('');
@@ -20,11 +22,21 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
   const [ktpFile, setKtpFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [otpCooldown, setOtpCooldown] = useState(0);
+
+  useEffect(() => {
+    if (otpCooldown <= 0) return;
+    const timer = window.setInterval(() => {
+      setOtpCooldown((value) => Math.max(0, value - 1));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [otpCooldown]);
 
   if (!open) return null;
 
   const handleSendOtp = async () => {
     if (!phone || phone.length < 9) return setError('Nomor WhatsApp tidak valid');
+    if (otpCooldown > 0) return setError(`Tunggu ${otpCooldown} detik sebelum meminta OTP lagi`);
     setLoading(true);
     setError('');
 
@@ -42,8 +54,12 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
           : data.detail?.reason || data.detail?.message || data.detail?.status || '';
         throw new Error(detail ? `${data.error || 'Gagal kirim OTP'}: ${detail}` : (data.error || 'Gagal kirim OTP'));
       }
+      setOtpCooldown(OTP_COOLDOWN_SECONDS);
       setStep('otp');
     } catch (err: any) {
+      // If the backend says it rate-limited us, honor its retry window locally.
+      const retryAfter = Number(err?.retry_after);
+      if (Number.isFinite(retryAfter) && retryAfter > 0) setOtpCooldown(retryAfter);
       setError(err.message || 'Gagal kirim OTP');
     } finally {
       setLoading(false);
@@ -208,8 +224,8 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
             <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="08xxxxxxxxxx"
               className="w-full border rounded-lg px-3 py-2 mt-1 mb-4 text-sm focus:outline-blue-600" />
             {error && <p className="text-red-500 text-xs mb-3">{error}</p>}
-            <button onClick={handleSendOtp} disabled={loading} className="w-full bg-blue-600 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-blue-700">
-              {loading ? 'Mengirim OTP...' : 'Kirim Kode via WhatsApp'}
+            <button onClick={handleSendOtp} disabled={loading || otpCooldown > 0} className="w-full bg-blue-600 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-blue-700 disabled:opacity-60">
+              {loading ? 'Mengirim OTP...' : otpCooldown > 0 ? `Tunggu ${otpCooldown} detik` : 'Kirim Kode via WhatsApp'}
             </button>
           </>
         )}
@@ -218,10 +234,10 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
           <>
             <h2 className="text-xl font-bold mb-1">Verifikasi Kode</h2>
             <p className="text-sm text-gray-500 mb-4">Masukkan 6 digit kode yang dikirim ke WA {phone}</p>
-            <input value={otp} onChange={(e) => setOtp(e.target.value)} placeholder="123456" maxLength={6}
+            <input value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="123456" maxLength={6}
               className="w-full border rounded-lg px-3 py-2 mb-4 text-center text-lg tracking-widest font-mono" />
             {error && <p className="text-red-500 text-xs mb-3">{error}</p>}
-            <button onClick={handleVerifyOtp} disabled={loading} className="w-full bg-blue-600 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-blue-700">
+            <button onClick={handleVerifyOtp} disabled={loading || otp.length !== 6} className="w-full bg-blue-600 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-blue-700 disabled:opacity-60">
               {loading ? 'Memverifikasi...' : 'Konfirmasi Kode'}
             </button>
           </>
