@@ -6,25 +6,18 @@ VALUES ('kyc-docs', 'kyc-docs', false, 5242880, ARRAY['image/jpeg','image/png','
 ON CONFLICT (id) DO UPDATE SET public=false,file_size_limit=5242880,allowed_mime_types=ARRAY['image/jpeg','image/png','image/webp']::text[];
 
 DROP POLICY IF EXISTS "kyc users upload own documents" ON storage.objects;
-CREATE POLICY "kyc users upload own documents"
-ON storage.objects FOR INSERT TO authenticated
+CREATE POLICY "kyc users upload own documents" ON storage.objects FOR INSERT TO authenticated
 WITH CHECK (bucket_id='kyc-docs' AND (storage.foldername(name))[1]=(SELECT auth.uid())::text AND (storage.extension(name)) IN ('jpg','jpeg','png','webp'));
-
 DROP POLICY IF EXISTS "kyc users read own documents" ON storage.objects;
-CREATE POLICY "kyc users read own documents"
-ON storage.objects FOR SELECT TO authenticated
+CREATE POLICY "kyc users read own documents" ON storage.objects FOR SELECT TO authenticated
 USING (bucket_id='kyc-docs' AND ((storage.foldername(name))[1]=(SELECT auth.uid())::text OR EXISTS (SELECT 1 FROM public.profiles p WHERE p.id=auth.uid() AND p.role='admin')));
 
+-- Replace the older submission trigger with one authoritative protection trigger.
+DROP TRIGGER IF EXISTS trg_enforce_kyc_submission ON public.profiles;
+DROP FUNCTION IF EXISTS public.enforce_kyc_submission();
 DROP FUNCTION IF EXISTS public.protect_kyc_fields();
-CREATE FUNCTION public.protect_kyc_fields()
-RETURNS trigger
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path=pg_catalog,public
-AS $$
-DECLARE
-  v_is_service boolean := auth.role()='service_role';
-  v_is_admin boolean := EXISTS(SELECT 1 FROM public.profiles p WHERE p.id=auth.uid() AND p.role='admin');
+CREATE FUNCTION public.protect_kyc_fields() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
+DECLARE v_is_service boolean:=auth.role()='service_role'; v_is_admin boolean:=EXISTS(SELECT 1 FROM public.profiles p WHERE p.id=auth.uid() AND p.role='admin');
 BEGIN
   IF v_is_service OR v_is_admin THEN RETURN NEW; END IF;
   IF TG_OP='INSERT' THEN
@@ -34,14 +27,14 @@ BEGIN
   END IF;
   IF TG_OP='UPDATE' AND NEW.ktp_photo_url IS DISTINCT FROM OLD.ktp_photo_url THEN
     IF NEW.ktp_photo_url IS NOT NULL AND NEW.ktp_photo_url<>'' AND NOT NEW.ktp_photo_url LIKE (auth.uid()::text||'/%') THEN RAISE EXCEPTION 'Invalid KYC document path'; END IF;
-    NEW.kyc_verified:=false;
-    NEW.kyc_status:=CASE WHEN NEW.ktp_photo_url IS NULL OR NEW.ktp_photo_url='' THEN 'not_started' ELSE 'pending' END;
+    NEW.kyc_verified:=false; NEW.kyc_status:=CASE WHEN NEW.ktp_photo_url IS NULL OR NEW.ktp_photo_url='' THEN 'not_started' ELSE 'pending' END;
     NEW.kyc_submitted_at:=CASE WHEN NEW.ktp_photo_url IS NULL OR NEW.ktp_photo_url='' THEN NULL ELSE now() END;
     NEW.kyc_reviewed_at:=NULL; NEW.kyc_reviewed_by:=NULL; NEW.kyc_rejection_reason:=NULL;
   END IF;
   RETURN NEW;
 END;
 $$;
+REVOKE EXECUTE ON FUNCTION public.protect_kyc_fields() FROM PUBLIC,anon,authenticated;
 DROP TRIGGER IF EXISTS trg_protect_kyc_fields ON public.profiles;
 CREATE TRIGGER trg_protect_kyc_fields BEFORE INSERT OR UPDATE ON public.profiles FOR EACH ROW EXECUTE FUNCTION public.protect_kyc_fields();
 
@@ -74,5 +67,4 @@ DROP POLICY IF EXISTS "Employers can create own jobs" ON public.jobs;
 DROP POLICY IF EXISTS "insert_own_jobs" ON public.jobs;
 CREATE POLICY "Employers can create own jobs" ON public.jobs FOR INSERT TO authenticated
 WITH CHECK (auth.uid()=employer_id AND EXISTS(SELECT 1 FROM public.profiles p WHERE p.id=auth.uid() AND p.role='employer' AND p.kyc_verified=true));
-
 REVOKE EXECUTE ON FUNCTION public.admin_list_kyc() FROM PUBLIC,anon; GRANT EXECUTE ON FUNCTION public.admin_list_kyc() TO authenticated;
