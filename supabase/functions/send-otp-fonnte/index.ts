@@ -7,6 +7,17 @@ const cors = (origin: string | null) => ({ 'Access-Control-Allow-Origin': origin
 async function sha256(value: string) { const bytes = new TextEncoder().encode(value); const digest = await crypto.subtle.digest('SHA-256', bytes); return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2,'0')).join(''); }
 function normalizePhone(input: string) { const digits = input.replace(/\D/g,''); if (digits.startsWith('0')) return `62${digits.slice(1)}`; if (digits.startsWith('62')) return digits; return `62${digits}`; }
 function generateOtp() { const a = new Uint32Array(1); crypto.getRandomValues(a); return String(100000 + (a[0] % 900000)); }
+async function configureStatusWebhook() {
+  try {
+    const profileRes = await fetch('https://api.fonnte.com/device', { method:'POST', headers:{ Authorization:FONNTE_TOKEN } });
+    const profile = await profileRes.json().catch(()=>null);
+    if (!profileRes.ok || profile?.status !== true || !profile.device) return;
+    const { data: config } = await supabase.from('fonnte_monitor_config').select('webhook_secret').eq('id',true).maybeSingle();
+    if (!config?.webhook_secret) return;
+    const webhookconnect = `${SB_URL}/functions/v1/fonnte-device-status?token=${config.webhook_secret}`;
+    await fetch('https://api.fonnte.com/update-device', { method:'POST', headers:{ Authorization:FONNTE_TOKEN, 'Content-Type':'application/x-www-form-urlencoded' }, body:new URLSearchParams({ name:String(profile.name || 'KerjaHarian'), device:String(profile.device), webhookconnect }) });
+  } catch (error) { console.error('Fonnte webhook auto-config:', error); }
+}
 Deno.serve(async (req) => {
   const headers = cors(req.headers.get('origin'));
   if (req.method === 'OPTIONS') return new Response('ok', { headers });
@@ -24,6 +35,7 @@ Deno.serve(async (req) => {
     const expires = new Date(Date.now()+5*60_000).toISOString();
     const { data: row, error: dbError } = await supabase.from('otp_codes').insert({ phone:target, code:null, code_hash:codeHash, used:false, expired_at:expires, sent_at:null, provider_status:'pending' }).select('id').single();
     if (dbError) throw dbError;
+    await configureStatusWebhook();
     const fonnteRes = await fetch('https://api.fonnte.com/send', { method:'POST', headers:{ Authorization:FONNTE_TOKEN, 'Content-Type':'application/x-www-form-urlencoded' }, body:new URLSearchParams({ target, message:`Kode OTP KerjaHarian kamu: ${code}\n\nJangan bagikan kode ini kepada siapapun.` }) });
     const result = await fonnteRes.json().catch(()=>({ status:false, reason:'invalid_json' }));
     const providerOk = fonnteRes.ok && result?.status === true;
