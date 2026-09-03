@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Camera, CheckCircle2, Clock3, ExternalLink, Loader2, MapPin, Play, TimerReset, UserCheck } from 'lucide-react';
+import { AlertTriangle, Camera, CheckCircle2, Clock3, ExternalLink, MapPin, Play, TimerReset, UserCheck } from 'lucide-react';
 import { supabase, type Job } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
 import { calculateJobTiming } from '@/lib/jobTiming';
@@ -195,12 +195,10 @@ export function JobTimer({ role, lang = 'id' }: JobTimerProps) {
         const workerAmount = Number(job.worker_amount ?? ((job.wage ?? 0) + (job.worker_overtime_amount ?? job.overtime_amount ?? 0)));
         const alreadyContinued = job.completion_decision === 'continued';
         const ready = job.workflow_status === 'ready_to_start' || !!job.employer_start_authorized_at;
-        const loc = job.order_id ? locations[job.order_id] : undefined;
         const statusLabel = job.status === 'completed' ? 'SELESAI' : job.workflow_status === 'active' ? 'BERJALAN' : job.workflow_status === 'overtime' ? 'LEMBUR' : ready ? 'SIAP MULAI' : job.workflow_status === 'worker_checked_in' ? 'MITRA SUDAH TIBA' : job.workflow_status === 'employer_checked_in' ? 'EMPLOYER SUDAH TIBA' : 'ORDER DIAMBIL';
         return (
           <div key={job.id} className="mt-4 rounded-xl bg-slate-50 p-4 ring-1 ring-slate-200">
             <div className="flex items-start justify-between gap-3"><div><p className="text-sm font-bold text-slate-900">{job.title || 'Pekerjaan'}</p><p className="mt-1 text-xs text-slate-500">{job.location || 'Lokasi belum tersedia'}</p>{role === 'employer' && job.worker_id && <p className="mt-1 text-xs font-semibold text-primary-700">Mitra: {workerNames[job.worker_id] || 'Mitra pekerja'}</p>}</div><span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${job.status === 'completed' ? 'bg-success-50 text-success-700' : job.workflow_status === 'overtime' ? 'bg-warning-100 text-warning-700' : 'bg-primary-50 text-primary-700'}`}>{statusLabel}</span></div>
-
             {role === 'worker' && job.status !== 'completed' && !job.started_at && (
               <div className="mt-4 space-y-3">
                 <button onClick={() => openNavigation(job)} className="flex w-full items-center justify-center gap-2 rounded-lg border border-primary-200 bg-white px-3 py-2.5 text-sm font-bold text-primary-700"><ExternalLink className="h-4 w-4" />Navigasi ke Lokasi</button>
@@ -210,7 +208,6 @@ export function JobTimer({ role, lang = 'id' }: JobTimerProps) {
                 ) : <div className="rounded-xl bg-success-50 p-3 text-xs font-semibold text-success-700 ring-1 ring-success-200"><div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4" />Kehadiran mitra terverifikasi.</div><p className="mt-1">Menunggu employer hadir di lokasi atau menyetujui mulai secara remote.</p></div>}
               </div>
             )}
-
             {role === 'employer' && job.status !== 'completed' && !job.started_at && (
               <div className="mt-4 space-y-3">
                 {job.worker_checked_in_at ? <div className="rounded-xl bg-success-50 p-3 ring-1 ring-success-200"><p className="text-xs font-bold text-success-800">✓ Mitra sudah terverifikasi di lokasi</p><p className="mt-1 text-[11px] text-success-700">Waktu server: {new Date(job.worker_checked_in_at).toLocaleString('id-ID')}{job.worker_checkin_lat != null && job.worker_checkin_lng != null ? ` • GPS ${Number(job.worker_checkin_lat).toFixed(5)}, ${Number(job.worker_checkin_lng).toFixed(5)}` : ''}</p>{job.worker_checkin_photo_path && <AttendancePhoto path={job.worker_checkin_photo_path} cached={workerPhotos[job.id]} onUrl={url => setWorkerPhotos(prev => ({ ...prev, [job.id]: url }))} />}</div> : <div className="rounded-xl bg-warning-50 p-3 text-xs font-semibold text-warning-800 ring-1 ring-warning-200">Menunggu mitra melakukan verifikasi kehadiran.</div>}
@@ -219,7 +216,6 @@ export function JobTimer({ role, lang = 'id' }: JobTimerProps) {
                 {ready && <div className="rounded-xl bg-primary-50 p-3 ring-1 ring-primary-200"><p className="text-xs font-bold text-primary-800">✓ Kedua pihak siap. Otorisasi: {job.employer_start_authorization_mode === 'remote' ? 'REMOTE' : 'LOKASI'}</p><button onClick={() => start(job.id)} disabled={busyId === job.id} className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-primary-700 px-3 py-3 text-sm font-bold text-white"><Play className="h-4 w-4" />MULAI PEKERJAAN</button></div>}
               </div>
             )}
-
             {job.status === 'completed' ? (
               <div className="mt-4 rounded-xl bg-white p-4 ring-1 ring-slate-200"><p className="text-xs font-bold uppercase tracking-wide text-slate-400">{lang === 'id' ? 'Ringkasan Pembayaran' : 'Payment Summary'}</p><div className="mt-3 grid gap-2 sm:grid-cols-3"><div><p className="text-[11px] text-slate-400">{role === 'worker' ? 'Pendapatan' : 'Upah Pekerja'}</p><p className="font-bold text-slate-900">{formatIDR(workerAmount)}</p></div><div><p className="text-[11px] text-slate-400">Lembur ({Number(job.overtime_minutes ?? 0)} menit)</p><p className="font-bold text-warning-700">{formatIDR(Number(job.worker_overtime_amount ?? overtimeAmount))}</p></div><div><p className="text-[11px] text-slate-400">{role === 'worker' ? 'Status' : 'Total Tagihan'}</p><p className="font-bold text-primary-700">{role === 'worker' ? (job.payment_status === 'settled' ? 'Sudah dibayar' : 'Menunggu pembayaran') : formatIDR(finalAmount)}</p></div></div></div>
             ) : jobTiming ? (
