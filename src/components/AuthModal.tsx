@@ -37,7 +37,6 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Gagal kirim OTP');
-
       setStep('otp');
     } catch (err: any) {
       setError(err.message);
@@ -50,7 +49,6 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
     setLoading(true);
     setError('');
     const cleanPhone = formatPhone(phone);
-    
     const dummyEmail = `${cleanPhone}@kerjaharian.app`;
     const dummyPassword = `Pwd_${cleanPhone}_2026!`;
 
@@ -71,7 +69,7 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
         return;
       }
 
-      let { error: authError } = await supabase.auth.signInWithPassword({
+      const { error: authError } = await supabase.auth.signInWithPassword({
         email: dummyEmail,
         password: dummyPassword,
       });
@@ -82,7 +80,7 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
           password: dummyPassword,
         });
         if (signUpError) throw signUpError;
-        
+
         const { error: secondSignInError } = await supabase.auth.signInWithPassword({
           email: dummyEmail,
           password: dummyPassword,
@@ -93,13 +91,41 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Autentikasi gagal');
 
-      const { data: profile } = await supabase
+      const { data: currentProfile, error: currentProfileError } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', user.id)
         .maybeSingle();
+      if (currentProfileError) throw currentProfileError;
 
-      if (!profile?.full_name) {
+      // Recover legacy test profiles whose old profile ID is no longer the Auth user ID.
+      // This preserves the existing role/name/phone and prevents the test account from
+      // being forced through a fresh KTP/profile setup after OTP re-login.
+      const { data: legacyProfile, error: legacyProfileError } = await supabase
+        .from('profiles')
+        .select('id, full_name, whatsapp, role, is_admin, ktp_photo_url')
+        .eq('whatsapp', `+${cleanPhone}`)
+        .neq('id', user.id)
+        .maybeSingle();
+      if (legacyProfileError) throw legacyProfileError;
+
+      let effectiveProfile = currentProfile;
+      if (legacyProfile && currentProfile) {
+        const { error: migrateError } = await supabase
+          .from('profiles')
+          .update({
+            full_name: legacyProfile.full_name,
+            whatsapp: legacyProfile.whatsapp,
+            role: legacyProfile.role,
+            is_admin: false,
+            ktp_photo_url: legacyProfile.ktp_photo_url,
+          })
+          .eq('id', user.id);
+        if (migrateError) throw migrateError;
+        effectiveProfile = { ...currentProfile, ...legacyProfile, is_admin: false };
+      }
+
+      if (!effectiveProfile?.full_name) {
         setStep('profile');
       } else {
         onClose();
@@ -235,5 +261,4 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
       </div>
     </div>
   );
-          }
-          
+}
