@@ -23,20 +23,35 @@ export default function AdminLogin({ onClose }: AdminLoginProps) {
   const invokePhoneAuth = useCallback(async (body: Record<string, unknown>) => {
     if (!SUPABASE_URL || !SUPABASE_ANON_KEY) throw new Error('Konfigurasi koneksi Supabase tidak tersedia.');
     const functionUrl = `${SUPABASE_URL}/functions/v1/phone-auth-otpid`;
+    let invokeError: any = null;
     try {
       const result = await supabase.functions.invoke('phone-auth-otpid', { body });
       if (!result.error) return result.data;
-      throw result.error;
-    } catch (invokeError: any) {
-      try {
-        const response = await fetch(functionUrl, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }, body: JSON.stringify(body) });
-        const payload = await response.json().catch(() => null);
-        if (!response.ok) throw new Error(String(payload?.error || payload?.message || `HTTP ${response.status}`));
-        return payload;
-      } catch (directError: any) {
-        throw new Error(directError?.message || invokeError?.message || 'Gagal menghubungi layanan WhatsApp.');
-      }
+      invokeError = result.error;
+    } catch (error) { invokeError = error; }
+    try {
+      const response = await fetch(functionUrl, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }, body: JSON.stringify(body) });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(String(payload?.error || payload?.message || `HTTP ${response.status}`));
+      return payload;
+    } catch (directError: any) {
+      const message = String(directError?.message || invokeError?.message || 'Gagal menghubungi layanan WhatsApp.');
+      throw new Error(message === 'Failed to fetch' ? 'Koneksi ke layanan WhatsApp terputus. Periksa koneksi internet lalu coba lagi.' : message);
     }
+  }, []);
+
+  const completeSession = useCallback(async (data: any) => {
+    if (data?.action_link) {
+      window.location.assign(String(data.action_link));
+      return;
+    }
+    if (data?.token_hash) {
+      const { error: verifyError } = await supabase.auth.verifyOtp({ token_hash: String(data.token_hash), type: 'email' });
+      if (verifyError) throw verifyError;
+      setMessage('Verifikasi berhasil. Membuka Admin...');
+      return;
+    }
+    throw new Error('Layanan login tidak mengembalikan token sesi.');
   }, []);
 
   const stopPolling = useCallback(() => {
@@ -52,10 +67,9 @@ export default function AdminLogin({ onClose }: AdminLoginProps) {
     setChecking(true);
     try {
       const status = await invokePhoneAuth({ action: 'status', phone: ADMIN_CANONICAL, challenge_id: activeId });
-      if (status?.status === 'success' && status?.action_link) {
+      if (status?.status === 'success') {
         stopPolling();
-        setMessage('Verifikasi berhasil. Membuka Admin...');
-        window.location.assign(String(status.action_link));
+        await completeSession(status);
         return true;
       }
       if (status?.status === 'expired') {
@@ -75,7 +89,7 @@ export default function AdminLogin({ onClose }: AdminLoginProps) {
       pollInFlightRef.current = false;
       setChecking(false);
     }
-  }, [invokePhoneAuth, stopPolling]);
+  }, [completeSession, invokePhoneAuth, stopPolling]);
 
   const startPolling = useCallback((id: string, startedAt: number) => {
     stopPolling();
