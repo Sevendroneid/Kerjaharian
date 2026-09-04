@@ -3,8 +3,7 @@ import { ShieldCheck, MessageCircle, RefreshCw } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 const ADMIN_CANONICAL = '6282340871029';
-const SUPABASE_URL = String(import.meta.env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
-const SUPABASE_ANON_KEY = String(import.meta.env.VITE_SUPABASE_ANON_KEY || '');
+const OTP_PROXY_URL = '/api/phone-auth-otpid';
 interface AdminLoginProps { onClose: () => void; }
 
 export default function AdminLogin({ onClose }: AdminLoginProps) {
@@ -21,23 +20,24 @@ export default function AdminLogin({ onClose }: AdminLoginProps) {
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); pollRef.current = null; pollInFlightRef.current = false; }, []);
 
   const invokePhoneAuth = useCallback(async (body: Record<string, unknown>) => {
-    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) throw new Error('Konfigurasi koneksi Supabase tidak tersedia.');
-    const functionUrl = `${SUPABASE_URL}/functions/v1/phone-auth-otpid`;
-    let invokeError: any = null;
+    let response: Response;
     try {
-      const result = await supabase.functions.invoke('phone-auth-otpid', { body });
-      if (!result.error) return result.data;
-      invokeError = result.error;
-    } catch (error) { invokeError = error; }
-    try {
-      const response = await fetch(functionUrl, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }, body: JSON.stringify(body) });
-      const payload = await response.json().catch(() => null);
-      if (!response.ok) throw new Error(String(payload?.error || payload?.message || `HTTP ${response.status}`));
-      return payload;
-    } catch (directError: any) {
-      const message = String(directError?.message || invokeError?.message || 'Gagal menghubungi layanan WhatsApp.');
-      throw new Error(message === 'Failed to fetch' ? 'Koneksi ke layanan WhatsApp terputus. Periksa koneksi internet lalu coba lagi.' : message);
+      response = await fetch(OTP_PROXY_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+    } catch (error: any) {
+      throw new Error(error?.message === 'Failed to fetch'
+        ? 'Koneksi ke layanan WhatsApp terputus. Periksa koneksi internet lalu coba lagi.'
+        : String(error?.message || 'Gagal menghubungi layanan WhatsApp.'));
     }
+
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new Error(String(payload?.error || payload?.message || `HTTP ${response.status}`));
+    }
+    return payload;
   }, []);
 
   const completeSession = useCallback(async (data: any) => {
