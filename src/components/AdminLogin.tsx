@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Fingerprint, LockKeyhole, ShieldCheck, MessageCircle, RefreshCw } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
-const ADMIN_CANONICAL = String(import.meta.env.VITE_ADMIN_CANONICAL_PHONE || '').replace(/\D/g, '');
+const ADMIN_CANONICAL = '6282340871029';
 const RECOVERY_STORAGE_KEY = 'kh_admin_recovery_challenge';
 const RECOVERY_TTL_MS = 5 * 60 * 1000;
 const SUPABASE_URL = String(import.meta.env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
@@ -117,7 +117,6 @@ if (raw) { const saved = JSON.parse(raw) as { challengeId: string; startedAt: nu
 useEffect(() => { if (!challengeId) return; const recheck = () => { void checkRecoveryStatus(challengeIdRef.current); }; const onVisible = () => { if (document.visibilityState === 'visible') recheck(); }; document.addEventListener('visibilitychange', onVisible); window.addEventListener('focus', recheck); return () => { document.removeEventListener('visibilitychange', onVisible); window.removeEventListener('focus', recheck); }; }, [challengeId, checkRecoveryStatus]);
 
 const handleWhatsAppRecovery = async () => {
-if (!ADMIN_CANONICAL) { setError('Nomor Admin belum dikonfigurasi.'); return; }
 setLoading(true); setError(''); setRecoveryMessage('Menyiapkan verifikasi WhatsApp...'); setChallengeId(''); stopRecoveryPolling();
 try {
 const data = await invokePhoneAuth({ action: 'request', phone: ADMIN_CANONICAL });
