@@ -22,21 +22,20 @@ export default function App() {
   const [view, setView] = useState<View>('landing');
   const [lang, setLang] = useState<'id' | 'en'>(() => (localStorage.getItem('kerjaharian_lang') as 'id' | 'en') || 'id');
   const [authModal, setAuthModal] = useState<{ open: boolean; mode: 'signin' | 'signup' }>({ open: false, mode: 'signin' });
-  const [adminLoginOpen, setAdminLoginOpen] = useState(false);
+  const [adminLoginOpen, setAdminLoginOpen] = useState(() => window.location.pathname === SECRET_PATH);
   const [pendingCategory, setPendingCategory] = useState<CategoryId | null>(null);
   const { user, profile, loading: authLoading } = useAuth();
   const i18n = new I18n(lang);
 
+  // Admin entry is intentionally not exposed in public navigation.
+  // Initialize directly from the pathname so /rahasia renders the login on the
+  // first paint instead of waiting for an effect after the initial render.
   useEffect(() => {
-    // Admin entry is intentionally not exposed in the public navigation.
-    // Keep a single secret route rather than a query-string backdoor that can
-    // accidentally be shared, indexed, or exposed by analytics/referrers.
-    if (window.location.pathname === SECRET_PATH) setAdminLoginOpen(true);
+    if (window.location.pathname !== SECRET_PATH) return;
+    setAdminLoginOpen(true);
   }, []);
 
   // Admin routing must depend on the canonical role, not profile completeness.
-  // An admin account may legitimately have no full_name yet; it must still reach
-  // the protected dashboard after successful authentication.
   useEffect(() => {
     if (authLoading || !user) return;
     if (profile?.role === 'admin') {
