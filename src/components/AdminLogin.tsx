@@ -2,9 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Fingerprint, LockKeyhole, ShieldCheck, MessageCircle, RefreshCw } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
-const ADMIN_CANONICAL = '6282340871029';
+const ADMIN_CANONICAL = String(import.meta.env.VITE_ADMIN_CANONICAL_PHONE || '').replace(/\D/g, '');
 const RECOVERY_STORAGE_KEY = 'kh_admin_recovery_challenge';
 const RECOVERY_TTL_MS = 5 * 60 * 1000;
+const SUPABASE_URL = String(import.meta.env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
+const SUPABASE_ANON_KEY = String(import.meta.env.VITE_SUPABASE_ANON_KEY || '');
 interface AdminLoginProps { onClose: () => void; }
 
 export default function AdminLogin({ onClose }: AdminLoginProps) {
@@ -23,19 +25,26 @@ useEffect(() => { challengeIdRef.current = challengeId; }, [challengeId]);
 useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); pollRef.current = null; pollInFlightRef.current = false; }, []);
 
 const invokePhoneAuth = useCallback(async (body: Record<string, unknown>) => {
-const result = await supabase.functions.invoke('phone-auth-otpid', { body });
-if (result.error) {
-const context = result.error.context;
-let detail = '';
-if (context instanceof Response) {
-try {
-const payload = await context.clone().json();
-detail = payload?.error || payload?.message || '';
-} catch { }
-}
-throw new Error(detail || result.error.message || 'Gagal menghubungi layanan verifikasi.');
-}
-return result.data;
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) throw new Error('Konfigurasi koneksi Supabase tidak tersedia.');
+  const functionUrl = `${SUPABASE_URL}/functions/v1/phone-auth-otpid`;
+  try {
+    const result = await supabase.functions.invoke('phone-auth-otpid', { body });
+    if (!result.error) return result.data;
+    throw result.error;
+  } catch (invokeError: any) {
+    try {
+      const response = await fetch(functionUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+        body: JSON.stringify(body),
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(String(payload?.error || payload?.message || `HTTP ${response.status}`));
+      return payload;
+    } catch (directError: any) {
+      throw new Error(directError?.message || invokeError?.message || 'Gagal menghubungi layanan verifikasi WhatsApp.');
+    }
+  }
 }, []);
 
 const handlePin = async () => {
@@ -67,13 +76,7 @@ finally { setLoading(false); }
 };
 
 const clearRecoveryStorage = () => { try { localStorage.removeItem(RECOVERY_STORAGE_KEY); } catch { } };
-
-const stopRecoveryPolling = useCallback(() => {
-if (pollRef.current) clearInterval(pollRef.current);
-pollRef.current = null;
-pollInFlightRef.current = false;
-clearRecoveryStorage();
-}, []);
+const stopRecoveryPolling = useCallback(() => { if (pollRef.current) clearInterval(pollRef.current); pollRef.current = null; pollInFlightRef.current = false; clearRecoveryStorage(); }, []);
 
 const completeRecoverySession = useCallback(async (tokenHash: string) => {
 const { data, error: verifyError } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: 'magiclink' });
@@ -88,88 +91,40 @@ return data.session;
 const checkRecoveryStatus = useCallback(async (activeChallengeId?: string) => {
 const id = activeChallengeId || challengeIdRef.current;
 if (!id || pollInFlightRef.current) return false;
-pollInFlightRef.current = true;
-setCheckingRecovery(true);
+pollInFlightRef.current = true; setCheckingRecovery(true);
 try {
 const status = await invokePhoneAuth({ action: 'status', phone: ADMIN_CANONICAL, challenge_id: id });
-if (status?.status === 'success' && status?.token_hash) {
-stopRecoveryPolling();
-setRecoveryMessage('Verifikasi berhasil. Membuka Dashboard Admin...');
-await completeRecoverySession(String(status.token_hash));
-setLoading(false);
-onClose();
-return true;
-}
-if (status?.status === 'expired') {
-stopRecoveryPolling();
-setLoading(false);
-setRecoveryMessage('Sesi WhatsApp kedaluwarsa. Silakan mulai lagi.');
-return true;
-}
+if (status?.status === 'success' && status?.token_hash) { stopRecoveryPolling(); setRecoveryMessage('Verifikasi berhasil. Membuka Dashboard Admin...'); await completeRecoverySession(String(status.token_hash)); setLoading(false); onClose(); return true; }
+if (status?.status === 'expired') { stopRecoveryPolling(); setLoading(false); setRecoveryMessage('Sesi WhatsApp kedaluwarsa. Silakan mulai lagi.'); return true; }
 setRecoveryMessage('Belum terverifikasi. Jika sudah menekan Kirim di WhatsApp, kembali ke KerjaHarian dan cek lagi.');
 return false;
-} catch (err: any) {
-stopRecoveryPolling();
-setLoading(false);
-setError(err?.message || 'Gagal memeriksa verifikasi WhatsApp.');
-return true;
-} finally {
-pollInFlightRef.current = false;
-setCheckingRecovery(false);
-}
+} catch (err: any) { stopRecoveryPolling(); setLoading(false); setError(err?.message || 'Gagal memeriksa verifikasi WhatsApp.'); return true; }
+finally { pollInFlightRef.current = false; setCheckingRecovery(false); }
 }, [completeRecoverySession, invokePhoneAuth, onClose, stopRecoveryPolling]);
 
 const startPolling = useCallback((id: string, startedAt: number) => {
 if (pollRef.current) clearInterval(pollRef.current);
-pollRef.current = setInterval(() => {
-if (Date.now() - startedAt > RECOVERY_TTL_MS) {
-stopRecoveryPolling(); setLoading(false); setRecoveryMessage('Sesi WhatsApp kedaluwarsa. Silakan mulai lagi.'); return;
-}
-void checkRecoveryStatus(id);
-}, 3000);
+pollRef.current = setInterval(() => { if (Date.now() - startedAt > RECOVERY_TTL_MS) { stopRecoveryPolling(); setLoading(false); setRecoveryMessage('Sesi WhatsApp kedaluwarsa. Silakan mulai lagi.'); return; } void checkRecoveryStatus(id); }, 3000);
 }, [checkRecoveryStatus, stopRecoveryPolling]);
 
 useEffect(() => {
 try {
 const raw = localStorage.getItem(RECOVERY_STORAGE_KEY);
-if (raw) {
-const saved = JSON.parse(raw) as { challengeId: string; startedAt: number };
-if (saved?.challengeId && Date.now() - saved.startedAt < RECOVERY_TTL_MS) {
-challengeIdRef.current = saved.challengeId;
-setChallengeId(saved.challengeId);
-setLoading(true);
-setRecoveryMessage('Melanjutkan verifikasi WhatsApp yang tertunda...');
-void checkRecoveryStatus(saved.challengeId);
-startPolling(saved.challengeId, saved.startedAt);
-} else {
-clearRecoveryStorage();
-}
-}
+if (raw) { const saved = JSON.parse(raw) as { challengeId: string; startedAt: number }; if (saved?.challengeId && Date.now() - saved.startedAt < RECOVERY_TTL_MS) { challengeIdRef.current = saved.challengeId; setChallengeId(saved.challengeId); setLoading(true); setRecoveryMessage('Melanjutkan verifikasi WhatsApp yang tertunda...'); void checkRecoveryStatus(saved.challengeId); startPolling(saved.challengeId, saved.startedAt); } else clearRecoveryStorage(); }
 } catch { }
 }, []);
 
-useEffect(() => {
-if (!challengeId) return;
-const recheck = () => { void checkRecoveryStatus(challengeIdRef.current); };
-const onVisible = () => { if (document.visibilityState === 'visible') recheck(); };
-document.addEventListener('visibilitychange', onVisible);
-window.addEventListener('focus', recheck);
-return () => { document.removeEventListener('visibilitychange', onVisible); window.removeEventListener('focus', recheck); };
-}, [challengeId, checkRecoveryStatus]);
+useEffect(() => { if (!challengeId) return; const recheck = () => { void checkRecoveryStatus(challengeIdRef.current); }; const onVisible = () => { if (document.visibilityState === 'visible') recheck(); }; document.addEventListener('visibilitychange', onVisible); window.addEventListener('focus', recheck); return () => { document.removeEventListener('visibilitychange', onVisible); window.removeEventListener('focus', recheck); }; }, [challengeId, checkRecoveryStatus]);
 
 const handleWhatsAppRecovery = async () => {
+if (!ADMIN_CANONICAL) { setError('Nomor Admin belum dikonfigurasi.'); return; }
 setLoading(true); setError(''); setRecoveryMessage('Menyiapkan verifikasi WhatsApp...'); setChallengeId(''); stopRecoveryPolling();
 try {
 const data = await invokePhoneAuth({ action: 'request', phone: ADMIN_CANONICAL });
 if (!data?.challenge_id || !data?.verification?.wa_link) throw new Error('OTP.ID tidak mengembalikan sesi WhatsApp.');
-const newChallengeId = data.challenge_id as string;
-const startedAt = Date.now();
-challengeIdRef.current = newChallengeId;
-setChallengeId(newChallengeId);
+const newChallengeId = data.challenge_id as string; const startedAt = Date.now(); challengeIdRef.current = newChallengeId; setChallengeId(newChallengeId);
 try { localStorage.setItem(RECOVERY_STORAGE_KEY, JSON.stringify({ challengeId: newChallengeId, startedAt })); } catch { }
-setRecoveryMessage('WhatsApp sudah disiapkan. Tekan Kirim pada pesan verifikasi, lalu kembali ke KerjaHarian.');
-window.open(data.verification.wa_link, '_blank', 'noopener,noreferrer');
-startPolling(newChallengeId, startedAt);
+setRecoveryMessage('WhatsApp sudah disiapkan. Tekan Kirim pada pesan verifikasi, lalu kembali ke KerjaHarian.'); window.open(data.verification.wa_link, '_blank', 'noopener,noreferrer'); startPolling(newChallengeId, startedAt);
 } catch (err: any) { setLoading(false); setRecoveryMessage(''); setError(err?.message || 'Gagal memulai pemulihan Admin melalui WhatsApp.'); }
 };
 
@@ -182,5 +137,3 @@ return <div className="fixed inset-0 z-[60] bg-black/60 flex items-center justif
 {error && <p className="text-red-500 text-xs mt-3">{error}</p>}<button onClick={onClose} disabled={loading} className="w-full mt-4 text-xs text-slate-500 py-2">Kembali</button>
 </div></div>;
 }
-
-
