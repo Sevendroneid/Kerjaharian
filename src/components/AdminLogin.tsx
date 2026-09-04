@@ -33,14 +33,23 @@ export default function AdminLogin({ onClose }: AdminLoginProps) {
   }, []);
 
   const completeSession = useCallback(async (data: any) => {
-    if (data?.action_link) {
-      window.location.assign(String(data.action_link));
+    // Prefer the token returned by generateLink(). This completes the Supabase
+    // session in the current tab without navigating through the magic-link URL.
+    if (data?.token_hash) {
+      const { data: authData, error: verifyError } = await supabase.auth.verifyOtp({
+        token_hash: String(data.token_hash),
+        type: 'magiclink',
+      });
+      if (verifyError) throw verifyError;
+      if (!authData?.session) throw new Error('Verifikasi berhasil tetapi sesi Admin belum terbentuk.');
+      setMessage('Verifikasi berhasil. Membuka Admin...');
+      // Let the auth listener propagate the new session, then reload the app
+      // route so AdminRoute evaluates the canonical admin role immediately.
+      setTimeout(() => window.location.reload(), 150);
       return;
     }
-    if (data?.token_hash) {
-      const { error: verifyError } = await supabase.auth.verifyOtp({ token_hash: String(data.token_hash), type: 'email' });
-      if (verifyError) throw verifyError;
-      setMessage('Verifikasi berhasil. Membuka Admin...');
+    if (data?.action_link) {
+      window.location.assign(String(data.action_link));
       return;
     }
     throw new Error('Layanan login tidak mengembalikan token sesi.');
