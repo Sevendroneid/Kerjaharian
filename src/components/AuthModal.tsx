@@ -172,5 +172,5 @@ Upload KTP, cegah pesanan palsu. Aman, cuma dilihat admin.
 {error && {error}}
 <button onClick={handleUploadKtp} disabled={loading || !ktpFile} className="w-full bg-blue-600 text-white rounded-lg py-3 text-sm font-semibold disabled:opacity-60">{loading ? 'Mengunggah...' : 'Unggah KTP & Selesai'}
 </>}
-�
-; }
+
+;}
