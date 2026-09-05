@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, type FormEvent } from 'react';
 import { CheckCircle2, MapPin, Wallet, Info, Trash2, Send, Briefcase, Loader2, Clock3 } from 'lucide-react';
 import { CATEGORIES, CATEGORY_MAP } from '@/lib/data';
 import type { CategoryId } from '@/lib/types';
@@ -111,7 +111,7 @@ export function Employer({ onAuthClick, initialCategory, lang, i18n }: EmployerP
     if (selectedJobPrice) setWage(String(selectedJobPrice.base_price));
   }, [selectedJobPrice]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
     setSuccess(false);
