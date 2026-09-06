@@ -16,6 +16,29 @@ const withTimeout = async <T,>(promise: Promise<T>, ms: number): Promise<T> => {
   }
 };
 
+async function ensureAdminSession() {
+  const current = await withTimeout(supabase.auth.getSession(), 8000);
+  if (current.data.session?.user) return current.data.session;
+
+  // Access tokens can expire while the admin dashboard remains mounted.
+  // Recover the persisted Supabase session before reporting "session missing".
+  const refreshed = await withTimeout(supabase.auth.refreshSession(), 10000);
+  if (refreshed.error) throw refreshed.error;
+  if (!refreshed.data.session?.user) throw new Error('Sesi Admin tidak ditemukan. Silakan login ulang.');
+  return refreshed.data.session;
+}
+
+async function assertAdminSession() {
+  const session = await ensureAdminSession();
+  const profileResult = await withTimeout(
+    Promise.resolve(supabase.from('profiles').select('role').eq('id', session.user.id).maybeSingle()),
+    8000,
+  );
+  if (profileResult.error) throw profileResult.error;
+  if (profileResult.data?.role !== 'admin') throw new Error('Akun aktif bukan akun Admin KerjaHarian.');
+  return session;
+}
+
 export default function AdminPasskeySetup() {
   const [loading, setLoading] = useState(false);
   const [pinLoading, setPinLoading] = useState(false);
@@ -36,8 +59,10 @@ export default function AdminPasskeySetup() {
       return;
     }
     setLoading(true);
-    setMessage('Menunggu konfirmasi biometrik perangkat...');
+    setMessage('Menyiapkan sesi Admin...');
     try {
+      await assertAdminSession();
+      setMessage('Menunggu konfirmasi biometrik perangkat...');
       const result = await withTimeout(supabase.auth.registerPasskey(), 20000);
       if (result.error) throw result.error;
       setMessage(result.data?.friendly_name ? `Passkey ${result.data.friendly_name} aktif.` : 'Fingerprint / Passkey berhasil diaktifkan.');
@@ -61,15 +86,7 @@ export default function AdminPasskeySetup() {
     setPinLoading(true);
     setPinMessage('Menyimpan PIN...');
     try {
-      const current = await withTimeout(supabase.auth.getUser(), 8000);
-      if (current.error) throw current.error;
-      if (!current.data.user?.id) throw new Error('Sesi Admin tidak ditemukan. Silakan login ulang.');
-      const profileResult = await withTimeout(
-        Promise.resolve(supabase.from('profiles').select('role').eq('id', current.data.user.id).maybeSingle()),
-        8000,
-      );
-      if (profileResult.error) throw profileResult.error;
-      if (profileResult.data?.role !== 'admin') throw new Error('Akun aktif bukan akun Admin KerjaHarian.');
+      await assertAdminSession();
       const updated = await withTimeout(supabase.auth.updateUser({ password: pin }), 10000);
       if (updated.error) throw updated.error;
       setPin('');
