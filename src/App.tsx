@@ -5,7 +5,6 @@ import { Landing } from '@/components/Landing';
 import { Employer } from '@/components/Employer';
 import { Worker } from '@/components/Worker';
 import { AuthModal } from '@/components/AuthModal';
-import AdminLogin from '@/components/AdminLogin';
 import AdminRoute from '@/components/AdminRoute';
 import AdminDashboard from '@/components/AdminDashboard';
 import KycGate from '@/components/KycGate';
@@ -23,33 +22,11 @@ export default function App() {
   const [view, setView] = useState<View>('landing');
   const [lang, setLang] = useState<'id' | 'en'>(() => (localStorage.getItem('kerjaharian_lang') as 'id' | 'en') || 'id');
   const [authModal, setAuthModal] = useState<{ open: boolean; mode: 'signin' | 'signup' }>({ open: false, mode: 'signin' });
-  const [adminLoginOpen, setAdminLoginOpen] = useState(() => window.location.pathname === SECRET_PATH);
-  const [adminPreview] = useState(() => new URLSearchParams(window.location.search).get(ADMIN_PREVIEW_PARAM) === '1');
+  const isSecretAdminPath = window.location.pathname === SECRET_PATH;
+  const [adminPreview] = useState(() => isSecretAdminPath || new URLSearchParams(window.location.search).get(ADMIN_PREVIEW_PARAM) === '1');
   const [pendingCategory, setPendingCategory] = useState<CategoryId | null>(null);
   const { user, profile, loading: authLoading } = useAuth();
   const i18n = new I18n(lang);
-
-  useEffect(() => {
-    if (window.location.pathname !== SECRET_PATH) return;
-    setAdminLoginOpen(true);
-  }, []);
-
-  useEffect(() => {
-    if (authLoading || !user || adminPreview) return;
-    if (profile?.role === 'admin') {
-      setView('admin');
-      setAdminLoginOpen(false);
-      setAuthModal((prev) => ({ ...prev, open: false }));
-      return;
-    }
-    if (window.location.pathname === SECRET_PATH || adminLoginOpen) return;
-    if (!profile?.full_name) {
-      setAuthModal((prev) => ({ ...prev, open: true, mode: 'signup' }));
-      return;
-    }
-    if (profile.role === 'employer') setView('employer');
-    else if (profile.role === 'worker') setView('worker');
-  }, [authLoading, user, profile?.full_name, profile?.role, adminLoginOpen, adminPreview]);
 
   const navigate = useCallback((v: View, category?: CategoryId) => {
     setView(v);
@@ -59,14 +36,27 @@ export default function App() {
   const openAuth = useCallback((mode: 'signin' | 'signup') => setAuthModal({ open: true, mode }), []);
   const closeAuth = useCallback(() => setAuthModal((prev) => ({ ...prev, open: false })), []);
   const handleLangChange = useCallback((newLang: 'id' | 'en') => { setLang(newLang); localStorage.setItem('kerjaharian_lang', newLang); }, []);
-  const handleAdminSuccess = useCallback(() => {
-    setView('admin');
-    setAdminLoginOpen(false);
-    setAuthModal((prev) => ({ ...prev, open: false }));
-  }, []);
 
-  // Read-only UI inspection only; real admin authorization remains in AdminRoute.
-  if (adminPreview) return <AppErrorBoundary><AdminDashboard onNavigate={navigate} /></AppErrorBoundary>;
+  // Temporary owner inspection mode: /rahasia opens the admin UI directly.
+  // No OTP, WhatsApp request, login modal, or Supabase auth verification is invoked.
+  if (adminPreview) {
+    return <AppErrorBoundary><AdminDashboard onNavigate={navigate} /></AppErrorBoundary>;
+  }
+
+  useEffect(() => {
+    if (authLoading || !user) return;
+    if (profile?.role === 'admin') {
+      setView('admin');
+      setAuthModal((prev) => ({ ...prev, open: false }));
+      return;
+    }
+    if (!profile?.full_name) {
+      setAuthModal((prev) => ({ ...prev, open: true, mode: 'signup' }));
+      return;
+    }
+    if (profile.role === 'employer') setView('employer');
+    else if (profile.role === 'worker') setView('worker');
+  }, [authLoading, user, profile?.full_name, profile?.role]);
 
   if (view === 'admin') return <AppErrorBoundary><AdminRoute><AdminDashboard onNavigate={navigate} /></AdminRoute></AppErrorBoundary>;
 
@@ -79,6 +69,5 @@ export default function App() {
     </main>
     <Footer onNavigate={navigate} />
     <AuthModal open={authModal.open} onClose={closeAuth} />
-    {adminLoginOpen && <AdminLogin onClose={() => setAdminLoginOpen(false)} onSuccess={handleAdminSuccess} />}
   </div></AppErrorBoundary>;
 }
