@@ -17,12 +17,14 @@ import { useAuth } from '@/lib/auth';
 import type { View, CategoryId } from '@/lib/types';
 
 const SECRET_PATH = '/rahasia';
+const ADMIN_PREVIEW_PARAM = 'admin-preview';
 
 export default function App() {
   const [view, setView] = useState<View>('landing');
   const [lang, setLang] = useState<'id' | 'en'>(() => (localStorage.getItem('kerjaharian_lang') as 'id' | 'en') || 'id');
   const [authModal, setAuthModal] = useState<{ open: boolean; mode: 'signin' | 'signup' }>({ open: false, mode: 'signin' });
   const [adminLoginOpen, setAdminLoginOpen] = useState(() => window.location.pathname === SECRET_PATH);
+  const [adminPreview] = useState(() => new URLSearchParams(window.location.search).get(ADMIN_PREVIEW_PARAM) === '1');
   const [pendingCategory, setPendingCategory] = useState<CategoryId | null>(null);
   const { user, profile, loading: authLoading } = useAuth();
   const i18n = new I18n(lang);
@@ -33,7 +35,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (authLoading || !user) return;
+    if (authLoading || !user || adminPreview) return;
     if (profile?.role === 'admin') {
       setView('admin');
       setAdminLoginOpen(false);
@@ -47,7 +49,7 @@ export default function App() {
     }
     if (profile.role === 'employer') setView('employer');
     else if (profile.role === 'worker') setView('worker');
-  }, [authLoading, user, profile?.full_name, profile?.role, adminLoginOpen]);
+  }, [authLoading, user, profile?.full_name, profile?.role, adminLoginOpen, adminPreview]);
 
   const navigate = useCallback((v: View, category?: CategoryId) => {
     setView(v);
@@ -62,6 +64,9 @@ export default function App() {
     setAdminLoginOpen(false);
     setAuthModal((prev) => ({ ...prev, open: false }));
   }, []);
+
+  // Read-only UI inspection only; real admin authorization remains in AdminRoute.
+  if (adminPreview) return <AppErrorBoundary><AdminDashboard onNavigate={navigate} /></AppErrorBoundary>;
 
   if (view === 'admin') return <AppErrorBoundary><AdminRoute><AdminDashboard onNavigate={navigate} /></AdminRoute></AppErrorBoundary>;
 
