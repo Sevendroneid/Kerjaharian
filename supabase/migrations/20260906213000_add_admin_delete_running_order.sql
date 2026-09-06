@@ -34,15 +34,15 @@ BEGIN
     RAISE EXCEPTION 'Job not found';
   END IF;
 
-  -- Delete job first: job_events and dispatch_offers cascade from jobs.
-  DELETE FROM public.jobs WHERE id = p_job_id;
-
-  -- The legacy order relation does not cascade reviews, so remove those
-  -- dependent rows explicitly before removing the order itself.
+  -- orders.job_id is NO ACTION, so the linked order must be removed first.
+  -- order_locations/messages cascade; reviews is explicitly removed because
+  -- its FK is NO ACTION.
   IF v_order_id IS NOT NULL THEN
     DELETE FROM public.reviews WHERE order_id = v_order_id;
     DELETE FROM public.orders WHERE id = v_order_id;
   END IF;
+
+  DELETE FROM public.jobs WHERE id = p_job_id;
 
   RETURN jsonb_build_object(
     'success', true,
