@@ -40,8 +40,6 @@ export default function App() {
       setAuthModal((prev) => ({ ...prev, open: false }));
       return;
     }
-    // Never open the public signup flow while the secret admin login route is
-    // active; the admin profile is hydrated asynchronously after SIGNED_IN.
     if (window.location.pathname === SECRET_PATH || adminLoginOpen) return;
     if (!profile?.full_name) {
       setAuthModal((prev) => ({ ...prev, open: true, mode: 'signup' }));
@@ -59,6 +57,11 @@ export default function App() {
   const openAuth = useCallback((mode: 'signin' | 'signup') => setAuthModal({ open: true, mode }), []);
   const closeAuth = useCallback(() => setAuthModal((prev) => ({ ...prev, open: false })), []);
   const handleLangChange = useCallback((newLang: 'id' | 'en') => { setLang(newLang); localStorage.setItem('kerjaharian_lang', newLang); }, []);
+  const handleAdminSuccess = useCallback(() => {
+    setView('admin');
+    setAdminLoginOpen(false);
+    setAuthModal((prev) => ({ ...prev, open: false }));
+  }, []);
 
   if (view === 'admin') return <AppErrorBoundary><AdminRoute><AdminDashboard onNavigate={navigate} /></AdminRoute></AppErrorBoundary>;
 
@@ -71,6 +74,6 @@ export default function App() {
     </main>
     <Footer onNavigate={navigate} />
     <AuthModal open={authModal.open} onClose={closeAuth} />
-    {adminLoginOpen && <AdminLogin onClose={() => setAdminLoginOpen(false)} />}
+    {adminLoginOpen && <AdminLogin onClose={() => setAdminLoginOpen(false)} onSuccess={handleAdminSuccess} />}
   </div></AppErrorBoundary>;
 }
