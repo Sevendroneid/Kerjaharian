@@ -4,9 +4,9 @@ import { supabase } from '@/lib/supabase';
 
 const ADMIN_CANONICAL = '6282340871029';
 const OTP_PROXY_URL = '/api/phone-auth-otpid';
-interface AdminLoginProps { onClose: () => void; }
+interface AdminLoginProps { onClose: () => void; onSuccess: () => void; }
 
-export default function AdminLogin({ onClose }: AdminLoginProps) {
+export default function AdminLogin({ onClose, onSuccess }: AdminLoginProps) {
   const [loading, setLoading] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [error, setError] = useState('');
@@ -33,9 +33,6 @@ export default function AdminLogin({ onClose }: AdminLoginProps) {
   }, []);
 
   const completeSession = useCallback(async (data: any) => {
-    // Do not reload immediately after verifyOtp(). Supabase persists the
-    // session and emits SIGNED_IN; an immediate reload can race the auth
-    // bootstrap and reopen the Admin OTP dialog.
     if (data?.token_hash) {
       const { data: authData, error: verifyError } = await supabase.auth.verifyOtp({
         token_hash: String(data.token_hash),
@@ -43,9 +40,25 @@ export default function AdminLogin({ onClose }: AdminLoginProps) {
       });
       if (verifyError) throw verifyError;
       if (!authData?.session) throw new Error('Verifikasi berhasil tetapi sesi Admin belum terbentuk.');
+
       const { data: persisted } = await supabase.auth.getSession();
       if (!persisted?.session) throw new Error('Sesi Admin belum tersimpan. Silakan coba verifikasi sekali lagi.');
+
+      // Complete the UI transition from the OTP dialog explicitly. Waiting for
+      // the global profile hydration here can deadlock the secret route because
+      // the App intentionally keeps the OTP dialog open while that hydration runs.
+      const uid = persisted.session.user.id;
+      let role: string | null = null;
+      for (let attempt = 0; attempt < 10; attempt += 1) {
+        const { data: profile } = await supabase.from('profiles').select('role').eq('id', uid).maybeSingle();
+        role = profile?.role ?? null;
+        if (role === 'admin') break;
+        await new Promise((resolve) => window.setTimeout(resolve, 250));
+      }
+      if (role !== 'admin') throw new Error('Sesi berhasil, tetapi akun ini belum memiliki role Admin.');
+
       setMessage('Verifikasi berhasil. Membuka Admin...');
+      onSuccess();
       return;
     }
     if (data?.action_link) {
@@ -53,7 +66,7 @@ export default function AdminLogin({ onClose }: AdminLoginProps) {
       return;
     }
     throw new Error('Layanan login tidak mengembalikan token sesi.');
-  }, []);
+  }, [onSuccess]);
 
   const handleRequestOtp = async () => {
     setLoading(true); setError(''); setMessage('Mengirim OTP WhatsApp...'); setChallengeId(''); setOtp('');
