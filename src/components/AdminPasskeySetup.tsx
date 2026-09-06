@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { Fingerprint, ShieldCheck, LockKeyhole } from 'lucide-react';
+import { Fingerprint, ShieldCheck, LockKeyhole, RefreshCw } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
-const withTimeout = async <T,>(promise: Promise<T>, ms: number): Promise<T> => {
+const withTimeout = async <T,>(promise: PromiseLike<T>, ms: number): Promise<T> => {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     return await Promise.race([
-      promise,
+      Promise.resolve(promise),
       new Promise<T>((_, reject) => {
         timer = setTimeout(() => reject(new Error('Operasi keamanan timeout. Silakan coba lagi.')), ms);
       }),
@@ -19,9 +19,6 @@ const withTimeout = async <T,>(promise: Promise<T>, ms: number): Promise<T> => {
 async function ensureAdminSession() {
   const current = await withTimeout(supabase.auth.getSession(), 8000);
   if (current.data.session?.user) return current.data.session;
-
-  // Access tokens can expire while the admin dashboard remains mounted.
-  // Recover the persisted Supabase session before reporting "session missing".
   const refreshed = await withTimeout(supabase.auth.refreshSession(), 10000);
   if (refreshed.error) throw refreshed.error;
   if (!refreshed.data.session?.user) throw new Error('Sesi Admin tidak ditemukan. Silakan login ulang.');
@@ -39,6 +36,23 @@ async function assertAdminSession() {
   return session;
 }
 
+function readablePasskeyError(error: unknown) {
+  const value = error as { code?: string; message?: string } | null;
+  switch (value?.code) {
+    case 'webauthn_credential_not_found':
+      return 'Passkey lama tidak terdaftar di server. Daftarkan ulang Fingerprint / Passkey.';
+    case 'webauthn_verification_failed':
+      return 'Verifikasi passkey lama gagal. Gunakan tombol Daftarkan Ulang untuk membuat credential baru.';
+    case 'passkey_disabled':
+      return 'Passkey belum aktif di konfigurasi Supabase Auth.';
+    case 'email_not_confirmed':
+    case 'phone_not_confirmed':
+      return 'Identitas Admin belum terkonfirmasi di Supabase Auth.';
+    default:
+      return value?.message || 'Gagal mengaktifkan Passkey.';
+  }
+}
+
 export default function AdminPasskeySetup() {
   const [loading, setLoading] = useState(false);
   const [pinLoading, setPinLoading] = useState(false);
@@ -48,26 +62,46 @@ export default function AdminPasskeySetup() {
   const [pinConfirm, setPinConfirm] = useState('');
   const supported = typeof window !== 'undefined' && !!window.PublicKeyCredential;
 
-  const register = async () => {
+  const register = async (resetExisting: boolean) => {
     setMessage('');
     if (!supported) {
       setMessage('Perangkat/browser ini tidak mendukung Passkey. Gunakan PIN Admin.');
       return;
     }
-    if (typeof supabase.auth.registerPasskey !== 'function') {
-      setMessage('Passkey belum tersedia pada konfigurasi autentikasi ini. Gunakan PIN Admin.');
+    if (typeof supabase.auth.registerPasskey !== 'function' || typeof supabase.auth.passkey?.list !== 'function') {
+      setMessage('Passkey belum tersedia pada client KerjaHarian.');
       return;
     }
     setLoading(true);
-    setMessage('Menyiapkan sesi Admin...');
     try {
       await assertAdminSession();
+
+      if (resetExisting && typeof supabase.auth.passkey.delete === 'function') {
+        setMessage('Membersihkan credential Fingerprint lama...');
+        const listed = await withTimeout(supabase.auth.passkey.list(), 10000);
+        if (listed.error) throw listed.error;
+        for (const passkey of listed.data ?? []) {
+          const removed = await withTimeout(
+            supabase.auth.passkey.delete({ passkeyId: passkey.id }),
+            10000,
+          );
+          if (removed.error) throw removed.error;
+        }
+      }
+
       setMessage('Menunggu konfirmasi biometrik perangkat...');
-      const result = await withTimeout(supabase.auth.registerPasskey(), 20000);
+      const result = await withTimeout(supabase.auth.registerPasskey(), 30000);
       if (result.error) throw result.error;
-      setMessage(result.data?.friendly_name ? `Passkey ${result.data.friendly_name} aktif.` : 'Fingerprint / Passkey berhasil diaktifkan.');
+
+      const verified = await withTimeout(supabase.auth.passkey.list(), 10000);
+      if (verified.error) throw verified.error;
+      if (!verified.data?.length) throw new Error('Passkey tidak ditemukan setelah pendaftaran.');
+
+      setMessage(result.data?.friendly_name
+        ? `Passkey ${result.data.friendly_name} berhasil didaftarkan. Logout lalu test login biometrik.`
+        : 'Fingerprint / Passkey berhasil didaftarkan. Logout lalu test login biometrik.');
     } catch (err: unknown) {
-      setMessage(err instanceof Error ? err.message : 'Gagal mengaktifkan Passkey. PIN Admin tetap dapat digunakan.');
+      setMessage(readablePasskeyError(err));
     } finally {
       setLoading(false);
     }
@@ -100,7 +134,7 @@ export default function AdminPasskeySetup() {
   };
 
   return <div className="rounded-2xl border bg-white p-4 shadow-sm">
-    <div className="flex items-center gap-3"><div className="rounded-xl bg-slate-100 p-2"><ShieldCheck size={19}/></div><div className="flex-1"><p className="font-semibold text-sm">Keamanan Admin</p><p className="text-xs text-slate-500">Atur PIN cadangan dan aktifkan Fingerprint / Passkey pada perangkat ini.</p></div></div>
+    <div className="flex items-center gap-3"><div className="rounded-xl bg-slate-100 p-2"><ShieldCheck size={19}/></div><div className="flex-1"><p className="font-semibold text-sm">Keamanan Admin</p><p className="text-xs text-slate-500">Atur PIN cadangan dan kelola Fingerprint / Passkey pada perangkat ini.</p></div></div>
     <div className="mt-4 rounded-xl border border-slate-200 p-3">
       <div className="flex items-center gap-2"><LockKeyhole size={17}/><p className="font-semibold text-sm">PIN Admin</p></div>
       <p className="text-[11px] text-slate-500 mt-1">PIN wajib 8 digit dan menjadi metode pemulihan utama bila fingerprint belum tersedia.</p>
@@ -109,6 +143,6 @@ export default function AdminPasskeySetup() {
       <button onClick={()=>void savePin()} disabled={pinLoading} className="w-full mt-2 border border-slate-300 rounded-xl py-2.5 text-sm font-semibold disabled:opacity-60"><LockKeyhole size={17} className="inline mr-1"/>{pinLoading ? 'Menyimpan PIN...' : 'Simpan / Ubah PIN Admin'}</button>
       {pinMessage && <p className="text-xs text-slate-600 mt-2">{pinMessage}</p>}
     </div>
-    {supported && <div className="mt-3"><div className="flex items-center gap-2"><Fingerprint size={17}/><p className="font-semibold text-sm">Fingerprint / Passkey</p></div><p className="text-[11px] text-slate-500 mt-1">Passkey bersifat opsional; halaman Keamanan tidak lagi menunggu pemeriksaan passkey saat dibuka.</p><button onClick={()=>void register()} disabled={loading} className="w-full mt-3 border border-slate-300 rounded-xl py-2.5 text-sm font-semibold disabled:opacity-60"><Fingerprint size={17} className="inline mr-1"/>{loading ? 'Menunggu biometrik...' : 'Aktifkan Fingerprint / Passkey'}</button>{message && <p className="text-xs text-slate-600 mt-2">{message}</p>}</div>}
+    {supported && <div className="mt-3"><div className="flex items-center gap-2"><Fingerprint size={17}/><p className="font-semibold text-sm">Fingerprint / Passkey</p></div><p className="text-[11px] text-slate-500 mt-1">Credential lama dapat dihapus lalu didaftarkan ulang jika login menghasilkan “Credential verification failed”.</p><button onClick={()=>void register(true)} disabled={loading} className="w-full mt-3 border border-slate-300 rounded-xl py-2.5 text-sm font-semibold disabled:opacity-60"><RefreshCw size={17} className="inline mr-1"/>{loading ? 'Menyiapkan Passkey...' : 'Daftarkan Ulang Fingerprint / Passkey'}</button>{message && <p className="text-xs text-slate-600 mt-2">{message}</p>}</div>}
   </div>;
 }
