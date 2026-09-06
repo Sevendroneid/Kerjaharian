@@ -33,8 +33,9 @@ export default function AdminLogin({ onClose }: AdminLoginProps) {
   }, []);
 
   const completeSession = useCallback(async (data: any) => {
-    // Prefer the token returned by generateLink(). This completes the Supabase
-    // session in the current tab without navigating through the magic-link URL.
+    // Do not reload immediately after verifyOtp(). Supabase persists the
+    // session and emits SIGNED_IN; an immediate reload can race the auth
+    // bootstrap and reopen the Admin OTP dialog.
     if (data?.token_hash) {
       const { data: authData, error: verifyError } = await supabase.auth.verifyOtp({
         token_hash: String(data.token_hash),
@@ -42,10 +43,9 @@ export default function AdminLogin({ onClose }: AdminLoginProps) {
       });
       if (verifyError) throw verifyError;
       if (!authData?.session) throw new Error('Verifikasi berhasil tetapi sesi Admin belum terbentuk.');
+      const { data: persisted } = await supabase.auth.getSession();
+      if (!persisted?.session) throw new Error('Sesi Admin belum tersimpan. Silakan coba verifikasi sekali lagi.');
       setMessage('Verifikasi berhasil. Membuka Admin...');
-      // Let the auth listener propagate the new session, then reload the app
-      // route so AdminRoute evaluates the canonical admin role immediately.
-      setTimeout(() => window.location.reload(), 150);
       return;
     }
     if (data?.action_link) {
