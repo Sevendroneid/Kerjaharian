@@ -163,7 +163,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: 489c2e2b374c84561b5b510fa2136016
-          command: pages deploy dist --project-name=kerjaharian --branch=main --commit-hash=${{ github.sha }} --commit-message="${{ github.event.head_commit.message }}"
+          command: pages deploy dist --project-name=kerjaharian --branch=main --commit-hash=${{ github.sha }}
 
       - name: Smoke test production endpoints
         shell: bash
