@@ -1,32 +1,27 @@
-import crypto from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 
-function json(res, status, body) {
-  res.status(status).setHeader('Content-Type', 'application/json');
-  res.end(JSON.stringify(body));
-}
-
-function isValidSignature(notification, serverKey) {
+async function isValidSignature(notification, serverKey) {
   const raw = `${notification.order_id}${notification.status_code}${notification.gross_amount}${serverKey}`;
-  const expected = crypto.createHash('sha512').update(raw).digest('hex');
+  const digest = await crypto.subtle.digest('SHA-512', new TextEncoder().encode(raw));
+  const expected = [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
   const actual = String(notification.signature_key || '');
-  if (expected.length !== actual.length) return false;
-  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(actual));
+  return expected.length === actual.length && expected === actual;
 }
 
-export default async function handler(req, res) {
-  if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
+export async function onRequest(context) {
+  const { request, env } = context;
+  if (request.method !== 'POST') return Response.json({ error: 'Method not allowed' }, { status: 405 });
 
-  const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const serverKey = process.env.MIDTRANS_SERVER_KEY;
-  if (!supabaseUrl || !serviceKey || !serverKey) return json(res, 500, { error: 'Payment service is not configured' });
+  const supabaseUrl = env.VITE_SUPABASE_URL || env.SUPABASE_URL;
+  const serviceKey = env.SUPABASE_SERVICE_ROLE_KEY;
+  const serverKey = env.MIDTRANS_SERVER_KEY;
+  if (!supabaseUrl || !serviceKey || !serverKey) return Response.json({ error: 'Payment service is not configured' }, { status: 500 });
 
-  const notification = req.body || {};
+  const notification = await request.json().catch(() => ({}));
   if (!notification.order_id || !notification.status_code || !notification.gross_amount || !notification.signature_key) {
-    return json(res, 400, { error: 'Invalid Midtrans notification payload' });
+    return Response.json({ error: 'Invalid Midtrans notification payload' }, { status: 400 });
   }
-  if (!isValidSignature(notification, serverKey)) return json(res, 401, { error: 'Invalid Midtrans signature' });
+  if (!(await isValidSignature(notification, serverKey))) return Response.json({ error: 'Invalid Midtrans signature' }, { status: 401 });
 
   const admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
   const orderId = String(notification.order_id);
@@ -39,13 +34,13 @@ export default async function handler(req, res) {
     .eq('midtrans_order_id', orderId)
     .maybeSingle();
 
-  if (findError) return json(res, 500, { error: findError.message });
-  if (!job) return json(res, 404, { error: 'KerjaHarian job not found for Midtrans order' });
+  if (findError) return Response.json({ error: findError.message }, { status: 500 });
+  if (!job) return Response.json({ error: 'KerjaHarian job not found for Midtrans order' }, { status: 404 });
 
   const expectedAmount = Number(job.final_amount ?? job.employer_total ?? job.total ?? 0);
   const notifiedAmount = Number(notification.gross_amount);
   if (!Number.isFinite(expectedAmount) || expectedAmount !== notifiedAmount) {
-    return json(res, 409, { error: 'Gross amount mismatch' });
+    return Response.json({ error: 'Gross amount mismatch' }, { status: 409 });
   }
 
   const update = {
@@ -56,7 +51,7 @@ export default async function handler(req, res) {
   };
 
   const { error: updateError } = await admin.from('jobs').update(update).eq('id', job.id);
-  if (updateError) return json(res, 500, { error: updateError.message });
+  if (updateError) return Response.json({ error: updateError.message }, { status: 500 });
 
-  return json(res, 200, { ok: true, order_id: orderId, payment_status: update.payment_status });
+  return Response.json({ ok: true, order_id: orderId, payment_status: update.payment_status });
 }
