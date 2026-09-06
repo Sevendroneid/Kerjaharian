@@ -3,8 +3,25 @@ import { ShieldCheck, MessageCircle, ArrowRight } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 const ADMIN_CANONICAL = '6282340871029';
-const OTP_PROXY_URL = '/api/phone-auth-otpid';
+
 interface AdminLoginProps { onClose: () => void; onSuccess: () => void; }
+
+async function callPhoneAuth(body: Record<string, unknown>) {
+  const { data, error } = await supabase.functions.invoke('phone-auth-otpid', { body });
+  if (error) {
+    let message = error.message || 'Gagal menghubungi server';
+    try {
+      const ctx = (error as any).context;
+      if (ctx && typeof ctx.json === 'function') {
+        const parsed = await ctx.json();
+        if (parsed?.error) message = parsed.error;
+      }
+    } catch (_) { /* gunakan pesan default */ }
+    throw new Error(message);
+  }
+  if (data?.error) throw new Error(String(data.error));
+  return data;
+}
 
 export default function AdminLogin({ onClose, onSuccess }: AdminLoginProps) {
   const [loading, setLoading] = useState(false);
@@ -14,93 +31,56 @@ export default function AdminLogin({ onClose, onSuccess }: AdminLoginProps) {
   const [challengeId, setChallengeId] = useState('');
   const [otp, setOtp] = useState('');
 
-  const invokePhoneAuth = useCallback(async (body: Record<string, unknown>) => {
-    let response: Response;
-    try {
-      response = await fetch(OTP_PROXY_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-    } catch (error: any) {
-      throw new Error(error?.message === 'Failed to fetch'
-        ? 'Koneksi ke layanan WhatsApp terputus. Periksa koneksi internet lalu coba lagi.'
-        : String(error?.message || 'Gagal menghubungi layanan WhatsApp.'));
-    }
-    const payload = await response.json().catch(() => null);
-    if (!response.ok) throw new Error(String(payload?.error || payload?.message || `HTTP ${response.status}`));
-    return payload;
-  }, []);
-
   const completeSession = useCallback(async (data: any) => {
-    if (data?.token_hash) {
-      const { data: authData, error: verifyError } = await supabase.auth.verifyOtp({
-        token_hash: String(data.token_hash),
-        type: 'magiclink',
-      });
-      if (verifyError) throw verifyError;
-      if (!authData?.session) throw new Error('Verifikasi berhasil tetapi sesi Admin belum terbentuk.');
+    if (!data?.token_hash) throw new Error('Layanan login tidak mengembalikan token sesi.');
+    const { data: authData, error: verifyError } = await supabase.auth.verifyOtp({
+      token_hash: String(data.token_hash),
+      type: 'magiclink',
+    });
+    if (verifyError) throw verifyError;
+    if (!authData?.session) throw new Error('Verifikasi berhasil tetapi sesi Admin belum terbentuk.');
 
-      const { data: persisted } = await supabase.auth.getSession();
-      if (!persisted?.session) throw new Error('Sesi Admin belum tersimpan. Silakan coba verifikasi sekali lagi.');
+    const { data: persisted } = await supabase.auth.getSession();
+    if (!persisted?.session) throw new Error('Sesi Admin belum tersimpan. Silakan coba verifikasi sekali lagi.');
 
-      // Complete the UI transition from the OTP dialog explicitly. Waiting for
-      // the global profile hydration here can deadlock the secret route because
-      // the App intentionally keeps the OTP dialog open while that hydration runs.
-      const uid = persisted.session.user.id;
-      let role: string | null = null;
-      for (let attempt = 0; attempt < 10; attempt += 1) {
-        const { data: profile } = await supabase.from('profiles').select('role').eq('id', uid).maybeSingle();
-        role = profile?.role ?? null;
-        if (role === 'admin') break;
-        await new Promise((resolve) => window.setTimeout(resolve, 250));
-      }
-      if (role !== 'admin') throw new Error('Sesi berhasil, tetapi akun ini belum memiliki role Admin.');
-
-      setMessage('Verifikasi berhasil. Membuka Admin...');
-      onSuccess();
-      return;
+    const uid = persisted.session.user.id;
+    let role: string | null = null;
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      const { data: profile } = await supabase.from('profiles').select('role').eq('id', uid).maybeSingle();
+      role = profile?.role ?? null;
+      if (role === 'admin') break;
+      await new Promise((resolve) => window.setTimeout(resolve, 250));
     }
-    if (data?.action_link) {
-      window.location.assign(String(data.action_link));
-      return;
-    }
-    throw new Error('Layanan login tidak mengembalikan token sesi.');
+    if (role !== 'admin') throw new Error('Sesi berhasil, tetapi akun ini belum memiliki role Admin.');
+
+    setMessage('Verifikasi berhasil. Membuka Admin...');
+    onSuccess();
   }, [onSuccess]);
 
   const handleRequestOtp = async () => {
     setLoading(true); setError(''); setMessage('Mengirim OTP WhatsApp...'); setChallengeId(''); setOtp('');
     try {
-      const data = await invokePhoneAuth({ action: 'request', phone: ADMIN_CANONICAL });
+      const data = await callPhoneAuth({ action: 'request', phone: ADMIN_CANONICAL });
       if (!data?.challenge_id) throw new Error('OTP.ID tidak mengembalikan sesi OTP.');
       setChallengeId(String(data.challenge_id));
       setMessage('OTP 6 digit sudah dikirim ke WhatsApp Admin. Masukkan kode di bawah.');
     } catch (err: any) {
-      setMessage('');
-      setError(err?.message || 'Gagal mengirim OTP WhatsApp.');
-    } finally {
-      setLoading(false);
-    }
+      setMessage(''); setError(err?.message || 'Gagal mengirim OTP WhatsApp.');
+    } finally { setLoading(false); }
   };
 
   const handleVerifyOtp = async () => {
     if (!challengeId) return;
     const code = otp.replace(/\D/g, '');
-    if (!/^\d{6}$/.test(code)) {
-      setError('Masukkan kode OTP 6 digit yang dikirim ke WhatsApp.');
-      return;
-    }
+    if (!/^\d{6}$/.test(code)) { setError('Masukkan kode OTP 6 digit yang dikirim ke WhatsApp.'); return; }
     setVerifying(true); setError(''); setMessage('Memverifikasi OTP...');
     try {
-      const data = await invokePhoneAuth({ action: 'verify', phone: ADMIN_CANONICAL, challenge_id: challengeId, code });
+      const data = await callPhoneAuth({ action: 'verify', phone: ADMIN_CANONICAL, challenge_id: challengeId, code });
       if (data?.status === 'mismatch') throw new Error('Kode OTP salah. Periksa kembali kode di WhatsApp.');
       await completeSession(data);
     } catch (err: any) {
-      setMessage('');
-      setError(err?.message || 'Gagal memverifikasi OTP.');
-    } finally {
-      setVerifying(false);
-    }
+      setMessage(''); setError(err?.message || 'Gagal memverifikasi OTP.');
+    } finally { setVerifying(false); }
   };
 
   return <div className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4"><div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl">
