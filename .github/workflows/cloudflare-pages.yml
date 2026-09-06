@@ -130,6 +130,20 @@ jobs:
           echo "Cloudflare Pages custom domain activation did not complete in time."
           exit 1
 
+      - name: Assert payments remain disabled
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: 489c2e2b374c84561b5b510fa2136016
+        run: |
+          set -euo pipefail
+          secrets="$(npx --yes wrangler@3.90.0 pages secret list --project-name=kerjaharian)"
+          if printf '%s' "$secrets" | grep -Eq 'MIDTRANS_SERVER_KEY|MIDTRANS_CLIENT_KEY'; then
+            echo "Payment configuration detected. This project must remain Rp0 with payments disabled."
+            exit 1
+          fi
+          echo "Midtrans payment secrets are not configured; payment remains disabled."
+
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:
