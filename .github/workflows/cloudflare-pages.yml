@@ -60,7 +60,21 @@ jobs:
         run: npm run typecheck
 
       - name: Build
+        env:
+          VITE_SUPABASE_URL: https://cgulvtbyqkixpxxqzcet.supabase.co
+          VITE_SUPABASE_ANON_KEY: sb_publishable_37nHNxKCf60GiWedu90g9g_DDetNzb9
         run: npm run build
+
+      - name: Assert frontend Supabase configuration is present in build
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -d dist
+          if grep -R -q "Missing Supabase environment variables" dist; then
+            echo "Frontend build still contains the missing-Supabase runtime failure."
+            exit 1
+          fi
+          echo "Frontend Supabase configuration was embedded during the production build."
 
       - name: Ensure Cloudflare Pages project exists
         shell: bash
