@@ -165,6 +165,24 @@ jobs:
           accountId: 489c2e2b374c84561b5b510fa2136016
           command: pages deploy dist --project-name=kerjaharian --branch=main --commit-hash=${{ github.sha }} --commit-dirty=true
 
+      - name: Verify Supabase Passkey endpoint is enabled
+        shell: bash
+        env:
+          SUPABASE_URL: https://cgulvtbyqkixpxxqzcet.supabase.co
+          SUPABASE_ANON_KEY: sb_publishable_37nHNxKCf60GiWedu90g9g_DDetNzb9
+        run: |
+          set -euo pipefail
+          response_file="$(mktemp)"
+          status="$(curl --silent --show-error --output "$response_file" --write-out '%{http_code}' \
+            -X POST \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
+            -H 'Content-Type: application/json' \
+            "${SUPABASE_URL}/auth/v1/passkeys/authentication/options")"
+          echo "Supabase passkey options HTTP status: ${status}"
+          cat "$response_file"
+          test "$status" = "200"
+
       - name: Smoke test production endpoints
         shell: bash
         run: |
