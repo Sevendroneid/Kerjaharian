@@ -37,14 +37,8 @@ export default function App() {
   const closeAuth = useCallback(() => setAuthModal((prev) => ({ ...prev, open: false })), []);
   const handleLangChange = useCallback((newLang: 'id' | 'en') => { setLang(newLang); localStorage.setItem('kerjaharian_lang', newLang); }, []);
 
-  // Temporary owner inspection mode: /rahasia opens the admin UI directly.
-  // No OTP, WhatsApp request, login modal, or Supabase auth verification is invoked.
-  if (adminPreview) {
-    return <AppErrorBoundary><AdminDashboard onNavigate={navigate} /></AppErrorBoundary>;
-  }
-
   useEffect(() => {
-    if (authLoading || !user) return;
+    if (adminPreview || authLoading || !user) return;
     if (profile?.role === 'admin') {
       setView('admin');
       setAuthModal((prev) => ({ ...prev, open: false }));
@@ -56,7 +50,13 @@ export default function App() {
     }
     if (profile.role === 'employer') setView('employer');
     else if (profile.role === 'worker') setView('worker');
-  }, [authLoading, user, profile?.full_name, profile?.role]);
+  }, [adminPreview, authLoading, user, profile?.full_name, profile?.role]);
+
+  // Temporary owner inspection mode: /rahasia opens the admin UI directly.
+  // No OTP, WhatsApp request, login modal, or Supabase auth verification is invoked.
+  if (adminPreview) {
+    return <AppErrorBoundary><AdminDashboard onNavigate={navigate} /></AppErrorBoundary>;
+  }
 
   if (view === 'admin') return <AppErrorBoundary><AdminRoute><AdminDashboard onNavigate={navigate} /></AdminRoute></AppErrorBoundary>;
 
