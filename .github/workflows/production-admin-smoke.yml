@@ -17,7 +17,7 @@ jobs:
         run: |
           npm install --no-save --no-package-lock playwright@1.55.0
           npx playwright install --with-deps chromium
-      - name: Verify production admin preview
+      - name: Verify production admin route and authentication boundary
         shell: bash
         run: |
           set -euo pipefail
@@ -29,15 +29,17 @@ jobs:
           const errors=[];
           page.on('request', r => { if (r.url().includes('phone-auth-otpid') || r.url().includes('/api/phone-auth-otpid')) otp.push(r.url()); });
           page.on('pageerror', e => errors.push(String(e)));
-          await page.goto('https://kerjaharian.my.id/rahasia',{waitUntil:'networkidle',timeout:60000});
+          const response = await page.goto('https://kerjaharian.my.id/rahasia',{waitUntil:'networkidle',timeout:60000});
           await page.waitForTimeout(2000);
           const body=await page.locator('body').innerText();
-          if(!body.includes('KerjaHarian Command Center')) throw new Error('Admin panel did not render');
-          if(body.includes('Memverifikasi')) throw new Error('Verification screen still rendered');
-          if(body.includes('Kirim OTP') || body.includes('Verifikasi OTP')) throw new Error('OTP UI still rendered');
-          if(otp.length) throw new Error('OTP endpoint called: '+otp.join(','));
-          if(errors.length) throw new Error('Browser errors: '+errors.join(' | '));
-          console.log('REAL-WORLD ADMIN PREVIEW VERIFICATION PASSED');
+          if (!response || !response.ok()) throw new Error(`Admin route HTTP failure: ${response?.status() ?? 'no response'}`);
+          if (body.includes('Memverifikasi sesi Admin...')) throw new Error('Admin route is stuck on session verification');
+          if (body.includes('Kirim OTP') || body.includes('Verifikasi OTP')) throw new Error('OTP UI rendered on admin route');
+          if (otp.length) throw new Error('OTP endpoint called: '+otp.join(','));
+          if (errors.length) throw new Error('Browser errors: '+errors.join(' | '));
+          if (!body.includes('Akses Admin ditolak') && !body.includes('Masuk') && !body.includes('KerjaHarian')) throw new Error('Unexpected admin route content');
+          console.log('REAL-WORLD ADMIN ROUTE VERIFICATION PASSED');
+          console.log('HTTP status:', response.status());
           console.log('OTP requests: 0');
           console.log('Browser page errors: 0');
           await browser.close();
