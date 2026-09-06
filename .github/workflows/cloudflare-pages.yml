@@ -69,8 +69,8 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: 489c2e2b374c84561b5b510fa2136016
         run: |
           set -euo pipefail
-          PROJECTS="$(npx --yes wrangler@3.90.0 pages project list --json)"
-          if printf '%s' "$PROJECTS" | grep -q '"name"[[:space:]]*:[[:space:]]*"kerjaharian"'; then
+          PROJECTS="$(npx --yes wrangler@3.90.0 pages project list)"
+          if printf '%s' "$PROJECTS" | grep -q 'kerjaharian'; then
             echo "Cloudflare Pages project kerjaharian already exists."
           else
             echo "Cloudflare Pages project kerjaharian not found. Creating it on production branch main."
