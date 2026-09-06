@@ -20,7 +20,7 @@ const ACTIVITY_THROTTLE_MS = 60 * 1000;
 const AUTH_BOOTSTRAP_TIMEOUT_MS = 8 * 1000;
 const PROFILE_TIMEOUT_MS = 8 * 1000;
 
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallback: T, label: string): Promise<T> {
+function withTimeout<T>(promise: PromiseLike<T>, timeoutMs: number, fallback: T, label: string): Promise<T> {
   return new Promise((resolve) => {
     let settled = false;
     const timer = window.setTimeout(() => {
@@ -29,7 +29,7 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallback: T, lab
       console.error(`${label} timed out after ${timeoutMs}ms`);
       resolve(fallback);
     }, timeoutMs);
-    promise.then((value) => {
+    Promise.resolve(promise).then((value) => {
       if (settled) return;
       settled = true;
       window.clearTimeout(timer);
@@ -118,7 +118,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const result = await withTimeout(
         supabase.auth.getSession(),
         AUTH_BOOTSTRAP_TIMEOUT_MS,
-        { data: { session: null }, error: new Error('Auth session lookup timed out') },
+        { data: { session: null }, error: null },
         'Auth session lookup',
       );
       if (!mounted) return;
