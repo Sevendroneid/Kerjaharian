@@ -12,6 +12,10 @@ function normalizePhone(value: string) {
   return `+62${digits}`;
 }
 
+function adminEmailFromPhone(phone: string) {
+  return `${phone.replace(/^\+/, '')}@kerjaharian.app`;
+}
+
 async function withTimeout<T>(promise: PromiseLike<T>, ms: number, label: string): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
@@ -54,8 +58,11 @@ export default function AdminLogin({ onClose, onSuccess }: AdminLoginProps) {
     if (!/^\d{8}$/.test(pin)) { setError('PIN Admin harus tepat 8 digit.'); return; }
     setLoading(true); setError('');
     try {
+      // Admin accounts use a confirmed internal email identity. Password auth via
+      // phone is intentionally disabled in Supabase, so never call phone login here.
+      const email = adminEmailFromPhone(normalized);
       const { error: signInError } = await withTimeout(
-        supabase.auth.signInWithPassword({ phone: normalized, password: pin }),
+        supabase.auth.signInWithPassword({ email, password: pin }),
         12000,
         'Login PIN timeout. Silakan coba lagi.',
       );
