@@ -17,18 +17,62 @@ interface AuthState {
 const AuthContext = createContext<AuthState | undefined>(undefined);
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 const ACTIVITY_THROTTLE_MS = 60 * 1000;
+const AUTH_BOOTSTRAP_TIMEOUT_MS = 8 * 1000;
+const PROFILE_TIMEOUT_MS = 8 * 1000;
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallback: T, label: string): Promise<T> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const timer = window.setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      console.error(`${label} timed out after ${timeoutMs}ms`);
+      resolve(fallback);
+    }, timeoutMs);
+    promise.then((value) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timer);
+      resolve(value);
+    }).catch((error) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timer);
+      console.error(`${label} failed:`, error);
+      resolve(fallback);
+    });
+  });
+}
 
 async function ensureProfile(user: User): Promise<Profile | null> {
-  const { data: existing, error: readError } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
+  const result = await withTimeout(
+    supabase.from('profiles').select('*').eq('id', user.id).maybeSingle(),
+    PROFILE_TIMEOUT_MS,
+    { data: null, error: new Error('Profile request timed out') },
+    'Profile lookup',
+  );
+  const { data: existing, error: readError } = result;
   if (readError) { console.error('Failed to fetch profile:', readError.message); return null; }
   if (existing) return existing as Profile;
-  const { data: created, error: insertError } = await supabase.from('profiles').insert({ id: user.id, full_name: null, role: 'worker', is_admin: false }).select('*').single();
-  if (insertError) {
-    const { data: retry } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
-    if (retry) return retry as Profile;
-    console.error('Failed to create profile:', insertError.message); return null;
-  }
-  return created as Profile;
+
+  const insertResult = await withTimeout(
+    supabase.from('profiles').insert({ id: user.id, full_name: null, role: 'worker', is_admin: false }).select('*').single(),
+    PROFILE_TIMEOUT_MS,
+    { data: null, error: new Error('Profile creation timed out') },
+    'Profile creation',
+  );
+  const { data: created, error: insertError } = insertResult;
+  if (!insertError && created) return created as Profile;
+
+  const retryResult = await withTimeout(
+    supabase.from('profiles').select('*').eq('id', user.id).maybeSingle(),
+    PROFILE_TIMEOUT_MS,
+    { data: null, error: new Error('Profile retry timed out') },
+    'Profile retry',
+  );
+  if (retryResult.data) return retryResult.data as Profile;
+  console.error('Failed to create profile:', insertError?.message ?? 'unknown error');
+  return null;
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -36,14 +80,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const userRef = useRef<User | null>(null);
   const lastActivityRef = useRef(Date.now());
   const lastActivityWriteRef = useRef(0);
   const signingOutRef = useRef(false);
 
   const fetchProfile = useCallback(async (uid: string) => {
-    const { data, error } = await supabase.from('profiles').select('*').eq('id', uid).maybeSingle();
-    if (error) { console.error('Failed to fetch profile:', error.message); return; }
-    setProfile(data as Profile | null);
+    const result = await withTimeout(
+      supabase.from('profiles').select('*').eq('id', uid).maybeSingle(),
+      PROFILE_TIMEOUT_MS,
+      { data: null, error: new Error('Profile refresh timed out') },
+      'Profile refresh',
+    );
+    if (result.error) { console.error('Failed to fetch profile:', result.error.message); return; }
+    setProfile(result.data as Profile | null);
   }, []);
 
   const hydrateUser = useCallback(async (nextUser: User | null) => {
@@ -52,7 +102,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfile(nextProfile);
   }, []);
 
-  const refreshProfile = useCallback(async () => { if (user) await fetchProfile(user.id); }, [user, fetchProfile]);
+  const refreshProfile = useCallback(async () => {
+    if (userRef.current) await fetchProfile(userRef.current.id);
+  }, [fetchProfile]);
 
   const hasActiveJob = useCallback(async (uid: string) => {
     const { data, error } = await supabase.from('jobs').select('id').eq('status', 'assigned').or(`worker_id.eq.${uid},employer_id.eq.${uid}`).limit(1);
@@ -60,47 +112,64 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return (data?.length ?? 0) > 0;
   }, []);
 
-  const safeIdleCheck = useCallback(async () => {
-    if (signingOutRef.current || !user) return;
-    if (Date.now() - lastActivityRef.current < IDLE_TIMEOUT_MS) return;
-    // Never terminate a session while an assigned/active job exists. The job timer is server-clock based.
-    if (await hasActiveJob(user.id)) { lastActivityRef.current = Date.now(); return; }
-    signingOutRef.current = true;
-    await supabase.auth.signOut();
-    setSession(null); setUser(null); setProfile(null);
-    window.location.replace('https://www.kerjaharian.my.id');
-  }, [hasActiveJob, user]);
-
   useEffect(() => {
     let mounted = true;
     const bootstrap = async () => {
-      const { data: { session: initialSession } } = await supabase.auth.getSession();
+      const result = await withTimeout(
+        supabase.auth.getSession(),
+        AUTH_BOOTSTRAP_TIMEOUT_MS,
+        { data: { session: null }, error: new Error('Auth session lookup timed out') },
+        'Auth session lookup',
+      );
       if (!mounted) return;
-      setSession(initialSession); setUser(initialSession?.user ?? null);
+      const initialSession = result.data.session;
+      setSession(initialSession); setUser(initialSession?.user ?? null); userRef.current = initialSession?.user ?? null;
       await hydrateUser(initialSession?.user ?? null);
       if (mounted) setLoading(false);
     };
     void bootstrap();
+
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, newSession) => {
       if (!mounted) return;
       lastActivityRef.current = Date.now();
-      setSession(newSession); setUser(newSession?.user ?? null);
-      void hydrateUser(newSession?.user ?? null);
+      setSession(newSession); setUser(newSession?.user ?? null); userRef.current = newSession?.user ?? null;
+      setLoading(false);
+      window.setTimeout(() => {
+        if (mounted) void hydrateUser(newSession?.user ?? null);
+      }, 0);
     });
+
+    return () => {
+      mounted = false;
+      authListener.subscription.unsubscribe();
+    };
+  }, [hydrateUser]);
+
+  useEffect(() => {
     const markActivity = () => {
       lastActivityRef.current = Date.now();
       if (Date.now() - lastActivityWriteRef.current >= ACTIVITY_THROTTLE_MS) lastActivityWriteRef.current = Date.now();
     };
     const activityEvents = ['pointerdown', 'keydown', 'touchstart', 'scroll', 'mousemove'];
     activityEvents.forEach((event) => window.addEventListener(event, markActivity, { passive: true }));
-    const interval = window.setInterval(() => { void safeIdleCheck(); }, 30 * 1000);
-    return () => {
-      mounted = false;
-      authListener.subscription.unsubscribe();
-      activityEvents.forEach((event) => window.removeEventListener(event, markActivity));
-      window.clearInterval(interval);
-    };
-  }, [hydrateUser, safeIdleCheck]);
+    return () => activityEvents.forEach((event) => window.removeEventListener(event, markActivity));
+  }, []);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      const currentUser = userRef.current;
+      if (signingOutRef.current || !currentUser) return;
+      if (Date.now() - lastActivityRef.current < IDLE_TIMEOUT_MS) return;
+      void (async () => {
+        if (await hasActiveJob(currentUser.id)) { lastActivityRef.current = Date.now(); return; }
+        signingOutRef.current = true;
+        await supabase.auth.signOut();
+        setSession(null); setUser(null); setProfile(null); userRef.current = null;
+        window.location.replace('https://www.kerjaharian.my.id');
+      })();
+    }, 30 * 1000);
+    return () => window.clearInterval(interval);
+  }, [hasActiveJob]);
 
   const signIn = useCallback(async (email: string, password: string) => {
     lastActivityRef.current = Date.now();
@@ -120,7 +189,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
     signingOutRef.current = true;
     await supabase.auth.signOut();
-    setSession(null); setUser(null); setProfile(null);
+    setSession(null); setUser(null); setProfile(null); userRef.current = null;
     window.location.replace('https://www.kerjaharian.my.id');
   }, []);
 
