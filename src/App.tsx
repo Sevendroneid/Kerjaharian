@@ -38,7 +38,11 @@ export default function App() {
   const handleLangChange = useCallback((newLang: 'id' | 'en') => { setLang(newLang); localStorage.setItem('kerjaharian_lang', newLang); }, []);
 
   useEffect(() => {
-    if (adminPreview || authLoading || !user) return;
+    if (adminPreview) {
+      if (!authLoading && !user) setAuthModal((prev) => ({ ...prev, open: true, mode: 'signin' }));
+      return;
+    }
+    if (authLoading || !user) return;
     if (profile?.role === 'admin') {
       setView('admin');
       setAuthModal((prev) => ({ ...prev, open: false }));
@@ -52,9 +56,12 @@ export default function App() {
     else if (profile.role === 'worker') setView('worker');
   }, [adminPreview, authLoading, user, profile?.full_name, profile?.role]);
 
-  // Temporary owner inspection mode: /rahasia opens the admin UI directly.
-  // No OTP, WhatsApp request, login modal, or Supabase auth verification is invoked.
+  // /rahasia is only a navigation shortcut. Destructive admin actions still require
+  // a real Supabase session so auth.uid() and the admin RPC authorization can work.
   if (adminPreview) {
+    if (authLoading) return <div className="min-h-screen bg-slate-50 grid place-items-center text-sm font-semibold text-slate-600">Memverifikasi sesi Admin...</div>;
+    if (!user) return <AppErrorBoundary><div className="min-h-screen bg-slate-50"><Header view="landing" onNavigate={navigate} onAuthClick={() => openAuth('signin')} lang={lang} onLangChange={handleLangChange} /><AuthModal open={authModal.open} onClose={closeAuth} /></div></AppErrorBoundary>;
+    if (profile?.role !== 'admin') return <AppErrorBoundary><div className="min-h-screen bg-slate-50 grid place-items-center p-6"><div className="max-w-md rounded-2xl bg-white p-6 text-center ring-1 ring-slate-200"><h1 className="text-lg font-extrabold">Akses Admin ditolak</h1><p className="mt-2 text-sm text-slate-500">Akun ini bukan akun Administrator KerjaHarian.</p><button onClick={() => navigate('landing')} className="mt-4 rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white">Kembali</button></div></div></AppErrorBoundary>;
     return <AppErrorBoundary><AdminDashboard onNavigate={navigate} /></AppErrorBoundary>;
   }
 
