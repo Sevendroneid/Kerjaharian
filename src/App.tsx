@@ -5,6 +5,7 @@ import { Landing } from '@/components/Landing';
 import { Employer } from '@/components/Employer';
 import { Worker } from '@/components/Worker';
 import { AuthModal } from '@/components/AuthModal';
+import AdminLogin from '@/components/AdminLogin';
 import AdminRoute from '@/components/AdminRoute';
 import AdminDashboard from '@/components/AdminDashboard';
 import KycGate from '@/components/KycGate';
@@ -39,7 +40,7 @@ export default function App() {
 
   useEffect(() => {
     if (adminPreview) {
-      if (!authLoading && !user) setAuthModal((prev) => ({ ...prev, open: true, mode: 'signin' }));
+      if (!authLoading && !user) return;
       return;
     }
     if (authLoading || !user) return;
@@ -56,12 +57,10 @@ export default function App() {
     else if (profile.role === 'worker') setView('worker');
   }, [adminPreview, authLoading, user, profile?.full_name, profile?.role]);
 
-  // /rahasia is only a navigation shortcut. Destructive admin actions still require
-  // a real Supabase session so auth.uid() and the admin RPC authorization can work.
   if (adminPreview) {
     if (authLoading) return <div className="min-h-screen bg-slate-50 grid place-items-center text-sm font-semibold text-slate-600">Memverifikasi sesi Admin...</div>;
-    if (!user) return <AppErrorBoundary><div className="min-h-screen bg-slate-50"><Header view="landing" onNavigate={navigate} onAuthClick={() => openAuth('signin')} lang={lang} onLangChange={handleLangChange} /><AuthModal open={authModal.open} onClose={closeAuth} /></div></AppErrorBoundary>;
-    if (profile?.role !== 'admin') return <AppErrorBoundary><div className="min-h-screen bg-slate-50 grid place-items-center p-6"><div className="max-w-md rounded-2xl bg-white p-6 text-center ring-1 ring-slate-200"><h1 className="text-lg font-extrabold">Akses Admin ditolak</h1><p className="mt-2 text-sm text-slate-500">Akun ini bukan akun Administrator KerjaHarian.</p><button onClick={() => navigate('landing')} className="mt-4 rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white">Kembali</button></div></div></AppErrorBoundary>;
+    if (!user) return <AppErrorBoundary><AdminLogin onClose={() => { window.location.href = '/'; }} onSuccess={() => { window.location.replace(SECRET_PATH); }} /></AppErrorBoundary>;
+    if (profile?.role !== 'admin') return <AppErrorBoundary><div className="min-h-screen bg-slate-50 grid place-items-center p-6"><div className="max-w-md rounded-2xl bg-white p-6 text-center ring-1 ring-slate-200"><h1 className="text-lg font-extrabold">Akses Admin ditolak</h1><p className="mt-2 text-sm text-slate-500">Akun ini bukan akun Administrator KerjaHarian.</p><button onClick={() => { window.location.href = '/'; }} className="mt-4 rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white">Kembali</button></div></div></AppErrorBoundary>;
     return <AppErrorBoundary><AdminDashboard onNavigate={navigate} /></AppErrorBoundary>;
   }
 
