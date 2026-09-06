@@ -21,7 +21,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cat > /tmp/check.mjs <<'EOF'
+          node --input-type=module <<'EOF'
           import { chromium } from 'playwright';
           const browser = await chromium.launch({headless:true});
           const page = await browser.newPage();
@@ -42,4 +42,3 @@ jobs:
           console.log('Browser page errors: 0');
           await browser.close();
           EOF
-          node /tmp/check.mjs
