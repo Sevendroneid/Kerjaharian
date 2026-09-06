@@ -27,29 +27,29 @@ export default function App() {
   const { user, profile, loading: authLoading } = useAuth();
   const i18n = new I18n(lang);
 
-  // Admin entry is intentionally not exposed in public navigation.
-  // Initialize directly from the pathname so /rahasia renders the login on the
-  // first paint instead of waiting for an effect after the initial render.
   useEffect(() => {
     if (window.location.pathname !== SECRET_PATH) return;
     setAdminLoginOpen(true);
   }, []);
 
-  // Admin routing must depend on the canonical role, not profile completeness.
   useEffect(() => {
     if (authLoading || !user) return;
     if (profile?.role === 'admin') {
       setView('admin');
       setAdminLoginOpen(false);
+      setAuthModal((prev) => ({ ...prev, open: false }));
       return;
     }
+    // Never open the public signup flow while the secret admin login route is
+    // active; the admin profile is hydrated asynchronously after SIGNED_IN.
+    if (window.location.pathname === SECRET_PATH || adminLoginOpen) return;
     if (!profile?.full_name) {
       setAuthModal((prev) => ({ ...prev, open: true, mode: 'signup' }));
       return;
     }
     if (profile.role === 'employer') setView('employer');
     else if (profile.role === 'worker') setView('worker');
-  }, [authLoading, user, profile?.full_name, profile?.role]);
+  }, [authLoading, user, profile?.full_name, profile?.role, adminLoginOpen]);
 
   const navigate = useCallback((v: View, category?: CategoryId) => {
     setView(v);
