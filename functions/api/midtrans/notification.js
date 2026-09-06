@@ -1,11 +1,11 @@
-import crypto from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 
-function isValidSignature(notification, serverKey) {
+async function isValidSignature(notification, serverKey) {
   const raw = `${notification.order_id}${notification.status_code}${notification.gross_amount}${serverKey}`;
-  const expected = crypto.createHash('sha512').update(raw).digest('hex');
+  const digest = await crypto.subtle.digest('SHA-512', new TextEncoder().encode(raw));
+  const expected = [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
   const actual = String(notification.signature_key || '');
-  return expected.length === actual.length && crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(actual));
+  return expected.length === actual.length && expected === actual;
 }
 
 export async function onRequest(context) {
@@ -21,7 +21,7 @@ export async function onRequest(context) {
   if (!notification.order_id || !notification.status_code || !notification.gross_amount || !notification.signature_key) {
     return Response.json({ error: 'Invalid Midtrans notification payload' }, { status: 400 });
   }
-  if (!isValidSignature(notification, serverKey)) return Response.json({ error: 'Invalid Midtrans signature' }, { status: 401 });
+  if (!(await isValidSignature(notification, serverKey))) return Response.json({ error: 'Invalid Midtrans signature' }, { status: 401 });
 
   const admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
   const orderId = String(notification.order_id);
