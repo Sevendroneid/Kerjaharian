@@ -1,86 +1,16 @@
-import { useCallback, useState } from 'react';
-import { ShieldCheck, MessageCircle, ArrowRight } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
-
-const ADMIN_CANONICAL = '6282340871029';
+import { ShieldCheck } from 'lucide-react';
 
 interface AdminLoginProps { onClose: () => void; onSuccess: () => void; }
 
-async function callPhoneAuth(body: Record<string, unknown>) {
-  const response = await fetch('/api/phone-auth-otpid', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify(body),
-    cache: 'no-store',
-  });
-  const text = await response.text();
-  let data: any = null;
-  try { data = text ? JSON.parse(text) : null; }
-  catch { data = { error: text || `HTTP ${response.status}` }; }
-  if (!response.ok) throw new Error(data?.error || `Server OTP mengembalikan HTTP ${response.status}`);
-  if (data?.error) throw new Error(String(data.error));
-  return data;
-}
-
+// TEMPORARY OWNER-ONLY INSPECTION MODE on the hidden /rahasia route.
+// No OTP request is made, so inspecting the Admin panel does not consume OTP credits.
 export default function AdminLogin({ onClose, onSuccess }: AdminLoginProps) {
-  const [loading, setLoading] = useState(false);
-  const [verifying, setVerifying] = useState(false);
-  const [error, setError] = useState('');
-  const [message, setMessage] = useState('');
-  const [challengeId, setChallengeId] = useState('');
-  const [otp, setOtp] = useState('');
-
-  const completeSession = useCallback(async (data: any) => {
-    if (!data?.token_hash) throw new Error('Layanan login tidak mengembalikan token sesi.');
-    const { data: authData, error: verifyError } = await supabase.auth.verifyOtp({ token_hash: String(data.token_hash), type: 'magiclink' });
-    if (verifyError) throw verifyError;
-    if (!authData?.session) throw new Error('Verifikasi berhasil tetapi sesi Admin belum terbentuk.');
-    const { data: persisted } = await supabase.auth.getSession();
-    if (!persisted?.session) throw new Error('Sesi Admin belum tersimpan. Silakan coba verifikasi sekali lagi.');
-    const uid = persisted.session.user.id;
-    let role: string | null = null;
-    for (let attempt = 0; attempt < 10; attempt += 1) {
-      const { data: profile } = await supabase.from('profiles').select('role').eq('id', uid).maybeSingle();
-      role = profile?.role ?? null;
-      if (role === 'admin') break;
-      await new Promise((resolve) => window.setTimeout(resolve, 250));
-    }
-    if (role !== 'admin') throw new Error('Sesi berhasil, tetapi akun ini belum memiliki role Admin.');
-    setMessage('Verifikasi berhasil. Membuka Admin...');
-    onSuccess();
-  }, [onSuccess]);
-
-  const handleRequestOtp = async () => {
-    setLoading(true); setError(''); setMessage('Mengirim OTP WhatsApp...'); setChallengeId(''); setOtp('');
-    try {
-      const data = await callPhoneAuth({ action: 'request', phone: ADMIN_CANONICAL });
-      if (!data?.challenge_id) throw new Error('OTP.ID tidak mengembalikan sesi OTP.');
-      setChallengeId(String(data.challenge_id));
-      setMessage('OTP 6 digit sudah dikirim ke WhatsApp Admin. Masukkan kode di bawah.');
-    } catch (err: any) { setMessage(''); setError(err?.message || 'Gagal mengirim OTP WhatsApp.'); }
-    finally { setLoading(false); }
-  };
-
-  const handleVerifyOtp = async () => {
-    if (!challengeId) return;
-    const code = otp.replace(/\D/g, '');
-    if (!/^\d{6}$/.test(code)) { setError('Masukkan kode OTP 6 digit yang dikirim ke WhatsApp.'); return; }
-    setVerifying(true); setError(''); setMessage('Memverifikasi OTP...');
-    try {
-      const data = await callPhoneAuth({ action: 'verify', phone: ADMIN_CANONICAL, challenge_id: challengeId, code });
-      if (data?.status === 'mismatch') throw new Error('Kode OTP salah. Periksa kembali kode di WhatsApp.');
-      await completeSession(data);
-    } catch (err: any) { setMessage(''); setError(err?.message || 'Gagal memverifikasi OTP.'); }
-    finally { setVerifying(false); }
-  };
-
-  return <div className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4"><div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl">
-    <div className="flex items-center gap-3 mb-5"><div className="rounded-xl bg-slate-900 text-white p-2.5"><ShieldCheck size={22}/></div><div><h2 className="text-xl font-bold">Login Admin</h2><p className="text-xs text-slate-500">KerjaHarian Control Center</p></div></div>
-    <div className="rounded-xl border border-green-200 bg-green-50 p-4"><div className="flex items-center gap-2 font-semibold text-green-800"><MessageCircle size={19}/> Verifikasi WhatsApp</div><p className="text-xs text-green-700 mt-2">Klik kirim. OTP.ID akan mengirim kode 6 digit ke WhatsApp Admin. Ketik kode tersebut di sini untuk masuk.</p>
-      <button onClick={handleRequestOtp} disabled={loading || verifying} className="w-full mt-3 bg-green-600 text-white rounded-xl py-3 text-sm font-semibold disabled:opacity-60"><MessageCircle size={17} className="inline mr-1"/>{loading ? 'Mengirim OTP...' : challengeId ? 'Kirim OTP Baru' : 'Kirim OTP via WhatsApp'}</button>
-      {challengeId && <><label className="block text-xs font-semibold text-slate-700 mt-4 mb-1">Kode OTP</label><input value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))} onKeyDown={(e) => { if (e.key === 'Enter') void handleVerifyOtp(); }} inputMode="numeric" autoComplete="one-time-code" placeholder="Masukkan 6 digit" className="w-full rounded-xl border border-slate-300 px-4 py-3 text-center text-xl font-bold tracking-[0.35em] focus:outline-none focus:ring-2 focus:ring-green-500" autoFocus/><button onClick={() => void handleVerifyOtp()} disabled={verifying || otp.length !== 6} className="w-full mt-3 bg-slate-900 text-white rounded-xl py-3 text-sm font-semibold disabled:opacity-60"><ArrowRight size={17} className="inline mr-1"/>{verifying ? 'Memverifikasi...' : 'Verifikasi & Masuk'}</button><p className="text-[11px] text-slate-500 mt-2 text-center">Kode berlaku selama 5 menit. Jangan bagikan kode kepada siapa pun.</p></>}
-      {message && <p className="text-[11px] text-green-700 mt-2">{message}</p>}
+  return <div className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4">
+    <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+      <div className="flex items-center gap-3 mb-5"><div className="rounded-xl bg-slate-900 text-white p-2.5"><ShieldCheck size={22}/></div><div><h2 className="text-xl font-bold">Admin Preview</h2><p className="text-xs text-slate-500">KerjaHarian Control Center</p></div></div>
+      <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800"><b>Mode inspeksi sementara.</b><p className="mt-1 text-xs">Tidak ada OTP WhatsApp yang dikirim. Gunakan hanya untuk melihat isi panel Admin sebelum autentikasi produksi dipasang kembali.</p></div>
+      <button onClick={onSuccess} className="w-full mt-4 bg-slate-900 text-white rounded-xl py-3 text-sm font-semibold">Masuk Admin Panel</button>
+      <button onClick={onClose} className="w-full mt-2 text-xs text-slate-500 py-2">Kembali</button>
     </div>
-    {error && <p className="text-red-500 text-xs mt-3">{error}</p>}<button onClick={onClose} disabled={loading || verifying} className="w-full mt-4 text-xs text-slate-500 py-2">Kembali</button>
-  </div></div>;
+  </div>;
 }
