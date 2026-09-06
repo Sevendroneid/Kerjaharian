@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  deployments: write
 
 concurrency:
   group: cloudflare-pages-production
@@ -31,6 +32,18 @@ jobs:
           echo "Deploying commit: ${ACTUAL}"
           echo "GitHub event SHA: ${EXPECTED}"
           test "${ACTUAL}" = "${EXPECTED}"
+
+      - name: Assert Vercel-free repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e vercel.json
+          test ! -e .vercel
+          test ! -e api
+          if git grep -n -i -E 'vercel\.app|vercel\.com|@vercel/' -- . ':!README.md'; then
+            echo "Vercel references detected in tracked source/configuration."
+            exit 1
+          fi
 
       - name: Setup Node
         uses: actions/setup-node@v4
