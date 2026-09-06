@@ -16,18 +16,17 @@ function normalizePhone(value: string) {
 function canonicalPhone(value: string) { return normalizePhone(value).replace(/^\+/, ''); }
 
 async function callPhoneAuth(body: Record<string, unknown>) {
-  const { data, error } = await supabase.functions.invoke('phone-auth-otpid', { body });
-  if (error) {
-    let message = error.message || 'Gagal menghubungi server';
-    try {
-      const ctx = (error as any).context;
-      if (ctx && typeof ctx.json === 'function') {
-        const parsed = await ctx.json();
-        if (parsed?.error) message = parsed.error;
-      }
-    } catch (_) { /* gunakan pesan default */ }
-    throw new Error(message);
-  }
+  const response = await fetch('/api/phone-auth-otpid', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(body),
+    cache: 'no-store',
+  });
+  const text = await response.text();
+  let data: any = null;
+  try { data = text ? JSON.parse(text) : null; }
+  catch { data = { error: text || `HTTP ${response.status}` }; }
+  if (!response.ok) throw new Error(data?.error || `Server OTP mengembalikan HTTP ${response.status}`);
   if (data?.error) throw new Error(data.error);
   return data;
 }
