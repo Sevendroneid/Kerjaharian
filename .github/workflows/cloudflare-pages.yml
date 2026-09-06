@@ -83,3 +83,18 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: 489c2e2b374c84561b5b510fa2136016
           command: pages deploy dist --project-name=kerjaharian --branch=main --commit-hash=${{ github.sha }} --commit-message="${{ github.event.head_commit.message }}"
+
+      - name: Smoke test production endpoints
+        shell: bash
+        run: |
+          set -euo pipefail
+          urls=(
+            "https://kerjaharian.pages.dev/"
+            "https://kerjaharian.my.id/"
+            "https://www.kerjaharian.my.id/"
+          )
+          for url in "${urls[@]}"; do
+            echo "Checking ${url}"
+            curl --fail --silent --show-error --location --retry 5 --retry-delay 3 --retry-all-errors --connect-timeout 10 --max-time 30 -o /dev/null "${url}"
+          done
+          echo "Production endpoint smoke tests passed."
