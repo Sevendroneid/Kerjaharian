@@ -20,14 +20,14 @@ const ACTIVITY_THROTTLE_MS = 60 * 1000;
 const AUTH_BOOTSTRAP_TIMEOUT_MS = 8 * 1000;
 const PROFILE_TIMEOUT_MS = 8 * 1000;
 
-function withTimeout<T>(promise: PromiseLike<T>, timeoutMs: number, fallback: T, label: string): Promise<T> {
+function withTimeout<T>(promise: PromiseLike<T>, timeoutMs: number, label: string): Promise<T | null> {
   return new Promise((resolve) => {
     let settled = false;
     const timer = window.setTimeout(() => {
       if (settled) return;
       settled = true;
       console.error(`${label} timed out after ${timeoutMs}ms`);
-      resolve(fallback);
+      resolve(null);
     }, timeoutMs);
     Promise.resolve(promise).then((value) => {
       if (settled) return;
@@ -39,7 +39,7 @@ function withTimeout<T>(promise: PromiseLike<T>, timeoutMs: number, fallback: T,
       settled = true;
       window.clearTimeout(timer);
       console.error(`${label} failed:`, error);
-      resolve(fallback);
+      resolve(null);
     });
   });
 }
@@ -48,9 +48,9 @@ async function ensureProfile(user: User): Promise<Profile | null> {
   const result = await withTimeout(
     supabase.from('profiles').select('*').eq('id', user.id).maybeSingle(),
     PROFILE_TIMEOUT_MS,
-    { data: null, error: new Error('Profile request timed out') },
     'Profile lookup',
   );
+  if (!result) return null;
   const { data: existing, error: readError } = result;
   if (readError) { console.error('Failed to fetch profile:', readError.message); return null; }
   if (existing) return existing as Profile;
@@ -58,20 +58,17 @@ async function ensureProfile(user: User): Promise<Profile | null> {
   const insertResult = await withTimeout(
     supabase.from('profiles').insert({ id: user.id, full_name: null, role: 'worker', is_admin: false }).select('*').single(),
     PROFILE_TIMEOUT_MS,
-    { data: null, error: new Error('Profile creation timed out') },
     'Profile creation',
   );
-  const { data: created, error: insertError } = insertResult;
-  if (!insertError && created) return created as Profile;
+  if (insertResult?.data && !insertResult.error) return insertResult.data as Profile;
 
   const retryResult = await withTimeout(
     supabase.from('profiles').select('*').eq('id', user.id).maybeSingle(),
     PROFILE_TIMEOUT_MS,
-    { data: null, error: new Error('Profile retry timed out') },
     'Profile retry',
   );
-  if (retryResult.data) return retryResult.data as Profile;
-  console.error('Failed to create profile:', insertError?.message ?? 'unknown error');
+  if (retryResult?.data) return retryResult.data as Profile;
+  console.error('Failed to create profile:', insertResult?.error?.message ?? 'unknown error');
   return null;
 }
 
@@ -89,9 +86,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const result = await withTimeout(
       supabase.from('profiles').select('*').eq('id', uid).maybeSingle(),
       PROFILE_TIMEOUT_MS,
-      { data: null, error: new Error('Profile refresh timed out') },
       'Profile refresh',
     );
+    if (!result) return;
     if (result.error) { console.error('Failed to fetch profile:', result.error.message); return; }
     setProfile(result.data as Profile | null);
   }, []);
@@ -115,16 +112,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true;
     const bootstrap = async () => {
-      const result = await withTimeout(
-        supabase.auth.getSession(),
-        AUTH_BOOTSTRAP_TIMEOUT_MS,
-        { data: { session: null }, error: null },
-        'Auth session lookup',
-      );
+      const result = await withTimeout(supabase.auth.getSession(), AUTH_BOOTSTRAP_TIMEOUT_MS, 'Auth session lookup');
       if (!mounted) return;
-      const initialSession = result.data.session;
+      const initialSession = result?.data.session ?? null;
       setSession(initialSession); setUser(initialSession?.user ?? null); userRef.current = initialSession?.user ?? null;
-      await hydrateUser(initialSession?.user ?? null);
+      if (initialSession?.user) await hydrateUser(initialSession.user);
+      else setProfile(null);
       if (mounted) setLoading(false);
     };
     void bootstrap();
