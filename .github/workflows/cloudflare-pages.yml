@@ -40,7 +40,7 @@ jobs:
           test ! -e vercel.json
           test ! -e .vercel
           test ! -e api
-          if git grep -n -i -E 'vercel\.app|vercel\.com|@vercel/' -- . ':!README.md'; then
+          if git grep -n -i -E 'vercel\.app|vercel\.com|@vercel/' -- . ':!README.md' ':!.github/workflows/cloudflare-pages.yml'; then
             echo "Vercel references detected in tracked source/configuration."
             exit 1
           fi
