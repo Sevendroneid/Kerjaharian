@@ -7,18 +7,17 @@ const ADMIN_CANONICAL = '6282340871029';
 interface AdminLoginProps { onClose: () => void; onSuccess: () => void; }
 
 async function callPhoneAuth(body: Record<string, unknown>) {
-  const { data, error } = await supabase.functions.invoke('phone-auth-otpid', { body });
-  if (error) {
-    let message = error.message || 'Gagal menghubungi server';
-    try {
-      const ctx = (error as any).context;
-      if (ctx && typeof ctx.json === 'function') {
-        const parsed = await ctx.json();
-        if (parsed?.error) message = parsed.error;
-      }
-    } catch (_) { /* gunakan pesan default */ }
-    throw new Error(message);
-  }
+  const response = await fetch('/api/phone-auth-otpid', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(body),
+    cache: 'no-store',
+  });
+  const text = await response.text();
+  let data: any = null;
+  try { data = text ? JSON.parse(text) : null; }
+  catch { data = { error: text || `HTTP ${response.status}` }; }
+  if (!response.ok) throw new Error(data?.error || `Server OTP mengembalikan HTTP ${response.status}`);
   if (data?.error) throw new Error(String(data.error));
   return data;
 }
@@ -33,16 +32,11 @@ export default function AdminLogin({ onClose, onSuccess }: AdminLoginProps) {
 
   const completeSession = useCallback(async (data: any) => {
     if (!data?.token_hash) throw new Error('Layanan login tidak mengembalikan token sesi.');
-    const { data: authData, error: verifyError } = await supabase.auth.verifyOtp({
-      token_hash: String(data.token_hash),
-      type: 'magiclink',
-    });
+    const { data: authData, error: verifyError } = await supabase.auth.verifyOtp({ token_hash: String(data.token_hash), type: 'magiclink' });
     if (verifyError) throw verifyError;
     if (!authData?.session) throw new Error('Verifikasi berhasil tetapi sesi Admin belum terbentuk.');
-
     const { data: persisted } = await supabase.auth.getSession();
     if (!persisted?.session) throw new Error('Sesi Admin belum tersimpan. Silakan coba verifikasi sekali lagi.');
-
     const uid = persisted.session.user.id;
     let role: string | null = null;
     for (let attempt = 0; attempt < 10; attempt += 1) {
@@ -52,7 +46,6 @@ export default function AdminLogin({ onClose, onSuccess }: AdminLoginProps) {
       await new Promise((resolve) => window.setTimeout(resolve, 250));
     }
     if (role !== 'admin') throw new Error('Sesi berhasil, tetapi akun ini belum memiliki role Admin.');
-
     setMessage('Verifikasi berhasil. Membuka Admin...');
     onSuccess();
   }, [onSuccess]);
@@ -64,9 +57,8 @@ export default function AdminLogin({ onClose, onSuccess }: AdminLoginProps) {
       if (!data?.challenge_id) throw new Error('OTP.ID tidak mengembalikan sesi OTP.');
       setChallengeId(String(data.challenge_id));
       setMessage('OTP 6 digit sudah dikirim ke WhatsApp Admin. Masukkan kode di bawah.');
-    } catch (err: any) {
-      setMessage(''); setError(err?.message || 'Gagal mengirim OTP WhatsApp.');
-    } finally { setLoading(false); }
+    } catch (err: any) { setMessage(''); setError(err?.message || 'Gagal mengirim OTP WhatsApp.'); }
+    finally { setLoading(false); }
   };
 
   const handleVerifyOtp = async () => {
@@ -78,9 +70,8 @@ export default function AdminLogin({ onClose, onSuccess }: AdminLoginProps) {
       const data = await callPhoneAuth({ action: 'verify', phone: ADMIN_CANONICAL, challenge_id: challengeId, code });
       if (data?.status === 'mismatch') throw new Error('Kode OTP salah. Periksa kembali kode di WhatsApp.');
       await completeSession(data);
-    } catch (err: any) {
-      setMessage(''); setError(err?.message || 'Gagal memverifikasi OTP.');
-    } finally { setVerifying(false); }
+    } catch (err: any) { setMessage(''); setError(err?.message || 'Gagal memverifikasi OTP.'); }
+    finally { setVerifying(false); }
   };
 
   return <div className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4"><div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl">
