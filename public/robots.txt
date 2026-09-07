@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /rahasia
+Disallow: /dashboard
+Disallow: /login
+Disallow: /otp
+Disallow: /checkout
+Disallow: /payment
+Disallow: /api/
+
+Sitemap: https://www.kerjaharian.my.id/sitemap.xml
