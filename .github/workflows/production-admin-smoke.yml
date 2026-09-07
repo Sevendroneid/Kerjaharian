@@ -1,7 +1,9 @@
 name: Production Admin Smoke
 
 on:
-  push:
+  workflow_run:
+    workflows: [Deploy to Cloudflare Pages]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
 
@@ -17,20 +19,39 @@ concurrency:
 
 jobs:
   verify:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - name: Checkout deployed commit
+        uses: actions/checkout@v7
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
           fetch-depth: 1
+
+      - name: Ignore stale deployment verification
+        if: github.event_name == 'workflow_run'
+        shell: bash
+        run: |
+          set -euo pipefail
+          deployed_sha="${{ github.event.workflow_run.head_sha }}"
+          current_sha="$(git ls-remote origin refs/heads/main | awk '{print $1}')"
+          echo "Deployment commit: ${deployed_sha}"
+          echo "Current main commit: ${current_sha}"
+          if [ "${deployed_sha}" != "${current_sha}" ]; then
+            echo "Stale deployment completion detected; latest main has a newer deployment. Skipping this verification."
+            exit 0
+          fi
+
       - uses: actions/setup-node@v7
         with:
           node-version: 24
           package-manager-cache: false
+
       - name: Install Playwright runtime and Chromium
         run: |
           npm install --no-save --no-package-lock playwright@1.55.0
           npx playwright install chromium
+
       - name: Verify production admin route and authentication boundary
         shell: bash
         run: |
