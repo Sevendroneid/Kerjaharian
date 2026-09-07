@@ -3,12 +3,12 @@ const cors = (origin) => ({ 'access-control-allow-origin': origin || '*', 'acces
 const normalize = (value) => value.toLowerCase().normalize('NFKC').trim();
 function classify(message) {
   const text = normalize(message);
-  if (/tidak ada|sepi|belum dapat|belum dapat kerja|susah cari|cari kerja|butuh kerja|kerja sekarang|kerja hari ini/.test(text)) return 'find_work';
-  if (/lowongan|butuh pekerja|cari pekerja|pekerja belum|belum ada yang ambil|tidak ada yang ambil|sulit dapat pekerja/.test(text)) return 'hire_worker';
-  if (/order|pesanan|pekerjaan|ambil kerja|claim|ditolak|gagal/.test(text)) return 'order_issue';
   if (/verifikasi|kyc|ktp|identitas/.test(text)) return 'verification';
   if (/online|offline|radar|panggilan/.test(text)) return 'availability';
   if (/akun|login|masuk|password|passkey/.test(text)) return 'account';
+  if (/lowongan|butuh pekerja|cari pekerja|pekerja belum|belum ada yang ambil|tidak ada yang ambil|sulit dapat pekerja/.test(text)) return 'hire_worker';
+  if (/order|pesanan|pekerjaan|ambil kerja|claim|ditolak|gagal/.test(text)) return 'order_issue';
+  if (/tidak ada|sepi|belum dapat|belum dapat kerja|susah cari|cari kerja|butuh kerja|kerja sekarang|kerja hari ini/.test(text)) return 'find_work';
   return 'general';
 }
 function extractFilters(message) {
@@ -20,9 +20,7 @@ function extractFilters(message) {
   return { category, radiusKm: km ? Number(km.replace(',', '.')) : null, minWage: wage ? Number(wage.replace(/\./g, '')) : null };
 }
 function fallbackAnswer({ message, role, jobs, filters, profile }) {
-  const intent = classify(message);
-  const visibleJobs = jobs.filter((job) => !filters.category || job.category === filters.category).filter((job) => !filters.minWage || Number(job.wage) >= filters.minWage);
-  const jobCount = visibleJobs.length; const first = visibleJobs[0];
+  const intent = classify(message); const visibleJobs = jobs.filter((job) => !filters.category || job.category === filters.category).filter((job) => !filters.minWage || Number(job.wage) >= filters.minWage); const jobCount = visibleJobs.length; const first = visibleJobs[0];
   if (intent === 'find_work') {
     if (!profile) return { answer: 'Untuk mencari dan mengambil pekerjaan, masuk atau daftar dulu. Setelah masuk, saya bisa membantu membaca lowongan yang tersedia.', actions: [{ label: 'Masuk / Daftar', href: '/cari-kerja' }] };
     if (profile.is_online === false) return { answer: 'Langkah pertama: aktifkan status Online di Radar Kerja. Setelah Online, lowongan terbuka bisa Anda ambil.', actions: [{ label: 'Buka Radar Kerja', href: '/cari-kerja' }] };
@@ -59,10 +57,9 @@ export async function onRequest(context) {
   try {
     const body = await request.json(); const message = typeof body?.message === 'string' ? body.message.trim().slice(0, 1200) : '';
     if (!message) return json({ error: 'Pesan wajib diisi.' }, 400, headers);
-    const role = body?.role === 'employer' || body?.role === 'worker' ? body.role : null;
-    const clientContext = role ? { role, is_online: body?.isOnline === true } : null;
-    const { jobs, profile } = await loadContext(request, env, clientContext); const filters = extractFilters(message);
-    const fallback = fallbackAnswer({ message, role, jobs, filters, profile }); const modelAnswer = await callModel(message, { role, jobs: jobs.slice(0, 10), filters }, env);
+    const role = body?.role === 'employer' || body?.role === 'worker' ? body.role : null; const clientContext = role ? { role, is_online: body?.isOnline === true } : null;
+    const { jobs, profile } = await loadContext(request, env, clientContext); const filters = extractFilters(message); const fallback = fallbackAnswer({ message, role, jobs, filters, profile });
+    const modelAnswer = await callModel(message, { role, jobs: jobs.slice(0, 10), filters }, env);
     return json({ ...fallback, ...(modelAnswer || {}), grounded: true, provider: modelAnswer ? 'configured-model' : 'safe-fallback' }, 200, headers);
   } catch (error) { return json({ error: error instanceof Error ? error.message : 'Terjadi kesalahan saat memproses masalah.' }, 500, headers); }
 }
