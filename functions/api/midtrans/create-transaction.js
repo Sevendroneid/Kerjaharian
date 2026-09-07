@@ -31,7 +31,7 @@ export async function onRequest(context) {
 
   const { data: job, error: jobError } = await admin
     .from('jobs')
-    .select('id, employer_id, worker_id, title, final_amount, employer_total, total, payment_status, status, midtrans_order_id, midtrans_snap_token')
+    .select('id, employer_id, worker_id, title, final_amount, employer_total, total, payment_status, status, midtrans_order_id, midtrans_snap_token, midtrans_transaction_status')
     .eq('id', jobId)
     .single();
 
@@ -45,6 +45,12 @@ export async function onRequest(context) {
   if (!Number.isInteger(grossAmount) || grossAmount <= 0) return Response.json({ error: 'Invalid server-side payment amount' }, { status: 409 });
 
   const orderId = job.midtrans_order_id || `KH-${job.id}`;
+
+  // Reuse an already-created pending Snap token instead of creating a second transaction.
+  if (job.midtrans_snap_token && ['pending', 'authorize'].includes(String(job.midtrans_transaction_status || '').toLowerCase())) {
+    return Response.json({ token: job.midtrans_snap_token, client_key: clientKey, order_id: orderId, gross_amount: grossAmount, environment: 'sandbox', reused: true });
+  }
+
   const payload = {
     transaction_details: { order_id: orderId, gross_amount: grossAmount },
     item_details: [{ id: job.id, price: grossAmount, quantity: 1, name: String(job.title || 'KerjaHarian job').slice(0, 50) }],
@@ -53,7 +59,12 @@ export async function onRequest(context) {
   const authorization = btoa(`${serverKey}:`);
   const midtransResponse = await fetch(MIDTRANS_SNAP_URL, {
     method: 'POST',
-    headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Basic ${authorization}` },
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      Authorization: `Basic ${authorization}`,
+      'Idempotency-Key': orderId.slice(0, 46),
+    },
     body: JSON.stringify(payload),
   });
 
