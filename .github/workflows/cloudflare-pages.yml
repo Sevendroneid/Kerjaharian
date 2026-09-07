@@ -9,6 +9,9 @@ permissions:
   contents: read
   deployments: write
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 concurrency:
   group: cloudflare-pages-production
   cancel-in-progress: true
@@ -18,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout exact commit
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
           fetch-depth: 1
@@ -46,9 +49,10 @@ jobs:
           fi
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 24
+          package-manager-cache: false
 
       - name: Install dependencies
         run: npm install
@@ -137,10 +141,11 @@ jobs:
           echo "Midtrans payment secrets are not configured; payment remains disabled."
 
       - name: Deploy to Cloudflare Pages
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: 489c2e2b374c84561b5b510fa2136016
+          wranglerVersion: "4"
           command: pages deploy dist --project-name=kerjaharian --branch=main --commit-hash=${{ github.sha }} --commit-dirty=true
 
       - name: Verify Supabase Passkey endpoint is enabled
