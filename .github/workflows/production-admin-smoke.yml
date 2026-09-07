@@ -19,7 +19,6 @@ concurrency:
 
 jobs:
   verify:
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout deployed commit
@@ -28,19 +27,19 @@ jobs:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
           fetch-depth: 1
 
-      - name: Ignore stale deployment verification
+      - name: Verify deployment event is successful and current
         if: github.event_name == 'workflow_run'
         shell: bash
         run: |
           set -euo pipefail
+          deployment_conclusion="${{ github.event.workflow_run.conclusion }}"
           deployed_sha="${{ github.event.workflow_run.head_sha }}"
           current_sha="$(git ls-remote origin refs/heads/main | awk '{print $1}')"
+          echo "Deployment conclusion: ${deployment_conclusion}"
           echo "Deployment commit: ${deployed_sha}"
           echo "Current main commit: ${current_sha}"
-          if [ "${deployed_sha}" != "${current_sha}" ]; then
-            echo "Stale deployment completion detected; latest main has a newer deployment. Skipping this verification."
-            exit 0
-          fi
+          test "${deployment_conclusion}" = "success"
+          test "${deployed_sha}" = "${current_sha}"
 
       - uses: actions/setup-node@v7
         with:
@@ -64,8 +63,9 @@ jobs:
           const errors=[];
           page.on('request', r => { if (r.url().includes('phone-auth-otpid') || r.url().includes('/api/phone-auth-otpid')) otp.push(r.url()); });
           page.on('pageerror', e => errors.push(String(e)));
-          const response = await page.goto('https://kerjaharian.my.id/rahasia',{waitUntil:'domcontentloaded',timeout:60000});
+          const response = await page.goto('https://www.kerjaharian.my.id/rahasia',{waitUntil:'domcontentloaded',timeout:60000});
           if (!response || !response.ok()) throw new Error(`Admin route HTTP failure: ${response?.status() ?? 'no response'}`);
+          if (page.url() !== 'https://www.kerjaharian.my.id/rahasia') throw new Error(`Unexpected admin origin: ${page.url()}`);
           await page.getByText('Login Admin',{exact:true}).waitFor({state:'visible',timeout:20000});
           await page.getByText('Masuk dengan PIN',{exact:true}).waitFor({state:'visible',timeout:10000});
           await page.waitForTimeout(1000);
@@ -77,6 +77,7 @@ jobs:
           if (errors.length) throw new Error('Browser page errors: '+errors.join(' | '));
           console.log('REAL-WORLD ADMIN AUTH UI VERIFICATION PASSED');
           console.log('HTTP status:', response.status());
+          console.log('Canonical admin origin:', page.url());
           console.log('PIN login UI: present');
           console.log('Passkey login UI: present');
           console.log('OTP requests: 0');
