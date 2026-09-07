@@ -1,51 +1,45 @@
 name: Standardize Product Copy
 
 on:
-  push:
-    branches: [main]
+  workflow_run:
+    workflows: ["Deploy to Cloudflare Pages"]
+    types: [completed]
 
 permissions:
-  contents: write
+  contents: read
+  deployments: write
 
 jobs:
-  copy:
-    if: github.event.head_commit.message != 'chore: apply concise product copy'
+  copy-and-deploy:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - name: Checkout deployed commit
+        uses: actions/checkout@v7
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 1
 
       - name: Apply concise user-facing copy
         shell: bash
         run: |
+          set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
-
           files = [
-              Path('src/components/Landing.tsx'),
-              Path('src/components/Worker.tsx'),
-              Path('src/components/Employer.tsx'),
-              Path('src/components/HelpCenter.tsx'),
-              Path('src/components/DownloadApp.tsx'),
-              Path('src/components/KycGate.tsx'),
-              Path('src/components/JobTimer.tsx'),
-              Path('src/components/OrderWorkflow.tsx'),
-              Path('src/components/QRCodeScanner.tsx'),
+              Path('src/components/Landing.tsx'), Path('src/components/Worker.tsx'),
+              Path('src/components/Employer.tsx'), Path('src/components/HelpCenter.tsx'),
+              Path('src/components/DownloadApp.tsx'), Path('src/components/KycGate.tsx'),
+              Path('src/components/JobTimer.tsx'), Path('src/components/OrderWorkflow.tsx'),
+              Path('src/components/QRCodeScanner.tsx'), Path('src/components/AuthModal.tsx'),
           ]
-
           replacements = {
               'Platform Kerja Harian Indonesia': 'Kerja harian, lebih mudah',
               'Indonesia Daily Work Platform': 'Daily work, made simple',
-              'Saya Cari Kerja': 'Cari Kerja',
-              'Saya Cari Pekerja': 'Cari Pekerja',
-              'Contoh Kalkulasi': 'Contoh Harga',
-              'Harga transparan': 'Harga jelas',
-              'Mulai Pesan Pekerja': 'Cari Pekerja',
-              'Cara kerja KerjaHarian': 'Cara Kerja',
-              'Pertanyaan yang sering ditanyakan': 'FAQ',
-              'Lihat semua bantuan →': 'Bantuan →',
+              'Saya Cari Kerja': 'Cari Kerja', 'Saya Cari Pekerja': 'Cari Pekerja',
+              'Contoh Kalkulasi': 'Contoh Harga', 'Harga transparan': 'Harga jelas',
+              'Mulai Pesan Pekerja': 'Cari Pekerja', 'Cara kerja KerjaHarian': 'Cara Kerja',
+              'Pertanyaan yang sering ditanyakan': 'FAQ', 'Lihat semua bantuan →': 'Bantuan →',
               'Proses Sederhana': 'Mudah',
               'Masuk menggunakan WhatsApp dan ikuti langkah yang ditampilkan di layar.': 'Masuk cepat dengan akun KerjaHarian.',
               'Employer melalui proses verifikasi identitas dan pembayaran diproses melalui kanal resmi.': 'Identitas diverifikasi untuk menjaga keamanan.',
@@ -54,33 +48,50 @@ jobs:
               'Hubungi CS Resmi via WhatsApp': 'Hubungi kami via WhatsApp',
               'Download Aplikasi KerjaHarian': 'Aplikasi KerjaHarian',
               'Nikmati kemudahan mencari dan memesan tenaga kerja harian terampil langsung dari genggaman Anda.': 'Cari pekerja dan pekerjaan dengan cepat.',
-              'Pekerjaan Saya': 'Pekerjaan',
-              'Pesanan Saya': 'Pesanan',
+              'Pekerjaan Saya': 'Pekerjaan', 'Pesanan Saya': 'Pesanan',
               'Saya Hadir di Lokasi & Verifikasi': 'Hadir & Verifikasi',
               'Order & Pekerjaan': 'Pesanan & Pekerjaan',
           }
-
-          changed = []
           for path in files:
-              if not path.exists():
-                  continue
+              if not path.exists(): continue
               text = path.read_text()
-              original = text
-              for old, new in replacements.items():
-                  text = text.replace(old, new)
-              if text != original:
-                  path.write_text(text)
-                  changed.append(str(path))
-
-          print('Updated:', ', '.join(changed) if changed else 'none')
+              for old, new in replacements.items(): text = text.replace(old, new)
+              path.write_text(text)
           PY
 
-      - name: Commit concise product copy
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        env:
+          VITE_SUPABASE_URL: https://cgulvtbyqkixpxxqzcet.supabase.co
+          VITE_SUPABASE_ANON_KEY: sb_publishable_37nHNxKCf60GiWedu90g9g_DDetNzb9
+        run: npm run build
+
+      - name: Deploy polished production bundle
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: 489c2e2b374c84561b5b510fa2136016
+          wranglerVersion: "4"
+          command: pages deploy dist --project-name=kerjaharian --branch=main --commit-hash=${{ github.event.workflow_run.head_sha }} --commit-dirty=true
+
+      - name: Smoke test public site
         shell: bash
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/components
-          if git diff --cached --quiet; then exit 0; fi
-          git commit -m "chore: apply concise product copy"
-          git push origin HEAD:main
+          set -euo pipefail
+          for url in https://www.kerjaharian.my.id/ https://kerjaharian.my.id/; do
+            curl --fail --silent --show-error --location --retry 5 --retry-delay 3 --retry-all-errors --connect-timeout 10 --max-time 30 -o /dev/null "$url"
+          done
