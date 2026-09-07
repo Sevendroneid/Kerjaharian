@@ -1,0 +1,51 @@
+name: Polish User Auth UI
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  polish:
+    if: ${{ !contains(github.event.head_commit.message, 'chore: apply user auth UI polish') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Apply production login UX
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('src/components/AuthModal.tsx')
+          s = p.read_text()
+
+          replacements = [
+              ('<div className="w-full max-w-md rounded-2xl bg-white shadow-xl">', '<div className="w-full max-w-sm rounded-3xl bg-white shadow-2xl">'),
+              ('<div className="flex items-center justify-between border-b px-5 py-4">', '<div className="flex items-center justify-between px-5 pt-5">'),
+              ('<div className="p-5">', '<div className="px-5 pb-6 pt-4">'),
+              ('<h2 className="text-xl font-bold text-slate-900">Masuk KerjaHarian</h2>\n          <p className="mt-1 text-sm text-slate-500">Login utama sama untuk Pekerja dan Pemberi Kerja.</p>\n          <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600"><b>PIN atau Fingerprint / Passkey.</b> WhatsApp OTP hanya dipakai saat pendaftaran/verifikasi nomor, bukan setiap login.</div>', '<h2 className="text-2xl font-bold tracking-tight text-slate-900">Masuk</h2>\n          <p className="mt-1 text-sm text-slate-500">Masuk ke KerjaHarian</p>'),
+              ('{loading ? \'Memverifikasi...\' : \'Masuk dengan PIN\'}', '{loading ? \'Memverifikasi...\' : \'Masuk\'}'),
+              ('{loading ? \'Menunggu biometrik...\' : \'Masuk dengan Fingerprint / Passkey\'}', '{loading ? \'Menunggu...\' : \'Fingerprint\'}'),
+              ('>Daftar akun baru</button>', '>Daftar</button>'),
+          ]
+          for old, new in replacements:
+              if old not in s:
+                  raise SystemExit(f'Missing expected UI fragment: {old[:80]}')
+              s = s.replace(old, new, 1)
+
+          p.write_text(s)
+          PY
+
+      - name: Commit UI polish
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/AuthModal.tsx
+          git diff --cached --quiet && exit 0
+          git commit -m "chore: apply user auth UI polish"
+          git push origin HEAD:main
