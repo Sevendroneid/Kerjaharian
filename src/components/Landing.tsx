@@ -12,11 +12,15 @@ const faqs = [
   ['Berapa lama pekerja merespons?', 'Tergantung lokasi dan ketersediaan. Status tampil di platform.'],
 ];
 
-// Worker photography from Pexels. Free to use under the Pexels License.
+// Authentic Indonesian worker photography selected for KerjaHarian's visual direction.
+// Sources are free-to-use under the respective Pexels/Unsplash licenses.
 const workImages = [
-  { src: 'https://images.pexels.com/photos/7641353/pexels-photo-7641353.jpeg?auto=compress&cs=tinysrgb&w=1800', title: 'Cuci Piring', alt: 'Pekerja mencuci piring di dapur modern' },
-  { src: 'https://images.pexels.com/photos/19239210/pexels-photo-19239210.jpeg?auto=compress&cs=tinysrgb&w=1600', title: 'Cleaning', alt: 'Pekerja membersihkan meja di restoran Bali, Indonesia' },
-  { src: 'https://images.pexels.com/photos/13699204/pexels-photo-13699204.jpeg?auto=compress&cs=tinysrgb&w=1600', title: 'Konstruksi', alt: 'Pekerja bangunan di lokasi proyek di Indonesia' },
+  { src: 'https://images.unsplash.com/photo-1747673902815-cb0a04ef2cf3?auto=format&fit=crop&w=2200&q=82', title: 'Konstruksi', alt: 'Pekerja konstruksi bekerja di lokasi proyek di Jakarta, Indonesia' },
+  { src: 'https://images.pexels.com/photos/13699204/pexels-photo-13699204.jpeg?auto=compress&cs=tinysrgb&w=1800', title: 'Pekerja Lapangan', alt: 'Pekerja lapangan di lokasi konstruksi di Jakarta, Indonesia' },
+  { src: 'https://images.pexels.com/photos/8173678/pexels-photo-8173678.jpeg?auto=compress&cs=tinysrgb&w=1800', title: 'Pekerja Proyek', alt: 'Pekerja dengan rompi keselamatan dan helm di proyek konstruksi Indonesia' },
+  { src: 'https://images.pexels.com/photos/12725400/pexels-photo-12725400.jpeg?auto=compress&cs=tinysrgb&w=1800', title: 'Kurir', alt: 'Kurir mengantarkan paket kepada pelanggan di Indonesia' },
+  { src: 'https://images.pexels.com/photos/4281613/pexels-photo-4281613.jpeg?auto=compress&cs=tinysrgb&w=1800', title: 'Teknisi', alt: 'Teknisi bekerja di bengkel di Indonesia' },
+  { src: 'https://images.pexels.com/photos/10151372/pexels-photo-10151372.jpeg?auto=compress&cs=tinysrgb&w=1800', title: 'Cleaning', alt: 'Pekerja kebersihan membersihkan area stasiun di Jakarta' },
 ];
 
 export function Landing({ onNavigate, lang }: LandingProps) {
@@ -55,7 +59,7 @@ export function Landing({ onNavigate, lang }: LandingProps) {
           </div>
           <div className="order-1 lg:order-2">
             <div className="relative mx-auto max-w-xl overflow-hidden rounded-[2rem] bg-primary-900 p-2 shadow-[0_24px_60px_rgba(41,37,36,0.16)]">
-              <img src={workImages[0].src} alt={workImages[0].alt} className="h-[350px] w-full rounded-[1.6rem] object-cover sm:h-[450px]" loading="eager" />
+              <img src={workImages[0].src} alt={workImages[0].alt} className="h-[350px] w-full rounded-[1.6rem] object-cover sm:h-[450px]" loading="eager" fetchPriority="high" />
               <div className="absolute bottom-6 left-6 right-6 rounded-2xl border border-white/20 bg-white/95 p-4 shadow-lg backdrop-blur">
                 <div className="flex items-center justify-between gap-3"><div><p className="text-[10px] font-extrabold uppercase tracking-wider text-accent-600">KerjaHarian</p><p className="mt-1 text-sm font-extrabold text-primary-900">{id ? 'Pekerjaan harian. Lebih dekat.' : 'Daily work. Closer to you.'}</p></div><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-orange-100 text-accent-600"><Sparkles className="h-5 w-5" /></div></div>
               </div>
@@ -80,7 +84,15 @@ export function Landing({ onNavigate, lang }: LandingProps) {
       </div>
     </section>
 
-    <section className="mx-auto max-w-6xl px-4 pb-14 sm:pb-20"><div className="mb-6"><p className="text-xs font-extrabold uppercase tracking-wider text-accent-600">Pekerjaan</p><h2 className="mt-1 text-3xl font-extrabold tracking-tight text-primary-900">Pekerjaan harian.</h2></div><div className="grid gap-4 sm:grid-cols-3">{workImages.map((image) => <article key={image.title} className="group overflow-hidden rounded-3xl border border-orange-100 bg-white shadow-sm"><div className="overflow-hidden"><img src={image.src} alt={image.alt} className="h-52 w-full object-cover transition duration-500 group-hover:scale-[1.03]" loading="lazy" /></div><div className="p-5"><h3 className="text-base font-extrabold text-primary-900">{image.title}</h3><p className="mt-1 text-sm leading-5 text-primary-500">Cari atau pesan tenaga kerja.</p></div></article>)}</div></section>
+    <section className="mx-auto max-w-6xl px-4 pb-14 sm:pb-20">
+      <div className="mb-6 flex items-end justify-between gap-4"><div><p className="text-xs font-extrabold uppercase tracking-wider text-accent-600">Pekerjaan</p><h2 className="mt-1 text-3xl font-extrabold tracking-tight text-primary-900">Kerja nyata di Indonesia.</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-primary-500">Dari proyek konstruksi sampai pengantaran dan kebersihan, KerjaHarian dibuat untuk kebutuhan kerja yang benar-benar terjadi setiap hari.</p></div></div>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {workImages.map((image, index) => <article key={image.title} className="group overflow-hidden rounded-3xl border border-orange-100 bg-white shadow-sm">
+          <div className="relative overflow-hidden"><img src={image.src} alt={image.alt} className="h-56 w-full object-cover transition duration-500 group-hover:scale-[1.03]" loading={index < 3 ? 'lazy' : 'lazy'} /><div className="absolute left-3 top-3 rounded-full bg-primary-900/85 px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-wider text-white backdrop-blur">{image.title}</div></div>
+          <div className="p-5"><h3 className="text-base font-extrabold text-primary-900">{image.title}</h3><p className="mt-1 text-sm leading-5 text-primary-500">Cari atau pesan tenaga kerja sesuai kebutuhan.</p></div>
+        </article>)}
+      </div>
+    </section>
 
     <section className="mx-auto max-w-6xl px-4 pb-14 sm:pb-20"><div className="grid gap-5 lg:grid-cols-[1fr_.85fr] lg:items-start"><div className="rounded-[2rem] bg-primary-900 p-7 text-white sm:p-9"><div className="mb-6 flex items-center gap-3"><div className="grid h-11 w-11 place-items-center rounded-2xl bg-accent-500"><Users className="h-5 w-5" /></div><div><p className="text-xs font-bold uppercase tracking-wider text-orange-200">Cara kerja</p><h2 className="text-2xl font-extrabold">Tiga langkah.</h2></div></div><div className="grid gap-6 sm:grid-cols-3"><div><b className="text-accent-300">01 · Pilih</b><p className="mt-2 text-sm leading-6 text-stone-300">Pilih pekerjaan.</p></div><div><b className="text-accent-300">02 · Order</b><p className="mt-2 text-sm leading-6 text-stone-300">Lihat detail dan harga.</p></div><div><b className="text-accent-300">03 · Selesai</b><p className="mt-2 text-sm leading-6 text-stone-300">Pantau sampai selesai.</p></div></div></div><div className="rounded-[2rem] border border-orange-100 bg-white p-6 shadow-sm"><div className="flex items-center justify-between"><span className="rounded-lg bg-orange-100 px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-wider text-accent-700">Contoh harga</span><span className="text-xs font-bold text-success-600">Jelas</span></div><h3 className="mt-4 text-base font-extrabold text-primary-900">Tukang Renovasi — Shift Malam + Alat</h3><div className="mt-4 space-y-2 rounded-2xl bg-[#FFF8F0] p-4 text-xs text-primary-500"><div className="flex justify-between"><span>Upah dasar</span><span>Rp {samplePricing.wageAmount.toLocaleString('id-ID')}</span></div>{samplePricing.nightShiftAdd > 0 && <div className="flex justify-between"><span>Shift malam</span><span>+ Rp {samplePricing.nightShiftAdd.toLocaleString('id-ID')}</span></div>}{samplePricing.toolAllowance > 0 && <div className="flex justify-between"><span>Alat</span><span>+ Rp {samplePricing.toolAllowance.toLocaleString('id-ID')}</span></div>}<div className="flex justify-between"><span>Biaya platform</span><span>+ Rp {samplePricing.platformFee.toLocaleString('id-ID')}</span></div><div className="flex justify-between"><span>Asuransi</span><span>+ Rp {samplePricing.insurance.microInsurance.toLocaleString('id-ID')}</span></div><div className="flex justify-between border-t border-orange-100 pt-3 text-sm font-extrabold text-primary-900"><span>Total</span><span className="text-accent-600">Rp {samplePricing.totalPrice.toLocaleString('id-ID')}</span></div></div><button onClick={() => onNavigate('employer')} className="mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-accent-500 py-3 text-xs font-extrabold text-white hover:bg-accent-600">Pesan Pekerja <ArrowRight className="h-3.5 w-3.5" /></button></div></div></section>
 
