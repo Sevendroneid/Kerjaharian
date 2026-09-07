@@ -27,10 +27,11 @@ export async function onRequest(context) {
   const orderId = String(notification.order_id);
   const transactionStatus = String(notification.transaction_status || '').toLowerCase();
   const success = ['settlement', 'capture'].includes(transactionStatus) && String(notification.status_code) === '200' && (notification.fraud_status == null || String(notification.fraud_status).toUpperCase() === 'ACCEPT');
+  const terminalFailure = ['deny', 'cancel', 'expire', 'failure'].includes(transactionStatus);
 
   const { data: job, error: findError } = await admin
     .from('jobs')
-    .select('id, final_amount, employer_total, total, payment_status')
+    .select('id, final_amount, employer_total, total, payment_status, midtrans_transaction_status, midtrans_transaction_id, paid_at')
     .eq('midtrans_order_id', orderId)
     .maybeSingle();
 
@@ -43,11 +44,23 @@ export async function onRequest(context) {
     return Response.json({ error: 'Gross amount mismatch' }, { status: 409 });
   }
 
+  // Midtrans can retry the same notification. Treat an identical event as success without another mutation.
+  const incomingTransactionId = notification.transaction_id ? String(notification.transaction_id) : null;
+  if (job.midtrans_transaction_status === transactionStatus && job.midtrans_transaction_id === incomingTransactionId) {
+    return Response.json({ ok: true, order_id: orderId, payment_status: job.payment_status, duplicate: true });
+  }
+
+  // A settled payment is terminal for the job. Never let a delayed/retried failure notification regress it.
+  if (job.payment_status === 'settled' && !success) {
+    return Response.json({ ok: true, order_id: orderId, payment_status: 'settled', ignored: true });
+  }
+
+  const nextPaymentStatus = success ? 'settled' : terminalFailure ? 'cancelled' : 'pending';
   const update = {
     midtrans_transaction_status: transactionStatus || 'unknown',
-    midtrans_transaction_id: notification.transaction_id ? String(notification.transaction_id) : null,
-    payment_status: success ? 'settled' : ['deny', 'cancel', 'expire', 'failure'].includes(transactionStatus) ? 'cancelled' : 'pending',
-    paid_at: success ? new Date().toISOString() : null,
+    midtrans_transaction_id: incomingTransactionId,
+    payment_status: nextPaymentStatus,
+    paid_at: success ? (job.paid_at || new Date().toISOString()) : job.paid_at,
   };
 
   const { error: updateError } = await admin.from('jobs').update(update).eq('id', job.id);
