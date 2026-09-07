@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Fingerprint, ShieldCheck, LockKeyhole, RefreshCw } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
+const ADMIN_CANONICAL_ORIGIN = 'https://www.kerjaharian.my.id';
+
 const withTimeout = async <T,>(promise: PromiseLike<T>, ms: number): Promise<T> => {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
@@ -42,7 +44,7 @@ function readablePasskeyError(error: unknown) {
     case 'webauthn_credential_not_found':
       return 'Passkey lama tidak terdaftar di server. Daftarkan ulang Fingerprint / Passkey.';
     case 'webauthn_verification_failed':
-      return 'Verifikasi passkey lama gagal. Gunakan tombol Daftarkan Ulang untuk membuat credential baru.';
+      return 'Verifikasi passkey gagal. Pastikan pendaftaran dan login dilakukan dari www.kerjaharian.my.id.';
     case 'passkey_disabled':
       return 'Passkey belum aktif di konfigurasi Supabase Auth.';
     case 'email_not_confirmed':
@@ -70,6 +72,13 @@ export default function AdminPasskeySetup() {
     }
     if (typeof supabase.auth.registerPasskey !== 'function' || typeof supabase.auth.passkey?.list !== 'function') {
       setMessage('Passkey belum tersedia pada client KerjaHarian.');
+      return;
+    }
+    // WebAuthn is bound to the relying-party/origin configuration. Never enroll
+    // an Admin credential from apex or pages.dev; use one stable production origin.
+    if (window.location.origin !== ADMIN_CANONICAL_ORIGIN) {
+      setMessage('Membuka domain produksi Admin yang aman...');
+      window.location.replace(`${ADMIN_CANONICAL_ORIGIN}/rahasia`);
       return;
     }
     setLoading(true);
@@ -143,6 +152,6 @@ export default function AdminPasskeySetup() {
       <button onClick={()=>void savePin()} disabled={pinLoading} className="w-full mt-2 border border-slate-300 rounded-xl py-2.5 text-sm font-semibold disabled:opacity-60"><LockKeyhole size={17} className="inline mr-1"/>{pinLoading ? 'Menyimpan PIN...' : 'Simpan / Ubah PIN Admin'}</button>
       {pinMessage && <p className="text-xs text-slate-600 mt-2">{pinMessage}</p>}
     </div>
-    {supported && <div className="mt-3"><div className="flex items-center gap-2"><Fingerprint size={17}/><p className="font-semibold text-sm">Fingerprint / Passkey</p></div><p className="text-[11px] text-slate-500 mt-1">Credential lama dapat dihapus lalu didaftarkan ulang jika login menghasilkan “Credential verification failed”.</p><button onClick={()=>void register(true)} disabled={loading} className="w-full mt-3 border border-slate-300 rounded-xl py-2.5 text-sm font-semibold disabled:opacity-60"><RefreshCw size={17} className="inline mr-1"/>{loading ? 'Menyiapkan Passkey...' : 'Daftarkan Ulang Fingerprint / Passkey'}</button>{message && <p className="text-xs text-slate-600 mt-2">{message}</p>}</div>}
+    {supported && <div className="mt-3"><div className="flex items-center gap-2"><Fingerprint size={17}/><p className="font-semibold text-sm">Fingerprint / Passkey</p></div><p className="text-[11px] text-slate-500 mt-1">Credential lama dapat dihapus lalu didaftarkan ulang jika login menghasilkan “Credential verification failed”. Pendaftaran Admin selalu dilakukan pada www.kerjaharian.my.id.</p><button onClick={()=>void register(true)} disabled={loading} className="w-full mt-3 border border-slate-300 rounded-xl py-2.5 text-sm font-semibold disabled:opacity-60"><RefreshCw size={17} className="inline mr-1"/>{loading ? 'Menyiapkan Passkey...' : 'Daftarkan Ulang Fingerprint / Passkey'}</button>{message && <p className="text-xs text-slate-600 mt-2">{message}</p>}</div>}
   </div>;
 }
