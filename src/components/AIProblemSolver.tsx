@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { ArrowRight, Bot, Loader2, Send, Sparkles, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
+import { supabase } from '@/lib/supabase';
 import type { Job } from '@/lib/supabase';
 
 interface SolverResponse { answer: string; jobs?: Pick<Job, 'id' | 'title' | 'category' | 'location' | 'wage' | 'wage_type'>[]; actions?: { label: string; href: string }[]; provider?: string; grounded?: boolean; }
@@ -23,7 +24,7 @@ export function AIProblemSolver() {
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 15000);
     try {
-      const token = user ? (await import('@/lib/supabase').then(({ supabase }) => supabase.auth.getSession())).data.session?.access_token : null;
+      const token = user ? (await supabase.auth.getSession()).data.session?.access_token : null;
       const response = await fetch('/api/ai-problem-solver', { method: 'POST', signal: controller.signal, headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ message: prompt, role: profile?.role, isOnline: profile?.is_online }) });
       const data = await response.json();
       if (!response.ok) throw new Error(data?.error || 'Problem Solver sedang tidak tersedia.');
