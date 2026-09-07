@@ -6,10 +6,12 @@ interface LandingProps { onNavigate: (view: View) => void; lang: 'id' | 'en'; }
 
 const faqs = [['Apakah pekerja harus punya CV?', 'Tidak. Daftar dengan nomor WhatsApp dan lengkapi data yang diperlukan.'], ['Apakah harga pekerjaan bisa dinegosiasikan?', 'Tidak. Harga ditentukan berdasarkan jenis pekerjaan yang tersedia sehingga biaya dapat diketahui sebelum order.'], ['Bagaimana pekerja mendapatkan order?', 'Pekerja menerima informasi pekerjaan sesuai ketersediaan dan area layanan. Tawaran order dapat diterima atau ditolak sesuai ketentuan.'], ['Apakah employer perlu verifikasi KTP?', 'Ya. Verifikasi identitas membantu menjaga keamanan dan kepercayaan di platform.'], ['Berapa lama pekerja merespons?', 'Waktu respons berbeda menurut lokasi, jenis pekerjaan, dan ketersediaan pekerja. Status order ditampilkan di platform.']];
 
+// Authentic Indonesian worker photography from Wikimedia Commons, used under the
+// licenses stated on each source page. Keep these source URLs with the project for attribution.
 const workImages = [
-  { src: 'https://images.unsplash.com/photo-1581092795360-fd1ca04f0952?auto=format&fit=crop&w=1100&q=82', title: 'Pekerjaan Lapangan', alt: 'Pekerja melakukan pekerjaan lapangan' },
-  { src: 'https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=900&q=82', title: 'Bantuan Operasional', alt: 'Pekerja melakukan pekerjaan operasional' },
-  { src: 'https://images.unsplash.com/photo-1556761175-b413da4baf72?auto=format&fit=crop&w=900&q=82', title: 'Kerja Tim', alt: 'Tim berdiskusi sebelum bekerja' },
+  { src: 'https://upload.wikimedia.org/wikipedia/commons/7/7f/Pekerja_Bangunan.jpg', title: 'Tukang Bangunan', alt: 'Dua pekerja bangunan bekerja pada proyek revitalisasi Waduk Melati di Jakarta' },
+  { src: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/19/Cleaning_Service.jpg/1280px-Cleaning_Service.jpg', title: 'Kebersihan', alt: 'Pekerja cleaning service menjalankan tugas harian di sebuah hotel di Yogyakarta' },
+  { src: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Tukang_Tambal_Ban%2C_Kerja_Sederhana%2C_Jasa_Luar_Biasa.jpg/960px-Tukang_Tambal_Ban%2C_Kerja_Sederhana%2C_Jasa_Luar_Biasa.jpg', title: 'Jasa & Perbaikan', alt: 'Tukang tambal ban memperbaiki roda sepeda motor di Indonesia' },
 ];
 
 export function Landing({ onNavigate, lang }: LandingProps) {
