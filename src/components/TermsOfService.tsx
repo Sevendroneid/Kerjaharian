@@ -6,7 +6,7 @@ export function TermsOfService() {
       <h1 className="text-2xl font-bold border-b pb-4">Syarat & Ketentuan Layanan (Terms of Service)</h1>
       
       <p className="text-sm text-gray-600">
-        Selamat datang di <strong>www.kerjaharian.my.id</strong>. Dengan mengakses atau menggunakan platform kami yang dikelola oleh Sevendroneid, Anda dianggap telah membaca, memahami, dan menyetujui seluruh Syarat & Ketentuan di bawah ini.
+        Selamat datang di <strong>www.kerjaharian.my.id</strong>. Dengan mengakses atau menggunakan platform KerjaHarian, Anda dianggap telah membaca, memahami, dan menyetujui seluruh Syarat & Ketentuan di bawah ini.
       </p>
 
       <section className="space-y-2">
@@ -34,12 +34,12 @@ export function TermsOfService() {
       <section className="space-y-2">
         <h2 className="text-lg font-semibold text-gray-900">4. Layanan Pelanggan</h2>
         <p className="text-sm text-gray-700">
-          Jika Anda memiliki pertanyaan, sengketa pesanan, atau kendala teknis, silakan hubungi tim resmi kami melalui layanan pelanggan WhatsApp di nomor: <strong>088289767019</strong>.
+          Jika Anda memiliki pertanyaan, sengketa pesanan, atau kendala teknis, silakan hubungi tim resmi KerjaHarian melalui layanan pelanggan WhatsApp di nomor: <strong>088289767019</strong>.
         </p>
       </section>
 
       <div className="bg-gray-50 p-4 rounded-lg border text-xs text-gray-500">
-        * PT Kerja Harian Indonesia / Sevendroneid berhak mengubah atau memperbarui syarat dan ketentuan ini sewaktu-waktu demi peningkatan layanan platform.
+        KerjaHarian dapat mengubah atau memperbarui syarat dan ketentuan ini sewaktu-waktu untuk peningkatan layanan platform. Perubahan akan diinformasikan melalui kanal resmi KerjaHarian.
       </div>
     </div>
   );
