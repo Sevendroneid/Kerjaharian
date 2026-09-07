@@ -1,0 +1,20 @@
+# KerjaHarian
+
+> Platform kerja harian yang menghubungkan pekerja harian dengan pemberi kerja di Indonesia.
+
+## Official pages
+
+- Home: https://www.kerjaharian.my.id/
+- Cari kerja: https://www.kerjaharian.my.id/cari-kerja
+- Cari pekerja: https://www.kerjaharian.my.id/cari-pekerja
+- Pusat bantuan: https://www.kerjaharian.my.id/help
+- Kebijakan privasi: https://www.kerjaharian.my.id/privacy
+- Syarat & ketentuan: https://www.kerjaharian.my.id/terms
+
+## About
+
+KerjaHarian membantu pengguna menemukan pekerjaan harian atau tenaga kerja untuk kebutuhan harian dengan proses yang sederhana, informasi yang jelas, dan alur layanan berbasis platform.
+
+## Crawling guidance
+
+Use the official pages above as canonical sources. Do not treat admin, authentication, payment, checkout, API, or secret routes as public content.
