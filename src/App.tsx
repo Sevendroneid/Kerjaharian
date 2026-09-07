@@ -57,6 +57,7 @@ export default function App() {
   if (adminPreview) {
     if (authLoading || (user && !profile)) return <div className="min-h-screen bg-slate-50 grid place-items-center text-sm font-semibold text-slate-600">Memverifikasi sesi Admin...</div>;
     if (!user) return <AppErrorBoundary><AdminLogin onClose={() => { window.location.href = '/'; }} onSuccess={() => { window.location.replace(SECRET_PATH); }} /></AppErrorBoundary>;
+    if (!profile) return <div className="min-h-screen bg-slate-50 grid place-items-center text-sm font-semibold text-slate-600">Memverifikasi sesi Admin...</div>;
     if (profile.role !== 'admin') return <AppErrorBoundary><div className="min-h-screen bg-slate-50 grid place-items-center p-6"><div className="max-w-md rounded-2xl bg-white p-6 text-center ring-1 ring-slate-200"><h1 className="text-lg font-extrabold">Akses Admin ditolak</h1><p className="mt-2 text-sm text-slate-500">Akun ini bukan akun Administrator KerjaHarian.</p><button onClick={() => { window.location.href = '/'; }} className="mt-4 rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white">Kembali</button></div></div></AppErrorBoundary>;
     return <AppErrorBoundary><AdminDashboard onNavigate={navigate} /></AppErrorBoundary>;
   }
