@@ -6,12 +6,11 @@ interface LandingProps { onNavigate: (view: View) => void; lang: 'id' | 'en'; }
 
 const faqs = [['Apakah pekerja harus punya CV?', 'Tidak. Daftar dengan nomor WhatsApp dan lengkapi data yang diperlukan.'], ['Apakah harga pekerjaan bisa dinegosiasikan?', 'Tidak. Harga ditentukan berdasarkan jenis pekerjaan yang tersedia sehingga biaya dapat diketahui sebelum order.'], ['Bagaimana pekerja mendapatkan order?', 'Pekerja menerima informasi pekerjaan sesuai ketersediaan dan area layanan. Tawaran order dapat diterima atau ditolak sesuai ketentuan.'], ['Apakah employer perlu verifikasi KTP?', 'Ya. Verifikasi identitas membantu menjaga keamanan dan kepercayaan di platform.'], ['Berapa lama pekerja merespons?', 'Waktu respons berbeda menurut lokasi, jenis pekerjaan, dan ketersediaan pekerja. Status order ditampilkan di platform.']];
 
-// Authentic Indonesian worker photography from Wikimedia Commons, used under the
-// licenses stated on each source page. Keep these source URLs with the project for attribution.
+// Worker photography from Pexels. Pexels permits free commercial website use without attribution.
 const workImages = [
-  { src: 'https://upload.wikimedia.org/wikipedia/commons/7/7f/Pekerja_Bangunan.jpg', title: 'Tukang Bangunan', alt: 'Dua pekerja bangunan bekerja pada proyek revitalisasi Waduk Melati di Jakarta' },
-  { src: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/19/Cleaning_Service.jpg/1280px-Cleaning_Service.jpg', title: 'Kebersihan', alt: 'Pekerja cleaning service menjalankan tugas harian di sebuah hotel di Yogyakarta' },
-  { src: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Tukang_Tambal_Ban%2C_Kerja_Sederhana%2C_Jasa_Luar_Biasa.jpg/960px-Tukang_Tambal_Ban%2C_Kerja_Sederhana%2C_Jasa_Luar_Biasa.jpg', title: 'Jasa & Perbaikan', alt: 'Tukang tambal ban memperbaiki roda sepeda motor di Indonesia' },
+  { src: 'https://images.pexels.com/photos/13699204/pexels-photo-13699204.jpeg?auto=compress&cs=tinysrgb&w=1600', title: 'Tukang Bangunan', alt: 'Pekerja bangunan di lokasi proyek di Jakarta, Indonesia' },
+  { src: 'https://images.pexels.com/photos/8173678/pexels-photo-8173678.jpeg?auto=compress&cs=tinysrgb&w=1200', title: 'Konstruksi', alt: 'Pekerja konstruksi menggunakan perlengkapan keselamatan di Jawa Tengah, Indonesia' },
+  { src: 'https://images.pexels.com/photos/17051952/pexels-photo-17051952.jpeg?auto=compress&cs=tinysrgb&w=1200', title: 'Jasa & Perbaikan', alt: 'Pekerja melakukan pekerjaan pengelasan di Jakarta Timur, Indonesia' },
 ];
 
 export function Landing({ onNavigate, lang }: LandingProps) {
@@ -81,6 +80,11 @@ export function Landing({ onNavigate, lang }: LandingProps) {
 
     <section className="mx-auto max-w-4xl px-4"><div className="rounded-[2rem] border border-orange-100 bg-white p-6 shadow-sm sm:p-8"><h2 className="text-2xl font-extrabold text-primary-900">Pertanyaan yang sering ditanyakan</h2><div className="mt-5 space-y-2">{faqs.map(([q,a]) => <details key={q} className="rounded-2xl border border-orange-100 px-4 py-3.5"><summary className="cursor-pointer text-sm font-extrabold text-primary-800">{q}</summary><p className="mt-2 text-sm leading-6 text-primary-500">{a}</p></details>)}</div><button onClick={() => onNavigate('help')} className="mt-5 text-sm font-extrabold text-accent-700 hover:underline">Lihat semua bantuan →</button></div></section>
 
-    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-orange-100 bg-[#FFF8F0]/95 p-2 shadow-2xl backdrop-blur sm:hidden"><div className="mx-auto flex max-w-lg gap-2"><button onClick={() => onNavigate('worker')} className="flex min-h-11 flex-1 items-center justify-center rounded-xl bg-primary-900 py-3 text-xs font-extrabold text-white">Cari Kerja</button><button onClick={() => onNavigate('employer')} className="flex min-h-11 flex-1 items-center justify-center rounded-xl bg-accent-500 py-3 text-xs font-extrabold text-white">Cari Pekerja</button></div></div>
+    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-orange-100 bg-[#FFF8F0]/95 p-2 shadow-2xl backdrop-blur sm:hidden">
+      <div className="mx-auto grid max-w-md grid-cols-2 gap-2">
+        <button onClick={() => onNavigate('worker')} className="rounded-xl bg-accent-500 px-4 py-3 text-xs font-extrabold text-white">Saya Cari Kerja</button>
+        <button onClick={() => onNavigate('employer')} className="rounded-xl bg-primary-900 px-4 py-3 text-xs font-extrabold text-white">Saya Cari Pekerja</button>
+      </div>
+    </div>
   </div>;
 }
