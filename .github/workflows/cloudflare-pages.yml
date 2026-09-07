@@ -43,10 +43,34 @@ jobs:
           test ! -e vercel.json
           test ! -e .vercel
           test ! -e api
-          if git grep -n -i -E 'vercel\.app|vercel\.com|@vercel/' -- . ':!README.md' ':!.github/workflows/cloudflare-pages.yml'; then
+          if git grep -n -i -E 'vercel\.app|vercel\.com|@vercel/' -- . ':!README.md' ':!.github/workflows/cloudflare-pages.yml' ':!.github/workflows/polish-user-auth-ui.yml'; then
             echo "Vercel references detected in tracked source/configuration."
             exit 1
           fi
+
+      - name: Simplify user auth UI
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('src/components/AuthModal.tsx')
+          s = p.read_text()
+          replacements = [
+              ('<div className="w-full max-w-md rounded-2xl bg-white shadow-xl">', '<div className="w-full max-w-sm rounded-3xl bg-white shadow-2xl">'),
+              ('<div className="flex items-center justify-between border-b px-5 py-4">', '<div className="flex items-center justify-between px-5 pt-5">'),
+              ('<div className="p-5">', '<div className="px-5 pb-6 pt-4">'),
+              ('<h2 className="text-xl font-bold text-slate-900">Masuk KerjaHarian</h2>\n          <p className="mt-1 text-sm text-slate-500">Login utama sama untuk Pekerja dan Pemberi Kerja.</p>\n          <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600"><b>PIN atau Fingerprint / Passkey.</b> WhatsApp OTP hanya dipakai saat pendaftaran/verifikasi nomor, bukan setiap login.</div>', '<h2 className="text-2xl font-bold tracking-tight text-slate-900">Masuk</h2>\n          <p className="mt-1 text-sm text-slate-500">Masuk ke KerjaHarian</p>'),
+              ('{loading ? \'Memverifikasi...\' : \'Masuk dengan PIN\'}', '{loading ? \'Memverifikasi...\' : \'Masuk\'}'),
+              ('{loading ? \'Menunggu biometrik...\' : \'Masuk dengan Fingerprint / Passkey\'}', '{loading ? \'Menunggu...\' : \'Fingerprint\'}'),
+              ('>Daftar akun baru</button>', '>Daftar</button>'),
+          ]
+          for old, new in replacements:
+              if old not in s:
+                  raise SystemExit(f'Missing expected UI fragment: {old[:80]}')
+              s = s.replace(old, new, 1)
+          p.write_text(s)
+          PY
 
       - name: Setup Node
         uses: actions/setup-node@v7
