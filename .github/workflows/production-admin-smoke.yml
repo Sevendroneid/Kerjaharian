@@ -5,14 +5,24 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
         with:
-          node-version: 20
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          package-manager-cache: false
       - name: Install Playwright runtime and Chromium
         run: |
           npm install --no-save --no-package-lock playwright@1.55.0
@@ -29,17 +39,17 @@ jobs:
           const errors=[];
           page.on('request', r => { if (r.url().includes('phone-auth-otpid') || r.url().includes('/api/phone-auth-otpid')) otp.push(r.url()); });
           page.on('pageerror', e => errors.push(String(e)));
-          const response = await page.goto('https://kerjaharian.my.id/rahasia',{waitUntil:'networkidle',timeout:60000});
-          await page.waitForTimeout(2000);
-          const body=await page.locator('body').innerText();
+          const response = await page.goto('https://kerjaharian.my.id/rahasia',{waitUntil:'domcontentloaded',timeout:60000});
           if (!response || !response.ok()) throw new Error(`Admin route HTTP failure: ${response?.status() ?? 'no response'}`);
+          await page.getByText('Login Admin',{exact:true}).waitFor({state:'visible',timeout:20000});
+          await page.getByText('Masuk dengan PIN',{exact:true}).waitFor({state:'visible',timeout:10000});
+          await page.waitForTimeout(1000);
+          const body=await page.locator('body').innerText();
           if (body.includes('Memverifikasi sesi Admin...')) throw new Error('Admin route is stuck on session verification');
           if (body.includes('Kirim Kode WhatsApp') || body.includes('Kirim OTP') || body.includes('Verifikasi OTP')) throw new Error('WhatsApp OTP UI rendered on admin route');
-          if (!body.includes('Login Admin')) throw new Error('Admin login screen missing');
-          if (!body.includes('Masuk dengan PIN')) throw new Error('Admin PIN login missing');
           if (!body.includes('Masuk dengan Fingerprint / Passkey')) throw new Error('Admin Passkey login missing');
           if (otp.length) throw new Error('OTP endpoint called: '+otp.join(','));
-          if (errors.length) throw new Error('Browser errors: '+errors.join(' | '));
+          if (errors.length) throw new Error('Browser page errors: '+errors.join(' | '));
           console.log('REAL-WORLD ADMIN AUTH UI VERIFICATION PASSED');
           console.log('HTTP status:', response.status());
           console.log('PIN login UI: present');
