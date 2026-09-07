@@ -1,0 +1,86 @@
+name: Standardize Product Copy
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  copy:
+    if: ${{ !contains(github.event.head_commit.message, 'chore: apply concise product copy') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+
+      - name: Apply concise user-facing copy
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          files = [
+              Path('src/components/Landing.tsx'),
+              Path('src/components/Worker.tsx'),
+              Path('src/components/Employer.tsx'),
+              Path('src/components/HelpCenter.tsx'),
+              Path('src/components/DownloadApp.tsx'),
+              Path('src/components/KycGate.tsx'),
+              Path('src/components/JobTimer.tsx'),
+              Path('src/components/OrderWorkflow.tsx'),
+              Path('src/components/QRCodeScanner.tsx'),
+          ]
+
+          replacements = {
+              'Platform Kerja Harian Indonesia': 'Kerja harian, lebih mudah',
+              'Indonesia Daily Work Platform': 'Daily work, made simple',
+              'Saya Cari Kerja': 'Cari Kerja',
+              'Saya Cari Pekerja': 'Cari Pekerja',
+              'Contoh Kalkulasi': 'Contoh Harga',
+              'Harga transparan': 'Harga jelas',
+              'Mulai Pesan Pekerja': 'Cari Pekerja',
+              'Cara kerja KerjaHarian': 'Cara Kerja',
+              'Pertanyaan yang sering ditanyakan': 'FAQ',
+              'Lihat semua bantuan →': 'Bantuan →',
+              'Proses Sederhana': 'Mudah',
+              'Masuk menggunakan WhatsApp dan ikuti langkah yang ditampilkan di layar.': 'Masuk cepat dengan akun KerjaHarian.',
+              'Employer melalui proses verifikasi identitas dan pembayaran diproses melalui kanal resmi.': 'Identitas diverifikasi untuk menjaga keamanan.',
+              'Pusat Bantuan & Layanan Pelanggan': 'Bantuan',
+              'Tim *Customer Support* kami siap membantu Anda.': 'Kami siap membantu.',
+              'Hubungi CS Resmi via WhatsApp': 'Hubungi kami via WhatsApp',
+              'Download Aplikasi KerjaHarian': 'Aplikasi KerjaHarian',
+              'Nikmati kemudahan mencari dan memesan tenaga kerja harian terampil langsung dari genggaman Anda.': 'Cari pekerja dan pekerjaan dengan cepat.',
+              'Pekerjaan Saya': 'Pekerjaan',
+              'Pesanan Saya': 'Pesanan',
+              'Saya Hadir di Lokasi & Verifikasi': 'Hadir & Verifikasi',
+              'Order & Pekerjaan': 'Pesanan & Pekerjaan',
+          }
+
+          changed = []
+          for path in files:
+              if not path.exists():
+                  continue
+              text = path.read_text()
+              original = text
+              for old, new in replacements.items():
+                  text = text.replace(old, new)
+              if text != original:
+                  path.write_text(text)
+                  changed.append(str(path))
+
+          print('Updated:', ', '.join(changed) if changed else 'none')
+          PY
+
+      - name: Commit concise product copy
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "chore: apply concise product copy"
+          git push origin HEAD:main
