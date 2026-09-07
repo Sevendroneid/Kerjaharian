@@ -43,12 +43,19 @@ async function loadContext(request, env, clientContext) {
   return { jobs: Array.isArray(jobs) ? jobs : [], profile: clientContext };
 }
 async function callModel(message, context, env) {
+  const system = 'Anda adalah KerjaHarian AI Problem Solver. Gunakan hanya fakta dalam CONTEXT. Jangan mengarang lowongan, harga, identitas, saldo, status order, atau tindakan yang sudah dilakukan. Jika data tidak cukup, katakan tidak cukup. Jawab ringkas dalam Bahasa Indonesia dan berikan langkah berikutnya yang konkret.';
+  if (env.AI?.run) {
+    try {
+      const result = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', { messages: [{ role: 'system', content: system }, { role: 'user', content: `CONTEXT: ${JSON.stringify(context)}\n\nMASALAH: ${message}` }], max_tokens: 450 });
+      const answer = result?.response || result?.result?.response;
+      if (typeof answer === 'string' && answer.trim()) return { answer: answer.trim(), provider: 'cloudflare-workers-ai' };
+    } catch { /* Safe fallback below. */ }
+  }
   const endpoint = env.AI_API_URL; const key = env.AI_API_KEY; if (!endpoint || !key) return null;
   const model = env.AI_MODEL || 'gpt-4o-mini';
-  const system = 'Anda adalah KerjaHarian AI Problem Solver. Gunakan hanya fakta dalam CONTEXT. Jangan mengarang lowongan, harga, identitas, saldo, status order, atau tindakan yang sudah dilakukan. Jika data tidak cukup, katakan tidak cukup dan minta informasi yang aman. Jawab ringkas dalam Bahasa Indonesia dan berikan langkah berikutnya yang konkret.';
   const response = await fetch(endpoint, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` }, body: JSON.stringify({ model, temperature: 0.2, messages: [{ role: 'system', content: system }, { role: 'user', content: `CONTEXT: ${JSON.stringify(context)}\n\nMASALAH: ${message}` }] }) });
   if (!response.ok) return null; const data = await response.json(); const answer = data?.choices?.[0]?.message?.content;
-  return typeof answer === 'string' && answer.trim() ? { answer: answer.trim() } : null;
+  return typeof answer === 'string' && answer.trim() ? { answer: answer.trim(), provider: 'configured-model' } : null;
 }
 export async function onRequest(context) {
   const { request, env } = context; const origin = request.headers.get('origin') || '*'; const headers = cors(origin);
@@ -60,6 +67,6 @@ export async function onRequest(context) {
     const role = body?.role === 'employer' || body?.role === 'worker' ? body.role : null; const clientContext = role ? { role, is_online: body?.isOnline === true } : null;
     const { jobs, profile } = await loadContext(request, env, clientContext); const filters = extractFilters(message); const fallback = fallbackAnswer({ message, role, jobs, filters, profile });
     const modelAnswer = await callModel(message, { role, jobs: jobs.slice(0, 10), filters }, env);
-    return json({ ...fallback, ...(modelAnswer || {}), grounded: true, provider: modelAnswer ? 'configured-model' : 'safe-fallback' }, 200, headers);
+    return json({ ...fallback, ...(modelAnswer || {}), grounded: true, provider: modelAnswer?.provider || 'safe-fallback' }, 200, headers);
   } catch (error) { return json({ error: error instanceof Error ? error.message : 'Terjadi kesalahan saat memproses masalah.' }, 500, headers); }
 }
