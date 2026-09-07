@@ -1,7 +1,7 @@
 {
   "name": "KerjaHarian — Tenaga Kerja Terampil",
   "short_name": "KerjaHarian",
-  "description": "Solusi Cepat Tenaga Kerja Terampil Terdekat. Pesan tenaga kerja harian terampil, tukang, jasa kebersihan, dan tenaga serabutan di seluruh Indonesia.",
+  "description": "Solusi cepat untuk mencari kerja harian atau tenaga kerja terampil.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -12,27 +12,9 @@
   "categories": ["business", "productivity", "lifestyle"],
   "icons": [
     {
-      "src": "/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/icon-256.png",
-      "sizes": "256x256",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/icon-1024.png",
-      "sizes": "1024x1024",
-      "type": "image/png",
+      "src": "/favicon.svg",
+      "sizes": "32x32",
+      "type": "image/svg+xml",
       "purpose": "any"
     }
   ],
@@ -41,13 +23,13 @@
       "name": "Pesan Tenaga Kerja",
       "short_name": "Pesan",
       "url": "/?view=employer",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+      "icons": [{ "src": "/favicon.svg", "sizes": "32x32", "type": "image/svg+xml" }]
     },
     {
       "name": "Radar Kerja Mitra",
       "short_name": "Radar",
       "url": "/?view=worker",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+      "icons": [{ "src": "/favicon.svg", "sizes": "32x32", "type": "image/svg+xml" }]
     }
   ]
 }
