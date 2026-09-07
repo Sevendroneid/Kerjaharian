@@ -4,6 +4,8 @@ import { supabase } from '@/lib/supabase';
 
 interface AdminLoginProps { onClose: () => void; onSuccess: () => void; }
 
+const ADMIN_CANONICAL_ORIGIN = 'https://www.kerjaharian.my.id';
+
 function normalizePhone(value: string) {
   const digits = value.replace(/\D/g, '');
   if (!digits) return '';
@@ -45,6 +47,26 @@ async function assertAdminAndFinish(onSuccess: () => void) {
   onSuccess();
 }
 
+function readablePasskeyError(error: unknown) {
+  const value = error as { code?: string; message?: string } | null;
+  switch (value?.code) {
+    case 'webauthn_credential_not_found':
+      return 'Credential Fingerprint tidak terdaftar di server untuk domain produksi ini. Masuk dengan PIN lalu daftarkan ulang Passkey.';
+    case 'webauthn_verification_failed':
+      return 'Credential Fingerprint ditolak server. Ini biasanya terjadi bila credential dibuat pada origin/domain yang berbeda. KerjaHarian sekarang mengunci login Admin ke domain produksi www.kerjaharian.my.id; masuk dengan PIN lalu daftarkan ulang Passkey di sana.';
+    case 'webauthn_challenge_expired':
+    case 'webauthn_challenge_not_found':
+      return 'Sesi verifikasi Fingerprint kedaluwarsa. Tekan Fingerprint sekali lagi untuk membuat challenge baru.';
+    case 'passkey_disabled':
+      return 'Passkey belum aktif di konfigurasi Supabase Auth.';
+    case 'email_not_confirmed':
+    case 'phone_not_confirmed':
+      return 'Identitas Admin belum terkonfirmasi di Supabase Auth.';
+    default:
+      return value?.message || 'Login Fingerprint / Passkey gagal.';
+  }
+}
+
 export default function AdminLogin({ onClose, onSuccess }: AdminLoginProps) {
   const [phone, setPhone] = useState('');
   const [pin, setPin] = useState('');
@@ -58,8 +80,6 @@ export default function AdminLogin({ onClose, onSuccess }: AdminLoginProps) {
     if (!/^\d{8}$/.test(pin)) { setError('PIN Admin harus tepat 8 digit.'); return; }
     setLoading(true); setError('');
     try {
-      // Admin accounts use a confirmed internal email identity. Password auth via
-      // phone is intentionally disabled in Supabase, so never call phone login here.
       const email = adminEmailFromPhone(normalized);
       const { error: signInError } = await withTimeout(
         supabase.auth.signInWithPassword({ email, password: pin }),
@@ -77,12 +97,19 @@ export default function AdminLogin({ onClose, onSuccess }: AdminLoginProps) {
     setLoading(true); setError('');
     try {
       if (!supported) throw new Error('Browser/perangkat ini tidak mendukung Passkey.');
+      // WebAuthn credentials are bound to their RP ID/origin. Always run the Admin
+      // ceremony on the single canonical production origin so www/apex/pages.dev
+      // cannot create an origin mismatch that results in server verification failure.
+      if (window.location.origin !== ADMIN_CANONICAL_ORIGIN) {
+        window.location.replace(`${ADMIN_CANONICAL_ORIGIN}/rahasia`);
+        return;
+      }
       if (typeof supabase.auth.signInWithPasskey !== 'function') throw new Error('Passkey belum tersedia pada client KerjaHarian.');
       const result = await withTimeout(supabase.auth.signInWithPasskey(), 30000, 'Verifikasi Fingerprint/Passkey timeout.');
       if (result.error) throw result.error;
       await assertAdminAndFinish(onSuccess);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Login Fingerprint / Passkey gagal.');
+      setError(readablePasskeyError(err));
     } finally { setLoading(false); }
   };
 
