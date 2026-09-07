@@ -1,5 +1,5 @@
-const CACHE_NAME = 'kerjaharian-v3';
-const STATIC_ASSETS = ['/','/index.html','/manifest.json','/favicon.svg'];
+const CACHE_NAME = 'kerjaharian-v4';
+const STATIC_ASSETS = ['/', '/index.html', '/manifest.json', '/favicon.svg', '/og-image.svg'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
