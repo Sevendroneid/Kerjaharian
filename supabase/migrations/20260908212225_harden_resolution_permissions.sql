@@ -1,0 +1,13 @@
+DROP POLICY IF EXISTS resolution_participants_insert ON public.resolutions;
+CREATE POLICY resolution_participants_insert ON public.resolutions FOR INSERT TO authenticated WITH CHECK (opened_by = auth.uid() AND (employer_id = auth.uid() OR worker_id = auth.uid()) AND EXISTS (SELECT 1 FROM public.orders o WHERE o.id = public.resolutions.order_id AND o.employer_id = public.resolutions.employer_id AND (o.worker_id = public.resolutions.worker_id OR (public.resolutions.worker_id IS NULL AND o.worker_id IS NULL)) AND (o.employer_id = auth.uid() OR o.worker_id = auth.uid())));
+DROP POLICY IF EXISTS resolution_decisions_insert_admin ON public.resolution_decisions;
+CREATE POLICY resolution_decisions_insert_admin ON public.resolution_decisions FOR INSERT TO authenticated WITH CHECK (decided_by = auth.uid() AND is_admin() AND EXISTS (SELECT 1 FROM public.resolutions r WHERE r.id = resolution_id));
+DROP POLICY IF EXISTS resolution_decisions_update_admin ON public.resolution_decisions;
+CREATE POLICY resolution_decisions_update_admin ON public.resolution_decisions FOR UPDATE TO authenticated USING (is_admin()) WITH CHECK (is_admin());
+DROP POLICY IF EXISTS resolution_decisions_delete_admin ON public.resolution_decisions;
+CREATE POLICY resolution_decisions_delete_admin ON public.resolution_decisions FOR DELETE TO authenticated USING (is_admin());
+REVOKE ALL ON TABLE public.resolutions, public.resolution_messages, public.resolution_evidence, public.resolution_decisions FROM anon;
+GRANT SELECT, INSERT ON TABLE public.resolutions TO authenticated;
+GRANT SELECT, INSERT ON TABLE public.resolution_messages TO authenticated;
+GRANT SELECT, INSERT ON TABLE public.resolution_evidence TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.resolution_decisions TO authenticated;
