@@ -1,0 +1,140 @@
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AlertTriangle, CheckCircle2, ChevronDown, FileText, MessageSquare, Send, ShieldCheck, X } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/lib/auth';
+import { formatIDR } from '@/lib/format';
+
+const CATEGORIES = [
+  ['payment', 'Pembayaran'],
+  ['work_quality', 'Kualitas pekerjaan'],
+  ['work_incomplete', 'Pekerjaan tidak selesai'],
+  ['worker_no_show', 'Mitra tidak datang'],
+  ['employer_cancelled', 'Pembatalan employer'],
+  ['attendance', 'Kehadiran / waktu kerja'],
+  ['safety', 'Keselamatan'],
+  ['other', 'Lainnya'],
+] as const;
+
+type Resolution = {
+  id: string;
+  order_id: string;
+  category: string;
+  description: string;
+  disputed_amount: number;
+  requested_resolution: string | null;
+  status: string;
+  created_at: string;
+  resolved_at: string | null;
+};
+
+type OrderOption = { id: string; title: string | null; status: string | null; total_price: number | null; total: number | null };
+
+const statusLabel: Record<string, string> = {
+  open: 'Diajukan', waiting_response: 'Menunggu tanggapan', under_review: 'Dalam pemeriksaan',
+  waiting_evidence: 'Menunggu bukti', negotiation: 'Negosiasi', resolved: 'Selesai',
+  rejected: 'Ditolak', cancelled: 'Dibatalkan',
+};
+
+export function ResolutionCenter() {
+  const { user, profile } = useAuth();
+  const [resolutions, setResolutions] = useState<Resolution[]>([]);
+  const [orders, setOrders] = useState<OrderOption[]>([]);
+  const [selected, setSelected] = useState<Resolution | null>(null);
+  const [showForm, setShowForm] = useState(false);
+  const [orderId, setOrderId] = useState('');
+  const [category, setCategory] = useState('payment');
+  const [description, setDescription] = useState('');
+  const [amount, setAmount] = useState('');
+  const [requested, setRequested] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  const load = useCallback(async () => {
+    if (!user) return;
+    setError('');
+    const { data: resolutionData, error: resolutionError } = await supabase
+      .from('resolutions')
+      .select('id,order_id,category,description,disputed_amount,requested_resolution,status,created_at,resolved_at')
+      .order('created_at', { ascending: false }).limit(20);
+    if (resolutionError) { setError('Pusat resolusi tidak dapat dimuat.'); return; }
+    setResolutions((resolutionData ?? []) as Resolution[]);
+
+    const { data: orderData } = await supabase
+      .from('orders').select('id,title,status,total_price,total').order('created_at', { ascending: false }).limit(30);
+    setOrders((orderData ?? []) as OrderOption[]);
+  }, [user]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const openOrders = useMemo(() => orders.filter(o => o.status !== 'cancelled'), [orders]);
+
+  const submit = async () => {
+    if (!user || !orderId) { setError('Pilih order terlebih dahulu.'); return; }
+    const cleanDescription = description.trim();
+    if (cleanDescription.length < 10) { setError('Jelaskan masalah minimal 10 karakter.'); return; }
+    const disputed = Math.max(0, Number(amount.replace(/[^0-9]/g, '')) || 0);
+    setBusy(true); setError(''); setSuccess('');
+    const { data: order } = await supabase.from('orders').select('id,employer_id,worker_id').eq('id', orderId).maybeSingle();
+    if (!order || (order.employer_id !== user.id && order.worker_id !== user.id)) {
+      setError('Anda tidak memiliki akses ke order tersebut.'); setBusy(false); return;
+    }
+    const { error: insertError } = await supabase.from('resolutions').insert({
+      order_id: order.id,
+      job_id: null,
+      opened_by: user.id,
+      employer_id: order.employer_id,
+      worker_id: order.worker_id,
+      category,
+      description: cleanDescription,
+      disputed_amount: disputed,
+      requested_resolution: requested.trim() || null,
+      status: 'waiting_response',
+    });
+    if (insertError) setError(insertError.code === '23505' ? 'Order ini sudah memiliki resolusi yang sedang berjalan.' : 'Gagal mengajukan resolusi.');
+    else { setSuccess('Resolusi berhasil diajukan. Pihak terkait akan menerima kasus ini untuk ditanggapi.'); setShowForm(false); setOrderId(''); setDescription(''); setAmount(''); setRequested(''); await load(); }
+    setBusy(false);
+  };
+
+  if (!user || !profile) return null;
+
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2 text-primary-700"><ShieldCheck className="h-5 w-5" /><h2 className="font-display font-bold text-slate-900">Pusat Resolusi</h2></div>
+          <p className="mt-1 text-xs leading-5 text-slate-500">Tempat resmi untuk menyelesaikan masalah order. Chat biasa tetap terpisah sebagai riwayat komunikasi.</p>
+        </div>
+        {!showForm && <button onClick={() => { setShowForm(true); setSuccess(''); setError(''); }} className="min-h-10 shrink-0 rounded-lg bg-primary-600 px-3 py-2 text-xs font-bold text-white">Ajukan Resolusi</button>}
+      </div>
+
+      {success && <div className="mt-4 flex gap-2 rounded-xl bg-success-50 p-3 text-xs font-semibold text-success-700"><CheckCircle2 className="h-4 w-4 shrink-0" />{success}</div>}
+      {error && <div className="mt-4 flex gap-2 rounded-xl bg-error-50 p-3 text-xs font-semibold text-error-700"><AlertTriangle className="h-4 w-4 shrink-0" />{error}</div>}
+
+      {showForm && (
+        <div className="mt-5 rounded-xl bg-slate-50 p-4 ring-1 ring-slate-200">
+          <div className="flex items-center justify-between"><h3 className="text-sm font-bold text-slate-900">Ajukan masalah pada order</h3><button onClick={() => setShowForm(false)} className="grid h-9 w-9 place-items-center rounded-lg hover:bg-white" aria-label="Tutup"><X className="h-4 w-4" /></button></div>
+          <div className="mt-4 space-y-3">
+            <select value={orderId} onChange={e => setOrderId(e.target.value)} className="input" aria-label="Pilih order"><option value="">Pilih order...</option>{openOrders.map(o => <option key={o.id} value={o.id}>{o.title || 'Order'} · {o.status || 'status tidak diketahui'}</option>)}</select>
+            <select value={category} onChange={e => setCategory(e.target.value)} className="input" aria-label="Jenis masalah">{CATEGORIES.map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select>
+            <textarea value={description} onChange={e => setDescription(e.target.value.slice(0,5000))} rows={4} maxLength={5000} placeholder="Jelaskan masalah secara faktual..." className="input" />
+            <input value={amount} onChange={e => setAmount(e.target.value.replace(/[^0-9]/g,''))} inputMode="numeric" placeholder="Nominal yang diperselisihkan (opsional)" className="input" />
+            {amount && <p className="text-xs text-slate-500">Nominal: <b>{formatIDR(Number(amount))}</b></p>}
+            <textarea value={requested} onChange={e => setRequested(e.target.value.slice(0,3000))} rows={2} maxLength={3000} placeholder="Penyelesaian yang Anda minta (opsional)..." className="input" />
+            <button onClick={() => void submit()} disabled={busy || !orderId || description.trim().length < 10} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"><Send className="h-4 w-4" />{busy ? 'Mengajukan...' : 'Kirim ke Pusat Resolusi'}</button>
+          </div>
+        </div>
+      )}
+
+      <div className="mt-5 space-y-3">
+        {resolutions.length === 0 ? <div className="rounded-xl border border-dashed border-slate-200 p-5 text-center text-xs text-slate-500"><FileText className="mx-auto mb-2 h-5 w-5 text-slate-300" />Belum ada kasus resolusi.</div> : resolutions.map(r => (
+          <button key={r.id} onClick={() => setSelected(selected?.id === r.id ? null : r)} className="w-full rounded-xl border border-slate-200 p-4 text-left hover:bg-slate-50">
+            <div className="flex items-start justify-between gap-3"><div><p className="text-sm font-bold text-slate-900">{CATEGORIES.find(([v]) => v === r.category)?.[1] || 'Masalah order'}</p><p className="mt-1 text-[11px] text-slate-500">Order {r.order_id.slice(0,8)}… · {new Date(r.created_at).toLocaleDateString('id-ID')}</p></div><span className="rounded-full bg-primary-50 px-2.5 py-1 text-[10px] font-bold text-primary-700">{statusLabel[r.status] || r.status}</span></div>
+            {r.disputed_amount > 0 && <p className="mt-2 text-xs font-semibold text-slate-700">Nominal sengketa: {formatIDR(Number(r.disputed_amount))}</p>}
+            {selected?.id === r.id && <div className="mt-3 border-t border-slate-100 pt-3"><p className="whitespace-pre-wrap text-xs leading-5 text-slate-600">{r.description}</p>{r.requested_resolution && <p className="mt-2 text-xs text-slate-600"><b>Permintaan:</b> {r.requested_resolution}</p>}<div className="mt-3 flex items-center gap-2 text-[11px] font-semibold text-slate-500"><MessageSquare className="h-3.5 w-3.5" />Diskusi dan bukti resolusi dapat ditambahkan pada tahap berikutnya.</div></div>}
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
