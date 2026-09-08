@@ -41,6 +41,7 @@ jobs:
       - name: Install dependencies
         run: npm install --ignore-scripts
 
+      # Keep the CI gate explicit: lint must pass before typecheck and build run.
       - name: Lint
         run: npm run lint
 
