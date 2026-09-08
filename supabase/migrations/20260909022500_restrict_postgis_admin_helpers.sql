@@ -1,0 +1,15 @@
+REVOKE EXECUTE ON FUNCTION public.addgeometrycolumn(character varying,character varying,character varying,character varying,integer,character varying,integer,boolean) FROM anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.addgeometrycolumn(character varying,character varying,character varying,integer,character varying,integer,boolean) FROM anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.addgeometrycolumn(character varying,character varying,integer,character varying,integer,boolean) FROM anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.dropgeometrycolumn(character varying,character varying,character varying,character varying) FROM anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.dropgeometrycolumn(character varying,character varying,character varying) FROM anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.dropgeometrycolumn(character varying,character varying) FROM anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.dropgeometrytable(character varying,character varying,character varying) FROM anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.dropgeometrytable(character varying,character varying) FROM anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.dropgeometrytable(character varying) FROM anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.updategeometrysrid(character varying,character varying,character varying,character varying,integer) FROM anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.updategeometrysrid(character varying,character varying,character varying,integer) FROM anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.updategeometrysrid(character varying,character varying,integer) FROM anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.populate_geometry_columns(boolean) FROM anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.populate_geometry_columns(oid,boolean) FROM anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.postgis_extensions_upgrade() FROM anon, authenticated;
