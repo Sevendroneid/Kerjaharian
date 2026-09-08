@@ -1,0 +1,2 @@
+DROP POLICY IF EXISTS resolution_participants_insert ON public.resolutions;
+CREATE POLICY resolution_participants_insert ON public.resolutions FOR INSERT TO authenticated WITH CHECK (opened_by = auth.uid() AND (employer_id = auth.uid() OR worker_id = auth.uid()) AND EXISTS (SELECT 1 FROM public.orders o WHERE o.id = public.resolutions.order_id AND o.employer_id = public.resolutions.employer_id AND (o.worker_id = public.resolutions.worker_id OR (public.resolutions.worker_id IS NULL AND o.worker_id IS NULL)) AND (o.employer_id = auth.uid() OR o.worker_id = auth.uid())));
