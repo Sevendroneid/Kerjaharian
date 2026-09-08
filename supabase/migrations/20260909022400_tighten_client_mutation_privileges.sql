@@ -1,0 +1,5 @@
+REVOKE UPDATE, DELETE ON TABLE public.resolution_messages FROM authenticated;
+REVOKE UPDATE ON TABLE public.resolution_evidence FROM authenticated;
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON TABLE public.jobs FROM anon;
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON TABLE public.reviews FROM anon;
+GRANT SELECT ON TABLE public.reviews TO anon;
