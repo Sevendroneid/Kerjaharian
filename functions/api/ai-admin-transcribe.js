@@ -10,16 +10,16 @@ async function isAdmin(request,env){
   const user=await userRes.json().catch(()=>null);
   if(!user?.id)return false;
 
-  // Read only the caller's own profile row. This is intentionally preferred
-  // over the is_admin RPC here: the profile RLS policy explicitly permits
-  // auth.uid() = id, so this does not depend on PostgREST function-cache state.
-  const profileRes=await fetch(`${url}/rest/v1/profiles?id=eq.${encodeURIComponent(user.id)}&select=role,is_admin&limit=1`,{
+  // Canonical admin authorization: profiles.role is the source of truth.
+  // Do not reference the retired is_admin column; selecting a removed column
+  // would make PostgREST return 400 and incorrectly surface as an auth failure.
+  const profileRes=await fetch(`${url}/rest/v1/profiles?id=eq.${encodeURIComponent(user.id)}&select=role&limit=1`,{
     headers:{apikey:key,Authorization:`Bearer ${token}`}
   });
   if(!profileRes.ok)return false;
   const profiles=await profileRes.json().catch(()=>[]);
   const profile=Array.isArray(profiles)?profiles[0]:null;
-  return profile?.role==='admin'||profile?.is_admin===true;
+  return profile?.role==='admin';
 }
 
 export async function onRequest({request,env}){
