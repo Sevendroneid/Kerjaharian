@@ -4,24 +4,29 @@ async function isAdmin(request,env){
   const token=(request.headers.get('authorization')||'').replace(/^Bearer\s+/i,'').trim();
   const url=env.SUPABASE_URL||env.VITE_SUPABASE_URL;
   const key=env.SUPABASE_ANON_KEY||env.VITE_SUPABASE_ANON_KEY;
-  if(!token||!url||!key)return null;
+  if(!token||!url||!key)return false;
   const userRes=await fetch(`${url}/auth/v1/user`,{headers:{apikey:key,Authorization:`Bearer ${token}`}});
-  if(!userRes.ok)return null;
-  const user=await userRes.json();
-  if(!user?.id)return null;
-  const service=env.SUPABASE_SERVICE_ROLE_KEY;
-  const headers={apikey:service||key,Authorization:`Bearer ${service||token}`};
-  const p=await fetch(`${url}/rest/v1/profiles?select=id,role&id=eq.${encodeURIComponent(user.id)}&limit=1`,{headers});
-  if(!p.ok)return null;
-  const rows=await p.json().catch(()=>[]);
-  return Array.isArray(rows)&&rows[0]?.role==='admin'?user:null;
+  if(!userRes.ok)return false;
+  const user=await userRes.json().catch(()=>null);
+  if(!user?.id)return false;
+
+  // Use the canonical SECURITY DEFINER authorization function. Do not read
+  // profiles directly here: profiles has RLS and a missing service-role secret
+  // must never turn a valid Admin session into a false 401.
+  const adminRes=await fetch(`${url}/rest/v1/rpc/is_admin`,{
+    method:'POST',
+    headers:{apikey:key,Authorization:`Bearer ${token}`,'content-type':'application/json'},
+    body:'{}'
+  });
+  if(!adminRes.ok)return false;
+  const admin=await adminRes.json().catch(()=>false);
+  return admin===true;
 }
 
 export async function onRequest({request,env}){
   if(request.method!=='POST')return json({error:'Method Not Allowed'},405);
   try{
-    const user=await isAdmin(request,env);
-    if(!user)return json({error:'Akses hanya untuk admin yang terautentikasi.'},401);
+    if(!(await isAdmin(request,env)))return json({error:'Akses hanya untuk admin yang terautentikasi.'},401);
     if(!env.AI?.run)return json({error:'Layanan transkripsi suara Cloudflare AI belum tersedia.'},503);
     const form=await request.formData();
     const audio=form.get('audio');
