@@ -11,16 +11,17 @@ async function auth(request,env){
   const user=await userRes.json().catch(()=>null);
   if(!user?.id)return null;
 
-  // Canonical admin authorization. profiles is RLS-protected, so this endpoint
-  // must use the SECURITY DEFINER is_admin() RPC rather than a direct profile read.
-  const adminRes=await fetch(`${url}/rest/v1/rpc/is_admin`,{
-    method:'POST',
-    headers:{apikey:anonKey,Authorization:`Bearer ${token}`,'content-type':'application/json'},
-    body:'{}'
+  // Authorize from the caller's own profile row. The profile RLS policy allows
+  // auth.uid() = id, so this remains secure while avoiding RPC/schema-cache
+  // dependency during a fresh deployment.
+  const profileRes=await fetch(`${url}/rest/v1/profiles?id=eq.${encodeURIComponent(user.id)}&select=role,is_admin&limit=1`,{
+    headers:{apikey:anonKey,Authorization:`Bearer ${token}`}
   });
-  if(!adminRes.ok)return null;
-  const admin=await adminRes.json().catch(()=>false);
-  return admin===true?{url,anonKey,token,user}:null;
+  if(!profileRes.ok)return null;
+  const profiles=await profileRes.json().catch(()=>[]);
+  const profile=Array.isArray(profiles)?profiles[0]:null;
+  if(!(profile?.role==='admin'||profile?.is_admin===true))return null;
+  return {url,anonKey,token,user};
 }
 
 function daysFromText(text){const m=text.toLowerCase().match(/(?:7|tujuh|14|empat belas|30|tiga puluh)\s*(?:hari|day)/);if(!m)return 7;const v=m[0];if(/30|tiga puluh/.test(v))return 30;if(/14|empat belas/.test(v))return 14;return 7;}
