@@ -195,3 +195,14 @@ jobs:
             curl --fail --silent --show-error --location --retry 5 --retry-delay 3 --retry-all-errors --connect-timeout 10 --max-time 30 -o /dev/null "${url}"
           done
           echo "Production endpoint smoke tests passed."
+
+      - name: Verify AI endpoints reject unauthenticated requests
+        shell: bash
+        run: |
+          set -euo pipefail
+          for endpoint in ai-problem-solver ai-task-parser ai-worker-matcher; do
+            status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' -X POST -H 'Content-Type: application/json' --data '{}' "https://www.kerjaharian.my.id/api/${endpoint}")"
+            echo "${endpoint}: HTTP ${status}"
+            test "$status" = "401"
+          done
+          echo "AI authentication boundary smoke test passed."
