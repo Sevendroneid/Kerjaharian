@@ -1,31 +1,26 @@
-import { createClient } from '@supabase/supabase-js';
-
 const json=(body,status=200,headers={})=>new Response(JSON.stringify(body),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store',...headers}});
 const cors=origin=>({'access-control-allow-origin':origin||'*','access-control-allow-headers':'authorization, content-type','access-control-allow-methods':'POST, OPTIONS'});
 
 async function auth(request,env){
-  const authorization=request.headers.get('authorization')||'';
-  const token=authorization.replace(/^Bearer\s+/i,'').trim();
+  const token=(request.headers.get('authorization')||'').replace(/^Bearer\s+/i,'').trim();
   const url=env.SUPABASE_URL||env.VITE_SUPABASE_URL;
   const anonKey=env.SUPABASE_ANON_KEY||env.VITE_SUPABASE_ANON_KEY;
-  const serviceKey=env.SUPABASE_SERVICE_ROLE_KEY;
   if(!token||!url||!anonKey)return null;
-
   const userRes=await fetch(`${url}/auth/v1/user`,{headers:{apikey:anonKey,Authorization:`Bearer ${token}`}});
   if(!userRes.ok)return null;
-  const user=await userRes.json();
+  const user=await userRes.json().catch(()=>null);
   if(!user?.id)return null;
 
-  // The Admin UI already proves the profile role through the normal authenticated
-  // client. For the server endpoint, use the service key only for this single
-  // role lookup so an RLS policy cannot turn a valid Admin session into a false 401.
-  // The service key never leaves the Worker and is never accepted from the client.
-  const profileHeaders={apikey:serviceKey||anonKey,Authorization:`Bearer ${serviceKey||token}`};
-  const pRes=await fetch(`${url}/rest/v1/profiles?select=id,role,full_name&id=eq.${encodeURIComponent(user.id)}&limit=1`,{headers:profileHeaders});
-  if(!pRes.ok)return null;
-  const p=await pRes.json().catch(()=>[]);
-  const profile=Array.isArray(p)?p[0]:null;
-  return profile?.role==='admin'?{url,anonKey,token,user,profile}:null;
+  // Canonical admin authorization. profiles is RLS-protected, so this endpoint
+  // must use the SECURITY DEFINER is_admin() RPC rather than a direct profile read.
+  const adminRes=await fetch(`${url}/rest/v1/rpc/is_admin`,{
+    method:'POST',
+    headers:{apikey:anonKey,Authorization:`Bearer ${token}`,'content-type':'application/json'},
+    body:'{}'
+  });
+  if(!adminRes.ok)return null;
+  const admin=await adminRes.json().catch(()=>false);
+  return admin===true?{url,anonKey,token,user}:null;
 }
 
 function daysFromText(text){const m=text.toLowerCase().match(/(?:7|tujuh|14|empat belas|30|tiga puluh)\s*(?:hari|day)/);if(!m)return 7;const v=m[0];if(/30|tiga puluh/.test(v))return 30;if(/14|empat belas/.test(v))return 14;return 7;}
