@@ -3,12 +3,12 @@ import { Bot, Loader2, Mic, MicOff, Send, Volume2, VolumeX, X } from 'lucide-rea
 import { supabase } from '@/lib/supabase';
 import type { Profile } from '@/lib/supabase';
 
-interface Props { role: 'admin' | null; profile: Profile | null }
+interface Props { profile: Profile | null }
 const clean=(value:string)=>value.replace(/\s+/g,' ').trim();
 
-/** Admin-only voice console. One tap records; Stop transcribes into the editable box; Send is explicit. */
-export function AIVoiceAssistant({role,profile}:Props){
-  const authorized=role==='admin'&&profile?.role==='admin';
+/** Admin-only voice console. Availability is inherited from the authenticated Admin panel; the API remains the final authorization boundary. One tap records; Stop transcribes into the editable box; Send is explicit. */
+export function AIVoiceAssistant({profile}:Props){
+  const authorized=profile?.role==='admin';
   const [open,setOpen]=useState(false),[recording,setRecording]=useState(false),[transcribing,setTranscribing]=useState(false),[busy,setBusy]=useState(false),[speaking,setSpeaking]=useState(false),[text,setText]=useState(''),[answer,setAnswer]=useState(''),[error,setError]=useState(''),[voiceOn,setVoiceOn]=useState(true);
   const recorderRef=useRef<MediaRecorder|null>(null),chunksRef=useRef<Blob[]>([]),streamRef=useRef<MediaStream|null>(null);
   const mediaSupported=typeof window!=='undefined'&&!!navigator.mediaDevices?.getUserMedia&&typeof MediaRecorder!=='undefined';
