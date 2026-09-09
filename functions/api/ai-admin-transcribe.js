@@ -2,20 +2,14 @@ const json=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:
 
 async function isAdmin(request,env){
   const token=(request.headers.get('authorization')||'').replace(/^Bearer\s+/i,'').trim();
-  const url=env.SUPABASE_URL||env.VITE_SUPABASE_URL;
-  const key=env.SUPABASE_ANON_KEY||env.VITE_SUPABASE_ANON_KEY;
+  const url=env.SUPABASE_URL||env.VITE_SUPABASE_URL||'https://cgulvtbyqkixpxxqzcet.supabase.co';
+  const key=env.SUPABASE_ANON_KEY||env.VITE_SUPABASE_ANON_KEY||'sb_publishable_37nHNxKCf60GiWedu90g9g_DDetNzb9';
   if(!token||!url||!key)return false;
   const userRes=await fetch(`${url}/auth/v1/user`,{headers:{apikey:key,Authorization:`Bearer ${token}`}});
   if(!userRes.ok)return false;
   const user=await userRes.json().catch(()=>null);
   if(!user?.id)return false;
-
-  // Canonical admin authorization: profiles.role is the source of truth.
-  // Do not reference the retired is_admin column; selecting a removed column
-  // would make PostgREST return 400 and incorrectly surface as an auth failure.
-  const profileRes=await fetch(`${url}/rest/v1/profiles?id=eq.${encodeURIComponent(user.id)}&select=role&limit=1`,{
-    headers:{apikey:key,Authorization:`Bearer ${token}`}
-  });
+  const profileRes=await fetch(`${url}/rest/v1/profiles?id=eq.${encodeURIComponent(user.id)}&select=role&limit=1`,{headers:{apikey:key,Authorization:`Bearer ${token}`}});
   if(!profileRes.ok)return false;
   const profiles=await profileRes.json().catch(()=>[]);
   const profile=Array.isArray(profiles)?profiles[0]:null;
