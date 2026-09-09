@@ -1,3 +1,5 @@
+import { createClient } from '@supabase/supabase-js';
+
 const json = (body, status = 200, extraHeaders = {}) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', ...extraHeaders } });
 const cors = (origin) => ({ 'access-control-allow-origin': origin || '*', 'access-control-allow-headers': 'authorization, content-type', 'access-control-allow-methods': 'POST, OPTIONS' });
 const normalize = (value) => value.toLowerCase().normalize('NFKC').trim();
@@ -34,10 +36,10 @@ function fallbackAnswer({ message, role, jobs, filters, profile }) {
   if (intent === 'order_issue') return { answer: 'Saya bisa membantu mendiagnosis masalah order, tetapi saya tidak akan mengubah status order dari chat. Beri tahu apa yang terjadi (misalnya gagal mengambil, order tidak muncul, atau pekerjaan sudah selesai tetapi status belum berubah).', actions: [{ label: 'Buka dashboard', href: role === 'employer' ? '/cari-pekerja' : '/cari-kerja' }] };
   return { answer: 'Ceritakan masalah Anda dengan bahasa sehari-hari. Contoh: “Saya butuh kerja hari ini”, “Kenapa lowongan saya belum diambil?”, atau “Status saya sudah Online tapi tidak ada panggilan?”. Saya akan mencocokkannya dengan data KerjaHarian yang tersedia.' };
 }
-async function loadContext(request, env, clientContext) {
+async function loadContext(request, env, clientContext, authToken) {
   const url = env.SUPABASE_URL || env.VITE_SUPABASE_URL; const anonKey = env.SUPABASE_ANON_KEY || env.VITE_SUPABASE_ANON_KEY;
   if (!url || !anonKey) return { jobs: [], profile: clientContext };
-  const headers = { apikey: anonKey, Authorization: request.headers.get('authorization') || `Bearer ${anonKey}` };
+  const headers = { apikey: anonKey, Authorization: authToken || `Bearer ${anonKey}` };
   const response = await fetch(`${url}/rest/v1/jobs?select=id,title,category,location,wage,wage_type,status,created_at&status=eq.open&order=created_at.desc&limit=30`, { headers });
   const jobs = response.ok ? await response.json() : [];
   return { jobs: Array.isArray(jobs) ? jobs : [], profile: clientContext };
@@ -62,10 +64,20 @@ export async function onRequest(context) {
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers });
   if (request.method !== 'POST') return json({ error: 'Method Not Allowed' }, 405, headers);
   try {
+    const authorization = request.headers.get('authorization') || '';
+    const accessToken = authorization.startsWith('Bearer ') ? authorization.slice(7) : '';
+    const supabaseUrl = env.SUPABASE_URL || env.VITE_SUPABASE_URL; const anonKey = env.SUPABASE_ANON_KEY || env.VITE_SUPABASE_ANON_KEY;
+    if (!accessToken || !supabaseUrl || !anonKey) return json({ error: 'Authentication required' }, 401, headers);
+    const authClient = createClient(supabaseUrl, anonKey, { auth: { persistSession: false } });
+    const { data: userData, error: userError } = await authClient.auth.getUser(accessToken);
+    if (userError || !userData.user) return json({ error: 'Invalid session' }, 401, headers);
+    const { data: profile, error: profileError } = await authClient.from('profiles').select('id,role,is_online').eq('id', userData.user.id).maybeSingle();
+    if (profileError) return json({ error: 'Unable to load account context' }, 500, headers);
+    const role = profile?.role === 'employer' || profile?.role === 'worker' ? profile.role : null;
     const body = await request.json(); const message = typeof body?.message === 'string' ? body.message.trim().slice(0, 1200) : '';
     if (!message) return json({ error: 'Pesan wajib diisi.' }, 400, headers);
-    const role = body?.role === 'employer' || body?.role === 'worker' ? body.role : null; const clientContext = role ? { role, is_online: body?.isOnline === true } : null;
-    const { jobs, profile } = await loadContext(request, env, clientContext); const filters = extractFilters(message); const fallback = fallbackAnswer({ message, role, jobs, filters, profile });
+    const clientContext = { user_id: userData.user.id, role, is_online: profile?.is_online === true };
+    const { jobs, profile: loadedProfile } = await loadContext(request, env, clientContext, `Bearer ${accessToken}`); const filters = extractFilters(message); const fallback = fallbackAnswer({ message, role, jobs, filters, profile: loadedProfile });
     const modelAnswer = await callModel(message, { role, jobs: jobs.slice(0, 10), filters }, env);
     return json({ ...fallback, ...(modelAnswer || {}), grounded: true, provider: modelAnswer?.provider || 'safe-fallback' }, 200, headers);
   } catch (error) { return json({ error: error instanceof Error ? error.message : 'Terjadi kesalahan saat memproses masalah.' }, 500, headers); }
