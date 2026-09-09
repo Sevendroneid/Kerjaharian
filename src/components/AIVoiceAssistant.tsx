@@ -1,34 +1,123 @@
 import { useEffect, useRef, useState } from 'react';
-import { Bot, Mic, MicOff, Volume2, VolumeX, X, CheckCircle2, Loader2, Briefcase } from 'lucide-react';
+import { Bot, Loader2, Mic, MicOff, Send, Volume2, VolumeX, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import type { Profile } from '@/lib/supabase';
 
-type Role = 'worker' | 'employer' | 'admin' | null;
-interface SpeechRecognitionResultLike { [index:number]: { [index:number]: { transcript:string } }; length:number }
-interface SpeechRecognitionEventLike extends Event { results:SpeechRecognitionResultLike }
-interface SpeechRecognitionLike { lang:string; interimResults:boolean; continuous:boolean; start:()=>void; stop:()=>void; abort:()=>void; onresult:((event:SpeechRecognitionEventLike)=>void)|null; onerror:((event:Event)=>void)|null; onend:(()=>void)|null }
-interface WindowSpeech extends Window { SpeechRecognition?:new()=>SpeechRecognitionLike; webkitSpeechRecognition?:new()=>SpeechRecognitionLike }
-interface Props { role:Role; profile:Profile|null; }
-interface Draft { title:string; category:string|null; description:string; location:string; wage:number|null; wage_type:'daily'|'hourly'; estimated_hours:number|null; required_count:number|null; suggested_radius_km:number|null }
-interface Price { id:string; job_name:string; base_price:number; duration_minutes:number|null }
-interface Offer { id:string; job_id:string; rank:number; distance_meters:number|null; score:number|null; expires_at:string; job:{id:string;title:string;category:string;location:string;wage:number;estimated_hours:number|null;status:string} }
-const clean=(text:string)=>text.replace(/\s+/g,' ').trim();
-const categoryForDb=(category:string|null)=>category==='tukang'?'renovasi':category;
-const idr=(value:number)=>`Rp${Math.round(value).toLocaleString('id-ID')}`;
+type SpeechRecognitionResultLike = { [index: number]: { [index: number]: { transcript: string } }; length: number };
+interface SpeechRecognitionEventLike extends Event { results: SpeechRecognitionResultLike }
+interface SpeechRecognitionLike { lang: string; interimResults: boolean; continuous: boolean; start: () => void; stop: () => void; abort: () => void; onresult: ((event: SpeechRecognitionEventLike) => void) | null; onerror: ((event: Event) => void) | null; onend: (() => void) | null }
+interface WindowSpeech extends Window { SpeechRecognition?: new () => SpeechRecognitionLike; webkitSpeechRecognition?: new () => SpeechRecognitionLike }
+interface Props { role: 'admin' | null; profile: Profile | null }
 
-export function AIVoiceAssistant({role,profile}:Props){
- const [open,setOpen]=useState(false);const [listening,setListening]=useState(false);const [speaking,setSpeaking]=useState(false);const [busy,setBusy]=useState(false);const [text,setText]=useState('');const [answer,setAnswer]=useState('');const [error,setError]=useState('');const [voiceOn,setVoiceOn]=useState(true);const [draft,setDraft]=useState<Draft|null>(null);const [price,setPrice]=useState<Price|null>(null);const [confirming,setConfirming]=useState(false);const [offers,setOffers]=useState<Offer[]>([]);const [selectedOffer,setSelectedOffer]=useState<Offer|null>(null);
- const recognitionRef=useRef<SpeechRecognitionLike|null>(null);const finalRef=useRef('');
- const supported=typeof window!=='undefined'&&!!((window as WindowSpeech).SpeechRecognition||(window as WindowSpeech).webkitSpeechRecognition);
- useEffect(()=>()=>{recognitionRef.current?.abort();window.speechSynthesis?.cancel()},[]);
- const speak=(value:string)=>{if(!voiceOn||!('speechSynthesis' in window))return;window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(value);u.lang='id-ID';u.rate=.98;u.onstart=()=>setSpeaking(true);u.onend=()=>setSpeaking(false);u.onerror=()=>setSpeaking(false);window.speechSynthesis.speak(u)};
- const resetActions=()=>{setDraft(null);setPrice(null);setConfirming(false);setOffers([]);setSelectedOffer(null)};
- const parseEmployer=async(prompt:string,token:string)=>{const response=await fetch('/api/ai-task-parser',{method:'POST',headers:{'content-type':'application/json',authorization:`Bearer ${token}`},body:JSON.stringify({text:prompt})});const data=await response.json();if(!response.ok)throw new Error(data?.error||'AI tidak tersedia.');const d=data?.draft as Draft|null;if(!d)throw new Error('Draft pekerjaan belum dapat dibuat.');setDraft(d);if(!d.category)throw new Error('Kategori pekerjaan belum jelas. Sebutkan misalnya bongkar/muat, tukang, kebersihan, atau serabutan.');const dbCategory=categoryForDb(d.category);const {data:prices,error:priceError}=await supabase.from('job_prices').select('id,job_name,base_price,duration_minutes').eq('category_id',dbCategory).eq('is_active',true).order('job_name',{ascending:true}).limit(10);if(priceError||!prices?.length)throw new Error('Jenis pekerjaan aktif untuk kategori tersebut belum tersedia.');const requested=clean(d.title||'').toLowerCase();const selected=(prices as Price[]).find(p=>requested.includes(p.job_name.toLowerCase())||p.job_name.toLowerCase().includes(requested))||prices[0];setPrice(selected as Price);const people=d.required_count&&d.required_count>1?` ${d.required_count} pekerja`:' 1 pekerja';const summary=`Saya memahami: ${d.title||selected.job_name}, ${people}, lokasi ${d.location||'belum diisi'}, durasi ${d.estimated_hours?`${d.estimated_hours} jam`:'sesuai katalog'}, upah ${idr(Number(d.wage??selected.base_price))}.`;setAnswer(`${summary} Jenis layanan yang dipilih: ${selected.job_name}. Ini belum membuat pesanan. Tekan Konfirmasi & Publikasikan jika detailnya benar.`);speak(`${summary} Ini belum membuat pesanan. Silakan konfirmasi jika sudah benar.`)};
- const confirmOrder=async()=>{if(!draft||!price||confirming)return;setConfirming(true);setError('');try{const token=(await supabase.auth.getSession()).data.session?.access_token;if(!token)throw new Error('Silakan masuk terlebih dahulu.');const response=await fetch('/api/ai-create-order',{method:'POST',headers:{'content-type':'application/json',authorization:`Bearer ${token}`},body:JSON.stringify({confirmed:true,job_price_id:price.id,draft})});const data=await response.json();if(!response.ok)throw new Error(data?.error||'Pesanan gagal dibuat.');const msg=`Pesanan berhasil dipublikasikan. Nomor pesanan ${String(data.order?.id||'').slice(0,8)}. Sistem dispatch KerjaHarian dapat melanjutkan proses pencarian pekerja.`;setAnswer(msg);speak(msg);resetActions()}catch(e){const msg=e instanceof Error?e.message:'Pesanan gagal dibuat.';setError(msg);speak(msg)}finally{setConfirming(false)}};
- const loadWorkerOffers=async(token:string)=>{const response=await fetch('/api/ai-worker-action',{method:'POST',headers:{'content-type':'application/json',authorization:`Bearer ${token}`},body:JSON.stringify({action:'list_offers'})});const data=await response.json();if(!response.ok)throw new Error(data?.error||'Penawaran kerja belum dapat dimuat.');const list=Array.isArray(data?.offers)?data.offers as Offer[]:[];setOffers(list);if(!list.length){const msg='Saat ini belum ada penawaran kerja aktif untuk Anda.';setAnswer(msg);speak(msg);return}setAnswer(`Saya menemukan ${list.length} penawaran kerja aktif. Pilih salah satu untuk melihat detail sebelum Anda memutuskan menerima.`);speak(`Saya menemukan ${list.length} penawaran kerja aktif. Silakan pilih yang ingin Anda periksa.`)};
- const confirmWorkerOffer=async()=>{if(!selectedOffer||confirming)return;setConfirming(true);setError('');try{const token=(await supabase.auth.getSession()).data.session?.access_token;if(!token)throw new Error('Silakan masuk terlebih dahulu.');const response=await fetch('/api/ai-worker-action',{method:'POST',headers:{'content-type':'application/json',authorization:`Bearer ${token}`},body:JSON.stringify({action:'accept_offer',offer_id:selectedOffer.id,confirmed:true})});const data=await response.json();if(!response.ok)throw new Error(data?.error||'Pekerjaan gagal diterima.');const msg=`Pekerjaan “${selectedOffer.job.title}” berhasil Anda terima. Sistem KerjaHarian melanjutkan workflow pekerjaan.`;setAnswer(msg);speak(msg);resetActions()}catch(e){const msg=e instanceof Error?e.message:'Pekerjaan gagal diterima.';setError(msg);speak(msg)}finally{setConfirming(false)}};
- const ask=async(raw=text)=>{const prompt=clean(raw);if(!prompt||busy)return;setBusy(true);setError('');setAnswer('');setText('');resetActions();try{const token=(await supabase.auth.getSession()).data.session?.access_token;if(!token)throw new Error('Silakan masuk terlebih dahulu.');let endpoint='/api/ai-problem-solver';let body:any={message:prompt,role,isOnline:profile?.is_online};if(role==='admin'){endpoint='/api/ai-admin-voice';body={message:prompt}}else if(role==='worker'&&/(ambil|terima|claim|penawaran|tawaran kerja|pekerjaan yang masuk)/i.test(prompt)){await loadWorkerOffers(token);return}else if(role==='employer'&&/(butuh|cari|pesan|booking|pekerja|orang|besok|pagi|jadwal)/i.test(prompt)){await parseEmployer(prompt,token);return}const response=await fetch(endpoint,{method:'POST',headers:{'content-type':'application/json',authorization:`Bearer ${token}`},body:JSON.stringify(body)});const data=await response.json();if(!response.ok)throw new Error(data?.error||'AI tidak tersedia.');const result=String(data?.answer||'AI belum memberikan jawaban.');setAnswer(result);speak(result)}catch(e){const msg=e instanceof Error?e.message:'Terjadi kesalahan.';setError(msg);speak(msg)}finally{setBusy(false)}};
- const startListening=()=>{if(!supported){setError('Browser ini belum menyediakan input suara. Anda tetap dapat menggunakan kolom teks.');return}if(listening){recognitionRef.current?.stop();return}setError('');finalRef.current='';const W=window as WindowSpeech;const R=W.SpeechRecognition||W.webkitSpeechRecognition;if(!R)return;const r=new R();r.lang='id-ID';r.interimResults=false;r.continuous=false;r.onresult=e=>{let out='';for(let i=0;i<e.results.length;i++)out+=e.results[i]?.[0]?.transcript||'';finalRef.current=clean(out);setText(finalRef.current)};r.onerror=()=>{setListening(false);setError('Input suara gagal. Pastikan izin mikrofon diberikan saat Anda menekan tombol mikrofon.')};r.onend=()=>{setListening(false);const value=finalRef.current.trim();if(value)void ask(value)};recognitionRef.current=r;setListening(true);r.start()};
- const close=()=>{recognitionRef.current?.stop();window.speechSynthesis?.cancel();setListening(false);setSpeaking(false);setOpen(false)};if(!role)return null;
- return <><button onClick={()=>setOpen(true)} className="fixed bottom-20 right-4 z-[59] grid h-11 w-11 place-items-center rounded-full bg-white text-slate-950 shadow-xl ring-1 ring-slate-200 transition hover:scale-105 sm:bottom-20 sm:right-5" aria-label="Bicara dengan KerjaHarian AI" title="Bicara dengan KerjaHarian AI"><Mic className="h-4 w-4"/></button>{open&&<div className="fixed inset-x-3 bottom-3 z-[80] mx-auto max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-slate-200"><header className="flex items-center justify-between bg-slate-950 px-4 py-3 text-white"><div className="flex items-center gap-2"><Bot className="h-5 w-5"/><div><p className="text-sm font-extrabold">KerjaHarian AI</p><p className="text-[10px] text-slate-300">{role==='admin'?'Admin Operations':role==='employer'?'Employer Assistant':'Worker Assistant'}</p></div></div><div className="flex items-center gap-1"><button onClick={()=>{setVoiceOn(v=>!v);if(voiceOn)window.speechSynthesis?.cancel()}} className="grid h-9 w-9 place-items-center rounded-lg hover:bg-white/10" aria-label={voiceOn?'Matikan suara':'Nyalakan suara'}>{voiceOn?<Volume2 className="h-4 w-4"/>:<VolumeX className="h-4 w-4"/>}</button><button onClick={close} className="grid h-9 w-9 place-items-center rounded-lg hover:bg-white/10" aria-label="Tutup"><X className="h-4 w-4"/></button></div></header><div className="space-y-3 p-4"><p className="text-xs text-slate-500">Tekan mikrofon lalu bicara. AI memahami kebutuhan, memberi rekomendasi, dan meminta konfirmasi sebelum tindakan yang mengubah data.</p>{answer&&<div className="rounded-xl bg-slate-50 p-3 text-sm leading-relaxed text-slate-700" aria-live="polite">{answer}</div>}{draft&&price&&<div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3"><div className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600"/><div className="min-w-0 flex-1 text-xs text-emerald-900"><p className="font-bold">Konfirmasi publikasi</p><p className="mt-1">{price.job_name} · {draft.location||'Lokasi belum diisi'} · {draft.estimated_hours?`${draft.estimated_hours} jam`:'durasi katalog'} · mulai {idr(Number(draft.wage??price.base_price))}</p><button onClick={()=>void confirmOrder()} disabled={confirming} className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-lg bg-emerald-700 px-3 text-xs font-bold text-white disabled:opacity-50">{confirming?<Loader2 className="h-4 w-4 animate-spin"/>:<CheckCircle2 className="h-4 w-4"/>}{confirming?'Mempublikasikan…':'Konfirmasi & Publikasikan'}</button><button onClick={resetActions} disabled={confirming} className="ml-2 mt-3 min-h-10 rounded-lg border border-emerald-300 px-3 text-xs font-bold text-emerald-800">Batal</button></div></div></div>}{offers.length>0&&!selectedOffer&&<div className="rounded-xl border border-blue-200 bg-blue-50 p-3"><div className="flex items-center gap-2 text-xs font-bold text-blue-900"><Briefcase className="h-4 w-4"/>Penawaran aktif</div><div className="mt-2 space-y-2">{offers.map(o=><button key={o.id} onClick={()=>setSelectedOffer(o)} className="block w-full rounded-lg bg-white p-3 text-left ring-1 ring-blue-100"><p className="text-xs font-bold text-slate-900">{o.job.title}</p><p className="mt-1 text-[11px] text-slate-600">{o.job.location} · {idr(Number(o.job.wage))}{o.distance_meters!=null?` · ${Math.round(Number(o.distance_meters))} m`:''}</p></button>)}</div></div>}{selectedOffer&&<div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-950"><p className="font-bold">Konfirmasi menerima pekerjaan</p><p className="mt-1">{selectedOffer.job.title} · {selectedOffer.job.location} · {idr(Number(selectedOffer.job.wage))}</p><p className="mt-2 text-[11px]">AI hanya menyiapkan pilihan. Keputusan menerima tetap Anda.</p><button onClick={()=>void confirmWorkerOffer()} disabled={confirming} className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-lg bg-emerald-700 px-3 font-bold text-white disabled:opacity-50">{confirming?<Loader2 className="h-4 w-4 animate-spin"/>:<CheckCircle2 className="h-4 w-4"/>}{confirming?'Memproses…':'Saya Terima Pekerjaan'}</button><button onClick={()=>setSelectedOffer(null)} disabled={confirming} className="ml-2 min-h-10 rounded-lg border border-emerald-300 px-3 font-bold text-emerald-800">Kembali</button></div>}{busy&&<div className="text-xs font-semibold text-slate-500">AI sedang memproses…</div>}{speaking&&<div className="flex items-center gap-2 text-xs font-semibold text-slate-500"><Volume2 className="h-4 w-4 animate-pulse"/>AI sedang berbicara…</div>}{error&&<div className="rounded-xl bg-red-50 p-3 text-xs font-semibold text-red-700">{error}</div>}<div className="flex items-center gap-2"><input value={text} onChange={e=>setText(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')void ask()}} maxLength={1200} className="min-h-11 min-w-0 flex-1 rounded-xl border border-slate-200 px-3 text-sm" placeholder="Atau ketik perintah…"/><button onClick={startListening} disabled={busy} className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl text-white ${listening?'bg-red-600':'bg-slate-950'}`} aria-label={listening?'Berhenti mendengar':'Mulai bicara'}>{listening?<MicOff className="h-5 w-5"/>:<Mic className="h-5 w-5"/>}</button><button onClick={()=>void ask()} disabled={busy||!text.trim()} className="rounded-xl bg-slate-200 px-3 py-3 text-xs font-bold disabled:opacity-40">Kirim</button></div>{!supported&&<p className="text-[10px] text-amber-700">Browser ini tidak mendukung Speech Recognition; gunakan input teks.</p>}</div></div>}</>;
+const clean = (value: string) => value.replace(/\s+/g, ' ').trim();
+
+/** Admin-only voice console: mic toggles recording; stopping only fills the editable input. */
+export function AIVoiceAssistant({ role, profile }: Props) {
+  const authorized = role === 'admin' && profile?.role === 'admin';
+  const [open, setOpen] = useState(false);
+  const [listening, setListening] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [speaking, setSpeaking] = useState(false);
+  const [text, setText] = useState('');
+  const [answer, setAnswer] = useState('');
+  const [error, setError] = useState('');
+  const [voiceOn, setVoiceOn] = useState(true);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const transcriptRef = useRef('');
+  const supported = typeof window !== 'undefined' && !!((window as WindowSpeech).SpeechRecognition || (window as WindowSpeech).webkitSpeechRecognition);
+
+  useEffect(() => () => { recognitionRef.current?.abort(); window.speechSynthesis?.cancel(); }, []);
+
+  const speak = (value: string) => {
+    if (!voiceOn || !('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(value);
+    utterance.lang = 'id-ID';
+    utterance.rate = 0.98;
+    utterance.onstart = () => setSpeaking(true);
+    utterance.onend = () => setSpeaking(false);
+    utterance.onerror = () => setSpeaking(false);
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const startRecording = () => {
+    if (!supported || busy) {
+      if (!supported) setError('Browser ini belum menyediakan input suara. Gunakan Chrome/Edge atau ketik manual.');
+      return;
+    }
+    setError('');
+    transcriptRef.current = '';
+    const W = window as WindowSpeech;
+    const Recognition = W.SpeechRecognition || W.webkitSpeechRecognition;
+    if (!Recognition) return;
+    const recognition = new Recognition();
+    recognition.lang = 'id-ID';
+    recognition.interimResults = true;
+    recognition.continuous = true;
+    recognition.onresult = (event) => {
+      let transcript = '';
+      for (let i = 0; i < event.results.length; i += 1) transcript += event.results[i]?.[0]?.transcript || '';
+      transcriptRef.current = clean(transcript);
+      setText(transcriptRef.current);
+    };
+    recognition.onerror = () => { setListening(false); setError('Input suara gagal. Pastikan izin mikrofon diberikan.'); };
+    recognition.onend = () => { setListening(false); setText(clean(transcriptRef.current)); };
+    recognitionRef.current = recognition;
+    setListening(true);
+    recognition.start();
+  };
+
+  const toggleRecording = () => {
+    if (busy) return;
+    if (listening) recognitionRef.current?.stop();
+    else startRecording();
+  };
+
+  const send = async () => {
+    const prompt = clean(text);
+    if (!prompt || busy || listening) return;
+    setBusy(true); setError(''); setAnswer('');
+    try {
+      const session = (await supabase.auth.getSession()).data.session;
+      if (!session) throw new Error('Sesi login tidak ditemukan. Silakan login sebagai admin.');
+      if (profile?.role !== 'admin') throw new Error('Akses ditolak. Fitur ini hanya untuk Administrator KerjaHarian.');
+      const response = await fetch('/api/ai-admin-voice', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ message: prompt }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data?.error || 'AI Admin tidak tersedia.');
+      const result = String(data?.answer || 'AI belum memberikan jawaban.');
+      setAnswer(result); setText(''); speak(result);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Terjadi kesalahan.';
+      setError(message); speak(message);
+    } finally { setBusy(false); }
+  };
+
+  const close = () => { recognitionRef.current?.stop(); window.speechSynthesis?.cancel(); setListening(false); setSpeaking(false); setOpen(false); };
+  if (!authorized) return null;
+
+  return <>
+    <button type="button" onClick={() => setOpen(true)} className="fixed bottom-20 right-4 z-[59] grid h-12 w-12 place-items-center rounded-full bg-slate-950 text-white shadow-xl ring-1 ring-slate-700 transition hover:scale-105 sm:bottom-20 sm:right-5" aria-label="Buka KerjaHarian Admin AI" title="KerjaHarian Admin AI"><Bot className="h-5 w-5" /></button>
+    {open && <div className="fixed inset-x-3 bottom-3 z-[80] mx-auto max-w-xl overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-slate-200">
+      <header className="flex items-center justify-between bg-slate-950 px-4 py-3 text-white">
+        <div className="flex items-center gap-2"><Bot className="h-5 w-5" /><div><p className="text-sm font-extrabold">KerjaHarian Admin AI</p><p className="text-[10px] text-slate-300">Voice Operations Command Center</p></div></div>
+        <div className="flex items-center gap-1"><button type="button" onClick={() => { setVoiceOn(v => !v); if (voiceOn) window.speechSynthesis?.cancel(); }} className="grid h-9 w-9 place-items-center rounded-lg hover:bg-white/10" aria-label={voiceOn ? 'Matikan suara AI' : 'Nyalakan suara AI'}>{voiceOn ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}</button><button type="button" onClick={close} className="grid h-9 w-9 place-items-center rounded-lg hover:bg-white/10" aria-label="Tutup"><X className="h-4 w-4" /></button></div>
+      </header>
+      <div className="space-y-3 p-4">
+        <p className="text-xs text-slate-500">Tekan mikrofon sekali untuk mulai. Tekan lagi untuk Stop. Hasil rekaman masuk ke kolom dan tidak dikirim otomatis.</p>
+        {answer && <div className="rounded-xl bg-slate-50 p-3 text-sm leading-relaxed text-slate-700" aria-live="polite">{answer}</div>}
+        {speaking && <div className="flex items-center gap-2 text-xs font-semibold text-slate-500"><Volume2 className="h-4 w-4 animate-pulse" />AI sedang berbicara…</div>}
+        {error && <div className="rounded-xl bg-red-50 p-3 text-xs font-semibold text-red-700">{error}</div>}
+        <div className="flex items-end gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm focus-within:ring-2 focus-within:ring-slate-300">
+          <textarea value={text} onChange={e => setText(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(); } }} maxLength={4000} rows={2} disabled={busy} placeholder={listening ? 'Sedang merekam… tekan Stop jika selesai' : 'Tulis perintah admin atau tekan mikrofon'} className="min-h-11 min-w-0 flex-1 resize-none border-0 bg-transparent px-2 py-2 text-sm outline-none placeholder:text-slate-400 disabled:opacity-60" />
+          <button type="button" onClick={toggleRecording} disabled={busy} className={`grid h-11 w-11 shrink-0 place-items-center rounded-full text-white shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50 ${listening ? 'bg-red-600 hover:bg-red-700' : 'bg-slate-950 hover:bg-slate-800'}`} aria-label={listening ? 'Stop rekaman' : 'Mulai rekaman'} title={listening ? 'Stop rekaman' : 'Mulai rekaman'}>{listening ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}</button>
+          <button type="button" onClick={() => void send()} disabled={busy || !text.trim() || listening} className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-slate-950 text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40" aria-label="Kirim perintah ke AI" title="Kirim">{busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}</button>
+        </div>
+        {!supported && <p className="text-[11px] text-amber-700">Input suara tidak tersedia di browser ini. Kolom teks tetap dapat digunakan.</p>}
+      </div>
+    </div>}
+  </>;
 }
