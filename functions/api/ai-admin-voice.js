@@ -11,16 +11,16 @@ async function auth(request,env){
   const user=await userRes.json().catch(()=>null);
   if(!user?.id)return null;
 
-  // Authorize from the caller's own profile row. The profile RLS policy allows
-  // auth.uid() = id, so this remains secure while avoiding RPC/schema-cache
-  // dependency during a fresh deployment.
-  const profileRes=await fetch(`${url}/rest/v1/profiles?id=eq.${encodeURIComponent(user.id)}&select=role,is_admin&limit=1`,{
+  // Canonical admin authorization: profiles.role is the source of truth.
+  // Do not reference the retired is_admin column; selecting a removed column
+  // would make PostgREST return 400 and incorrectly surface as an auth failure.
+  const profileRes=await fetch(`${url}/rest/v1/profiles?id=eq.${encodeURIComponent(user.id)}&select=role&limit=1`,{
     headers:{apikey:anonKey,Authorization:`Bearer ${token}`}
   });
   if(!profileRes.ok)return null;
   const profiles=await profileRes.json().catch(()=>[]);
   const profile=Array.isArray(profiles)?profiles[0]:null;
-  if(!(profile?.role==='admin'||profile?.is_admin===true))return null;
+  if(profile?.role!=='admin')return null;
   return {url,anonKey,token,user};
 }
 
