@@ -140,8 +140,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for endpoint in ai-problem-solver ai-task-parser ai-worker-matcher ai-admin-insights ai-user-proactive; do
-            status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' -X POST -H 'Content-Type: application/json' --data '{}' "https://www.kerjaharian.my.id/api/${endpoint}")"
+          for endpoint in ai-problem-solver ai-task-parser ai-worker-matcher ai-admin-insights ai-user-proactive ai-admin-voice ai-admin-transcribe; do
+            if [ "$endpoint" = "ai-admin-transcribe" ]; then
+              status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' -X POST -F 'audio=@/dev/null;filename=test.webm;type=audio/webm' "https://www.kerjaharian.my.id/api/${endpoint}")"
+            else
+              status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' -X POST -H 'Content-Type: application/json' --data '{}' "https://www.kerjaharian.my.id/api/${endpoint}")"
+            fi
             echo "${endpoint}: HTTP ${status}"
             test "$status" = "401"
           done
