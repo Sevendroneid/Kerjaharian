@@ -5,6 +5,7 @@ import { AuthModal } from '@/components/AuthModal';
 import { AppErrorBoundary } from '@/components/AppErrorBoundary';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { AIProblemSolver } from '@/components/AIProblemSolver';
+import { AIVoiceAssistant } from '@/components/AIVoiceAssistant';
 import { PWAInstallPrompt } from '@/components/PWAInstallPrompt';
 import { I18n } from '@/lib/i18n';
 import { useAuth } from '@/lib/auth';
