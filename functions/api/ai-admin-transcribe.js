@@ -10,17 +10,16 @@ async function isAdmin(request,env){
   const user=await userRes.json().catch(()=>null);
   if(!user?.id)return false;
 
-  // Use the canonical SECURITY DEFINER authorization function. Do not read
-  // profiles directly here: profiles has RLS and a missing service-role secret
-  // must never turn a valid Admin session into a false 401.
-  const adminRes=await fetch(`${url}/rest/v1/rpc/is_admin`,{
-    method:'POST',
-    headers:{apikey:key,Authorization:`Bearer ${token}`,'content-type':'application/json'},
-    body:'{}'
+  // Read only the caller's own profile row. This is intentionally preferred
+  // over the is_admin RPC here: the profile RLS policy explicitly permits
+  // auth.uid() = id, so this does not depend on PostgREST function-cache state.
+  const profileRes=await fetch(`${url}/rest/v1/profiles?id=eq.${encodeURIComponent(user.id)}&select=role,is_admin&limit=1`,{
+    headers:{apikey:key,Authorization:`Bearer ${token}`}
   });
-  if(!adminRes.ok)return false;
-  const admin=await adminRes.json().catch(()=>false);
-  return admin===true;
+  if(!profileRes.ok)return false;
+  const profiles=await profileRes.json().catch(()=>[]);
+  const profile=Array.isArray(profiles)?profiles[0]:null;
+  return profile?.role==='admin'||profile?.is_admin===true;
 }
 
 export async function onRequest({request,env}){
