@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 
 interface LiveMapProps {
@@ -9,60 +9,82 @@ interface LiveMapProps {
 export function LiveMap({ orderId, isWorker }: LiveMapProps) {
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [status, setStatus] = useState<string>('In-Progress');
+  const watchRef = useRef<number | null>(null);
 
   useEffect(() => {
-    // Ambil status order terkini untuk mengecek apakah sudah Completed
-    supabase
-      .from('orders')
-      .select('status')
-      .eq('id', orderId)
-      .single()
-      .then(({ data }) => {
-        if (data) setStatus(data.status);
-      });
+    let disposed = false;
 
-    let watchId: number | null = null;
+    const stopGps = () => {
+      if (watchRef.current !== null && 'geolocation' in navigator) {
+        navigator.geolocation.clearWatch(watchRef.current);
+        watchRef.current = null;
+      }
+    };
 
-    // Jika user adalah worker, kirim koordinat GPS secara live
+    const loadStatus = async () => {
+      const { data } = await supabase.from('orders').select('status').eq('id', orderId).single();
+      if (!disposed && data) {
+        setStatus(data.status);
+        if (data.status === 'completed') stopGps();
+      }
+    };
+
+    void loadStatus();
+
     if (isWorker && 'geolocation' in navigator) {
-      watchId = navigator.geolocation.watchPosition(
+      watchRef.current = navigator.geolocation.watchPosition(
         async (position) => {
+          if (disposed) return;
           const lat = position.coords.latitude;
           const lng = position.coords.longitude;
+          if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) return;
           setLocation({ lat, lng });
 
-          // Update posisi ke Supabase realtime locations table
-          await supabase.from('order_locations').upsert({
-            order_id: orderId,
-            lat,
-            lng,
-            updated_at: new Date(),
-          });
+          // order_locations already has the job's initial row. Workers may only
+          // UPDATE their own related row; INSERT/DELETE are intentionally blocked.
+          const { error } = await supabase
+            .from('order_locations')
+            .update({ lat, lng, updated_at: new Date().toISOString() })
+            .eq('order_id', orderId);
+          if (error) console.warn('GPS order location update:', error.message);
         },
-        (error) => console.error('GPS Error:', error),
+        (error) => console.warn('GPS Error:', error.message),
         { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 }
       );
     }
 
-    // Subscribe untuk mendengarkan perubahan lokasi atau status order
-    const channel = supabase
+    const locationChannel = supabase
       .channel(`order-location:${orderId}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'order_locations', filter: `order_id=eq.${orderId}` },
         (payload: any) => {
-          if (payload.new) {
-            setLocation({ lat: payload.new.lat, lng: payload.new.lng });
-          }
+          const lat = Number(payload.new?.lat);
+          const lng = Number(payload.new?.lng);
+          if (Number.isFinite(lat) && Number.isFinite(lng)) setLocation({ lat, lng });
+        }
+      )
+      .subscribe();
+
+    const orderChannel = supabase
+      .channel(`order-status:${orderId}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${orderId}` },
+        (payload: any) => {
+          const nextStatus = String(payload.new?.status || '');
+          if (!nextStatus) return;
+          setStatus(nextStatus);
+          if (nextStatus === 'completed') stopGps();
         }
       )
       .subscribe();
 
     return () => {
-      if (watchId !== null && 'geolocation' in navigator) {
-        navigator.geolocation.clearWatch(watchId); // Stop otomatis saat komponen unmount / selesai
-      }
-      supabase.removeChannel(channel);
+      disposed = true;
+      stopGps();
+      supabase.removeChannel(locationChannel);
+      supabase.removeChannel(orderChannel);
     };
   }, [orderId, isWorker]);
 
@@ -71,7 +93,7 @@ export function LiveMap({ orderId, isWorker }: LiveMapProps) {
       <div className="flex justify-between items-center">
         <h3 className="font-bold text-gray-700 text-sm">Pelacakan Lokasi GPS Realtime</h3>
         <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded font-semibold">
-          {status === 'Completed' ? 'GPS Selesai (Nonaktif)' : 'GPS Aktif'}
+          {status === 'completed' ? 'GPS Selesai (Nonaktif)' : 'GPS Aktif'}
         </span>
       </div>
 
@@ -93,4 +115,4 @@ export function LiveMap({ orderId, isWorker }: LiveMapProps) {
       </p>
     </div>
   );
-            }
+}
