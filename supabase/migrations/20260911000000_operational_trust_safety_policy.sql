@@ -20,6 +20,8 @@ CREATE TABLE IF NOT EXISTS public.platform_policy_config (
 );
 INSERT INTO public.platform_policy_config(id) VALUES (true) ON CONFLICT (id) DO NOTHING;
 ALTER TABLE public.platform_policy_config ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS platform_policy_authenticated_select ON public.platform_policy_config;
+CREATE POLICY platform_policy_authenticated_select ON public.platform_policy_config FOR SELECT TO authenticated USING (true);
 DROP POLICY IF EXISTS platform_policy_admin_select ON public.platform_policy_config;
 CREATE POLICY platform_policy_admin_select ON public.platform_policy_config FOR SELECT TO authenticated USING (is_admin());
 DROP POLICY IF EXISTS platform_policy_admin_update ON public.platform_policy_config;
