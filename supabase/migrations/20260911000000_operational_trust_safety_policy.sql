@@ -151,11 +151,11 @@ END;
 $$;
 GRANT EXECUTE ON FUNCTION public.record_job_incident(uuid,text,text,text) TO authenticated;
 
--- Never allow a catalog price below the operational wage floor.
+-- Keep hourly catalog rates intact. The floor applies to the minimum transaction/worker floor,
+-- not by rewriting a valid hourly rate into Rp75.000.
 UPDATE public.job_prices
-SET minimum_price = GREATEST(COALESCE(minimum_price, 0), 75000),
-    base_price = GREATEST(COALESCE(base_price, 0), 75000)
-WHERE COALESCE(base_price,0) < 75000 OR COALESCE(minimum_price,0) < 75000;
+SET minimum_price = GREATEST(COALESCE(minimum_price, 0), 75000)
+WHERE COALESCE(minimum_price,0) < 75000;
 
 COMMENT ON TABLE public.platform_policy_config IS 'Operational policy source of truth. AI can explain/recommend but cannot override it.';
 COMMENT ON TABLE public.job_reliability_events IS 'Non-punitive reliability history used for review and dispatch signals.';
