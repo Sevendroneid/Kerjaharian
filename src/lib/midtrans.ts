@@ -6,7 +6,7 @@ declare global {
   }
 }
 
-async function loadSnap(clientKey: string) {
+async function loadSnap(clientKey: string, environment: 'sandbox' | 'production') {
   if (window.snap) return;
   await new Promise<void>((resolve, reject) => {
     const existing = document.querySelector('script[data-midtrans-snap]');
@@ -16,7 +16,7 @@ async function loadSnap(clientKey: string) {
       return;
     }
     const script = document.createElement('script');
-    script.src = 'https://app.sandbox.midtrans.com/snap/snap.js';
+    script.src = environment === 'production' ? 'https://app.midtrans.com/snap/snap.js' : 'https://app.sandbox.midtrans.com/snap/snap.js';
     script.dataset.clientKey = clientKey;
     script.dataset.midtransSnap = 'true';
     script.async = true;
@@ -38,7 +38,8 @@ export async function payCompletedJob(jobId: string, onFinished?: () => void) {
   const result = await response.json().catch(() => ({}));
   if (!response.ok || !result.token || !result.client_key) throw new Error(result.error || 'Gagal membuat transaksi pembayaran');
 
-  await loadSnap(result.client_key);
+  const environment: 'sandbox' | 'production' = result.environment === 'production' ? 'production' : 'sandbox';
+  await loadSnap(result.client_key, environment);
   if (!window.snap) throw new Error('Midtrans Snap belum siap');
 
   window.snap.pay(result.token, {
