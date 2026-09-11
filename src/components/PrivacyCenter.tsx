@@ -4,35 +4,16 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
 
 type RequestRow = { id: string; request_type: 'access'|'correction'|'deletion'; reason: string|null; status: string; created_at: string; resolved_at: string|null; resolution_note: string|null };
+const labels: Record<'id'|'en', Record<string,string>> = { id: { access:'Akses data saya', correction:'Koreksi data saya', deletion:'Ajukan penghapusan data' }, en: { access:'Access my data', correction:'Correct my data', deletion:'Request data deletion' } };
 
-const labels: Record<'id'|'en', Record<string,string>> = {
-  id: { access:'Akses data saya', correction:'Koreksi data saya', deletion:'Ajukan penghapusan data' },
-  en: { access:'Access my data', correction:'Correct my data', deletion:'Request data deletion' },
-};
-
-export function PrivacyCenter({ lang = 'id' }: { lang?: 'id'|'en' }) {
+export function PrivacyCenter({ lang: initialLang }: { lang?: 'id'|'en' }) {
   const { user } = useAuth();
+  const [lang, setLang] = useState<'id'|'en'>(() => initialLang ?? ((localStorage.getItem('kerjaharian_lang') as 'id'|'en') || 'id'));
   const [rows,setRows]=useState<RequestRow[]>([]); const [type,setType]=useState<RequestRow['request_type']>('access'); const [reason,setReason]=useState(''); const [busy,setBusy]=useState(false); const [message,setMessage]=useState(''); const [error,setError]=useState('');
+  useEffect(()=>{ if(initialLang) setLang(initialLang); },[initialLang]);
+  useEffect(()=>{ const sync=()=>setLang((localStorage.getItem('kerjaharian_lang') as 'id'|'en') || 'id'); window.addEventListener('kerjaharian-language-change',sync); return()=>window.removeEventListener('kerjaharian-language-change',sync); },[]);
   const id = lang === 'id';
-  const copy = id ? {
-    title:'Pusat Privasi',
-    description:'Ajukan akses, koreksi, atau penghapusan data. Permintaan penghapusan ditinjau agar catatan transaksi, pembayaran, dan keselamatan yang wajib disimpan tidak hilang secara otomatis.',
-    success:'Permintaan privasi berhasil dicatat dan akan ditinjau.',
-    reason:'Alasan / detail (opsional)',
-    submit:'Kirim Permintaan', sending:'Mengirim...',
-    empty:'Belum ada permintaan privasi.',
-    loadError:'Permintaan privasi tidak dapat dimuat.',
-    submitError:'Permintaan privasi gagal dikirim.',
-  } : {
-    title:'Privacy Center',
-    description:'Request access, correction, or deletion of your data. Deletion requests are reviewed so records that must be retained for transactions, payments, or safety are not removed automatically.',
-    success:'Your privacy request has been recorded and will be reviewed.',
-    reason:'Reason / details (optional)',
-    submit:'Submit Request', sending:'Submitting...',
-    empty:'No privacy requests yet.',
-    loadError:'Privacy requests could not be loaded.',
-    submitError:'Privacy request could not be submitted.',
-  };
+  const copy = id ? { title:'Pusat Privasi', description:'Ajukan akses, koreksi, atau penghapusan data. Permintaan penghapusan ditinjau agar catatan transaksi, pembayaran, dan keselamatan yang wajib disimpan tidak hilang secara otomatis.', success:'Permintaan privasi berhasil dicatat dan akan ditinjau.', reason:'Alasan / detail (opsional)', submit:'Kirim Permintaan', sending:'Mengirim...', empty:'Belum ada permintaan privasi.', loadError:'Permintaan privasi tidak dapat dimuat.', submitError:'Permintaan privasi gagal dikirim.' } : { title:'Privacy Center', description:'Request access, correction, or deletion of your data. Deletion requests are reviewed so records that must be retained for transactions, payments, or safety are not removed automatically.', success:'Your privacy request has been recorded and will be reviewed.', reason:'Reason / details (optional)', submit:'Submit Request', sending:'Submitting...', empty:'No privacy requests yet.', loadError:'Privacy requests could not be loaded.', submitError:'Privacy request could not be submitted.' };
   const requestLabels = labels[lang];
   const load=useCallback(async()=>{if(!user)return;const{data,error:e}=await supabase.from('privacy_requests').select('id,request_type,reason,status,created_at,resolved_at,resolution_note').eq('user_id',user.id).order('created_at',{ascending:false}).limit(20);if(e)setError(e.message||copy.loadError);else setRows((data??[]) as RequestRow[])},[user,copy.loadError]);
   useEffect(()=>{void load()},[load]);
