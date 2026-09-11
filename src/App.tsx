@@ -14,7 +14,7 @@ import { WorkerMatchingProfile } from '@/components/WorkerMatchingProfile';
 import { I18n } from '@/lib/i18n';
 import { useAuth } from '@/lib/auth';
 import type { View, CategoryId } from '@/lib/types';
-const Landing = lazy(() => import('@/components/Landing').then(m => ({ default: m.Landing })));
+const Landing = lazy(() => import('@/components/LandingDark').then(m => ({ default: m.LandingDark })));
 const EmployerEntry = lazy(() => import('@/components/EmployerEntry').then(m => ({ default: m.EmployerEntry })));
 const Worker = lazy(() => import('@/components/Worker').then(m => ({ default: m.Worker })));
 const ResolutionCenter = lazy(() => import('@/components/ResolutionCenter').then(m => ({ default: m.ResolutionCenter })));
@@ -38,98 +38,3 @@ const ADMIN_RESOLUTION_PATH = '/admin/resolutions';
 const ADMIN_INCIDENT_PATH = '/admin/incidents';
 const ADMIN_PRIVACY_PATH = '/admin/privacy';
 const ADMIN_PREVIEW_PARAM = 'admin-preview';
-const SITE = 'https://www.kerjaharian.my.id';
-const routeViews: Record<string, View> = { '/': 'landing', '/privacy': 'privacy', '/terms': 'terms', '/help': 'help', '/cari-kerja': 'worker', '/cari-pekerja': 'employer' };
-const publicMeta: Record<string, { title: string; description: string; h1: string }> = {
-  landing: { title: 'KerjaHarian — Cari Kerja Harian & Pekerja Terpercaya', description: 'KerjaHarian menghubungkan pekerja harian dengan pemberi kerja di Indonesia. Cari kerja atau pekerja dengan proses sederhana dan harga yang jelas.', h1: 'Cari Kerja Harian atau Pekerja Terpercaya' },
-  worker: { title: 'Cari Kerja Harian | KerjaHarian', description: 'Temukan peluang kerja harian sesuai keahlian dan area kamu melalui KerjaHarian.', h1: 'Cari Kerja Harian' },
-  employer: { title: 'Cari Pekerja Harian | KerjaHarian', description: 'Temukan pekerja harian untuk berbagai kebutuhan melalui KerjaHarian dengan proses yang sederhana.', h1: 'Cari Pekerja Harian' },
-  privacy: { title: 'Kebijakan Privasi | KerjaHarian', description: 'Kebijakan privasi resmi KerjaHarian mengenai penggunaan dan perlindungan data pengguna.', h1: 'Kebijakan Privasi' },
-  terms: { title: 'Syarat & Ketentuan | KerjaHarian', description: 'Syarat dan ketentuan penggunaan layanan KerjaHarian.', h1: 'Syarat & Ketentuan' },
-  help: { title: 'Pusat Bantuan & FAQ | KerjaHarian', description: 'Jawaban pertanyaan umum tentang mencari kerja, memesan pekerja, pembayaran, verifikasi, dan order KerjaHarian.', h1: 'Pusat Bantuan & FAQ' }
-};
-function ensureMeta(name: string, content: string) { let el = document.querySelector(`meta[name="${name}"]`) as HTMLMetaElement | null; if (!el) { el = document.createElement('meta'); el.name = name; document.head.appendChild(el); } el.content = content; }
-function ensureProperty(property: string, content: string) { let el = document.querySelector(`meta[property="${property}"]`) as HTMLMetaElement | null; if (!el) { el = document.createElement('meta'); el.setAttribute('property', property); document.head.appendChild(el); } el.content = content; }
-function setJsonLd(id: string, data: unknown) { let script = document.getElementById(id) as HTMLScriptElement | null; if (!script) { script = document.createElement('script'); script.id = id; script.type = 'application/ld+json'; document.head.appendChild(script); } script.textContent = JSON.stringify(data); }
-function setPageMeta(view: View) {
-  const meta = publicMeta[view] ?? publicMeta.landing;
-  const path = Object.entries(routeViews).find(([, v]) => v === view)?.[0] ?? '/';
-  const url = `${SITE}${path}`;
-  document.title = meta.title;
-  ensureMeta('description', meta.description);
-  ensureMeta('robots', 'index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1');
-  let canonical = document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
-  if (!canonical) { canonical = document.createElement('link'); canonical.rel = 'canonical'; document.head.appendChild(canonical); }
-  canonical.href = url;
-  ensureProperty('og:type', 'website'); ensureProperty('og:site_name', 'KerjaHarian'); ensureProperty('og:title', meta.title); ensureProperty('og:description', meta.description); ensureProperty('og:url', url); ensureProperty('og:image', `${SITE}/og-image.svg`); ensureProperty('og:image:alt', 'KerjaHarian — Cari Kerja. Cari Pekerja.');
-  ensureMeta('twitter:card', 'summary_large_image'); ensureMeta('twitter:title', meta.title); ensureMeta('twitter:description', meta.description); ensureMeta('twitter:image', `${SITE}/og-image.svg`); ensureMeta('twitter:image:alt', 'KerjaHarian — Cari Kerja. Cari Pekerja.');
-  setJsonLd('kerjaharian-schema', { '@context': 'https://schema.org', '@graph': [
-    { '@type': 'Organization', '@id': `${SITE}/#organization`, name: 'KerjaHarian', url: SITE, logo: `${SITE}/favicon.svg`, description: meta.description },
-    { '@type': 'LocalBusiness', '@id': `${SITE}/#localbusiness`, name: 'KerjaHarian', url: SITE, image: `${SITE}/og-image.svg`, description: meta.description, areaServed: { '@type': 'Country', name: 'Indonesia' }, priceRange: 'Rp' },
-    { '@type': 'WebSite', '@id': `${SITE}/#website`, url: SITE, name: 'KerjaHarian', publisher: { '@id': `${SITE}/#organization` } },
-    ...(path !== '/' ? [{ '@type': 'BreadcrumbList', itemListElement: [{ '@type': 'ListItem', position: 1, name: 'Beranda', item: SITE }, { '@type': 'ListItem', position: 2, name: meta.h1, item: url }] }] : [])
-  ] });
-}
-const Loading = () => <div className="grid min-h-[45vh] place-items-center text-sm font-semibold text-slate-500">Memuat KerjaHarian…</div>;
-export default function App() {
-  const initialView = routeViews[window.location.pathname] ?? 'landing';
-  const [view, setView] = useState<View>(initialView);
-  const [lang, setLang] = useState<'id' | 'en'>(() => (localStorage.getItem('kerjaharian_lang') as 'id' | 'en') || 'id');
-  const [authModal, setAuthModal] = useState<{ open: boolean; mode: 'signin' | 'signup' }>({ open: false, mode: 'signin' });
-  const isSecretAdminPath = window.location.pathname === SECRET_PATH;
-  const isAdminResolutionPath = window.location.pathname === ADMIN_RESOLUTION_PATH;
-  const isAdminIncidentPath = window.location.pathname === ADMIN_INCIDENT_PATH;
-  const isAdminPrivacyPath = window.location.pathname === ADMIN_PRIVACY_PATH;
-  const [adminPreview] = useState(() => isSecretAdminPath || isAdminResolutionPath || isAdminIncidentPath || isAdminPrivacyPath || new URLSearchParams(window.location.search).get(ADMIN_PREVIEW_PARAM) === '1');
-  const [pendingCategory, setPendingCategory] = useState<CategoryId | null>(null);
-  const { user, profile, loading: authLoading } = useAuth();
-  const i18n = new I18n(lang);
-  const navigate = useCallback((v: View, category?: CategoryId) => { setView(v); setPendingCategory(category ?? null); const path = Object.entries(routeViews).find(([, x]) => x === v)?.[0]; if (path) window.history.pushState({ view: v }, '', path); window.scrollTo({ top: 0, behavior: 'smooth' }); }, []);
-  const openAuth = useCallback((mode: 'signin' | 'signup') => setAuthModal({ open: true, mode }), []);
-  const closeAuth = useCallback(() => setAuthModal(p => ({ ...p, open: false })), []);
-  const handleLangChange = useCallback((newLang: 'id' | 'en') => { setLang(newLang); localStorage.setItem('kerjaharian_lang', newLang); }, []);
-  useEffect(() => { if (!adminPreview) setPageMeta(view); }, [view, adminPreview]);
-  useEffect(() => { const onPop = () => setView(routeViews[window.location.pathname] ?? 'landing'); window.addEventListener('popstate', onPop); return () => window.removeEventListener('popstate', onPop); }, []);
-  useEffect(() => {
-    if (adminPreview || authLoading || !user || !profile) return;
-    if (profile.role === 'admin') { setView('admin'); setAuthModal(p => ({ ...p, open: false })); return; }
-    if (!profile.full_name) { setAuthModal(p => ({ ...p, open: true, mode: 'signup' })); return; }
-    if (profile.role === 'employer') setView('employer'); else if (profile.role === 'worker') setView('worker');
-  }, [adminPreview, authLoading, user, profile]);
-
-  if (isAdminResolutionPath || isAdminIncidentPath || isAdminPrivacyPath) {
-    if (authLoading || (user && !profile)) return <Loading />;
-    if (!user) return <AppErrorBoundary><Suspense fallback={<Loading />}><AdminLogin onClose={() => { window.location.href = '/'; }} onSuccess={() => { window.location.replace(window.location.pathname); }} /></Suspense></AppErrorBoundary>;
-    if (!profile) return <Loading />;
-    if (profile.role !== 'admin') return <AppErrorBoundary><div className="min-h-screen bg-slate-50 grid place-items-center p-6"><div className="max-w-md rounded-2xl bg-white p-6 text-center ring-1 ring-slate-200"><h1 className="text-lg font-extrabold">Akses Admin ditolak</h1><p className="mt-2 text-sm text-slate-500">Akun ini bukan akun Administrator KerjaHarian.</p><button onClick={() => { window.location.href = '/'; }} className="mt-4 rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white">Kembali</button></div></div></AppErrorBoundary>;
-    return <AppErrorBoundary><Suspense fallback={<Loading />}>{isAdminIncidentPath ? <AdminIncidentQueue /> : isAdminPrivacyPath ? <AdminPrivacyQueue /> : <AdminResolutionQueue />}</Suspense></AppErrorBoundary>;
-  }
-  if (adminPreview) {
-    if (authLoading || (user && !profile)) return <Loading />;
-    if (!user) return <AppErrorBoundary><Suspense fallback={<Loading />}><AdminLogin onClose={() => { window.location.href = '/'; }} onSuccess={() => { window.location.replace(SECRET_PATH); }} /></Suspense></AppErrorBoundary>;
-    if (!profile) return <Loading />;
-    if (profile.role !== 'admin') return <AppErrorBoundary><div className="min-h-screen bg-slate-50 grid place-items-center p-6"><div className="max-w-md rounded-2xl bg-white p-6 text-center ring-1 ring-slate-200"><h1 className="text-lg font-extrabold">Akses Admin ditolak</h1><p className="mt-2 text-sm text-slate-500">Akun ini bukan akun Administrator KerjaHarian.</p><button onClick={() => { window.location.href = '/'; }} className="mt-4 rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white">Kembali</button></div></div></AppErrorBoundary>;
-    return <AppErrorBoundary><Suspense fallback={<Loading />}><AdminDashboard onNavigate={navigate} /></Suspense><AIVoiceAssistant role="admin" profile={profile} /></AppErrorBoundary>;
-  }
-  if (view === 'admin') return <AppErrorBoundary><Suspense fallback={<Loading />}><AdminRoute><AdminDashboard onNavigate={navigate} /></AdminRoute></Suspense><AIVoiceAssistant role="admin" profile={profile} /></AppErrorBoundary>;
-  const protectedDashboard = view === 'employer' || view === 'worker';
-  const knownPublic = view === 'landing' || view === 'privacy' || view === 'terms' || view === 'help';
-  const unknownPath = !routeViews[window.location.pathname] && !isSecretAdminPath && !isAdminResolutionPath && !isAdminIncidentPath && !isAdminPrivacyPath;
-  return <AppErrorBoundary><div className="flex min-h-screen flex-col"><Header view={view} onNavigate={navigate} onAuthClick={openAuth} lang={lang} onLangChange={handleLangChange} /><Breadcrumbs view={view} onNavigate={navigate} /><main className="flex-1"><Suspense fallback={<Loading />}>
-    {unknownPath ? <NotFoundPage onNavigate={navigate} /> : null}
-    {knownPublic && view === 'landing' ? <Landing onNavigate={navigate} lang={lang} /> : null}
-    {(view === 'privacy' || view === 'terms' || view === 'help') && <PublicInfoPage view={view} onNavigate={navigate} />}
-    {protectedDashboard ? <KycGate><div>
-      {view === 'worker' && <WorkerDispatchPanel />}
-      {view === 'worker' && <WorkerConfirmationStatus />}
-      {view === 'worker' && <WorkerMatchingProfile />}
-      {view === 'employer' && <EmployerDispatchWatcher />}
-      {view === 'employer' ? <EmployerEntry onAuthClick={openAuth} initialCategory={pendingCategory} lang={lang} i18n={i18n} /> : <Worker onAuthClick={openAuth} />}
-      {view === 'employer' && <EmployerMatchingControl lang={lang} />}
-      {view === 'employer' && <EmployerRematchPanel lang={lang} />}
-      <div className="mx-auto w-full max-w-6xl px-4 pb-4 pt-4"><SafetyIncidentCenter /></div>
-      <div className="mx-auto w-full max-w-6xl px-4 pb-8 pt-4"><ResolutionCenter /></div>
-      <PrivacyCenter /><OvertimeApprovalPanel role={view === 'employer' ? 'employer' : 'worker'} /><JobTimer role={view === 'employer' ? 'employer' : 'worker'} lang={lang} />
-    </div></KycGate> : null}
-  </Suspense></main><Footer onNavigate={navigate} /><AuthModal open={authModal.open} onClose={closeAuth} /><AIProblemSolver /><PWAInstallPrompt /></div></AppErrorBoundary>;
-}
