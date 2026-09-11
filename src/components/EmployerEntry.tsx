@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ArrowRight, Briefcase, CheckCircle2, Clock3, ShieldCheck, Wallet } from 'lucide-react';
 import { Employer } from '@/components/Employer';
+import { CATEGORIES } from '@/lib/data';
 import { formatIDR } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
@@ -17,8 +18,11 @@ interface EmployerEntryProps {
 interface WalletState { available_balance: number; reserved_balance: number; total_balance: number }
 interface OrderItem { id: string; status: string; total_price: number; created_at: string; title?: string | null }
 
+const activeStatuses = ['open', 'assigned', 'accepted', 'in_progress', 'working'];
+
 export function EmployerEntry({ onAuthClick, initialCategory, lang, i18n }: EmployerEntryProps) {
   const { user, profile } = useAuth();
+  const [selectedCategory, setSelectedCategory] = useState<CategoryId | null>(initialCategory ?? null);
   const [showOrderForm, setShowOrderForm] = useState(Boolean(initialCategory));
   const [wallet, setWallet] = useState<WalletState | null>(null);
   const [orders, setOrders] = useState<OrderItem[]>([]);
@@ -34,75 +38,97 @@ export function EmployerEntry({ onAuthClick, initialCategory, lang, i18n }: Empl
   }, [user, profile?.role]);
 
   useEffect(() => { void loadDashboard(); }, [loadDashboard]);
-  useEffect(() => { if (initialCategory) setShowOrderForm(true); }, [initialCategory]);
+  useEffect(() => {
+    if (initialCategory) {
+      setSelectedCategory(initialCategory);
+      setShowOrderForm(true);
+    }
+  }, [initialCategory]);
 
   if (showOrderForm) {
-    return <Employer onAuthClick={onAuthClick} initialCategory={initialCategory} lang={lang} i18n={i18n} />;
+    return <Employer onAuthClick={onAuthClick} initialCategory={selectedCategory} lang={lang} i18n={i18n} />;
   }
 
   const verified = profile?.kyc_verified;
-  const activeOrders = orders.filter(order => !['completed', 'cancelled', 'refunded', 'partial_refund'].includes(order.status));
+  const activeOrders = orders.filter(order => activeStatuses.includes(order.status));
 
-  return <div className="bg-slate-50 pb-20 pt-8">
+  const chooseCategory = (category: CategoryId) => {
+    setSelectedCategory(category);
+    setShowOrderForm(true);
+  };
+
+  return <div className="bg-slate-50 pb-20 pt-6 sm:pt-8">
     <div className="container-app">
-      <div className="mx-auto max-w-4xl">
-        <div className="mb-6 rounded-2xl bg-white p-6 ring-1 ring-slate-200">
+      <div className="mx-auto max-w-5xl">
+        <div className="mb-5 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-7">
           <div className="inline-flex items-center gap-2 rounded-full bg-primary-50 px-3 py-1 text-xs font-semibold text-primary-700">
-            <Briefcase className="h-3.5 w-3.5" /> {lang === 'id' ? 'Mitra' : 'Employer'}
+            <Briefcase className="h-3.5 w-3.5" /> {lang === 'id' ? 'Pemesan' : 'Customer'}
           </div>
-          <h1 className="mt-3 text-3xl font-extrabold text-slate-900">
-            {lang === 'id' ? 'Selamat datang di KerjaHarian' : 'Welcome to KerjaHarian'}
+          <h1 className="mt-3 text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">
+            {lang === 'id' ? 'Butuh pekerja untuk apa hari ini?' : 'What do you need a worker for today?'}
           </h1>
-          <p className="mt-2 max-w-2xl text-slate-500">
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500 sm:text-base">
             {lang === 'id'
-              ? 'Pilih pekerjaan terlebih dahulu. Total biaya final akan terlihat sebelum Order. Anda tidak perlu top-up hanya untuk masuk atau membuat akun.'
-              : 'Choose a job first. The final total is shown before Order. You do not need to top up just to sign in or create an account.'}
+              ? 'Pilih kebutuhan Anda. KerjaHarian akan membantu mencari pekerja yang tersedia di sekitar lokasi pekerjaan.'
+              : 'Choose what you need. KerjaHarian helps find available workers around the job location.'}
           </p>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-3">
-          <div className="card p-5">
-            <Wallet className="h-5 w-5 text-primary-600" />
-            <p className="mt-3 text-xs font-bold uppercase text-slate-500">{lang === 'id' ? 'Saldo tersedia' : 'Available balance'}</p>
-            <p className="mt-1 text-2xl font-extrabold text-slate-900">{formatIDR(wallet?.available_balance ?? 0)}</p>
-            <p className="mt-1 text-xs text-slate-500">{lang === 'id' ? 'Tidak perlu diisi sekarang.' : 'No top-up required now.'}</p>
+        <div className="mb-5 grid gap-3 sm:grid-cols-3">
+          <div className="card flex items-center gap-3 p-4">
+            <div className="rounded-xl bg-primary-50 p-2"><Wallet className="h-5 w-5 text-primary-600" /></div>
+            <div><p className="text-xs font-bold uppercase text-slate-500">{lang === 'id' ? 'Saldo tersedia' : 'Available balance'}</p><p className="font-extrabold text-slate-900">{formatIDR(wallet?.available_balance ?? 0)}</p></div>
           </div>
-          <div className="card p-5">
-            <ShieldCheck className="h-5 w-5 text-primary-600" />
-            <p className="mt-3 text-xs font-bold uppercase text-slate-500">KYC</p>
-            <p className="mt-1 text-lg font-extrabold text-slate-900">{verified ? (lang === 'id' ? 'Terverifikasi' : 'Verified') : (lang === 'id' ? 'Menunggu verifikasi' : 'Verification required')}</p>
-            <p className="mt-1 text-xs text-slate-500">{verified ? (lang === 'id' ? 'Siap memilih pekerjaan.' : 'Ready to choose a job.') : (lang === 'id' ? 'KTP + selfie harus disetujui admin sebelum Order.' : 'KTP + selfie must be approved before Order.')}</p>
+          <div className="card flex items-center gap-3 p-4">
+            <div className="rounded-xl bg-primary-50 p-2"><ShieldCheck className="h-5 w-5 text-primary-600" /></div>
+            <div><p className="text-xs font-bold uppercase text-slate-500">KYC</p><p className="font-extrabold text-slate-900">{verified ? (lang === 'id' ? 'Terverifikasi' : 'Verified') : (lang === 'id' ? 'Belum terverifikasi' : 'Not verified')}</p></div>
           </div>
-          <div className="card p-5">
-            <Clock3 className="h-5 w-5 text-primary-600" />
-            <p className="mt-3 text-xs font-bold uppercase text-slate-500">{lang === 'id' ? 'Pekerjaan aktif' : 'Active jobs'}</p>
-            <p className="mt-1 text-2xl font-extrabold text-slate-900">{activeOrders.length}</p>
-            <p className="mt-1 text-xs text-slate-500">{lang === 'id' ? 'Order yang sedang berjalan.' : 'Orders currently in progress.'}</p>
+          <div className="card flex items-center gap-3 p-4">
+            <div className="rounded-xl bg-primary-50 p-2"><Clock3 className="h-5 w-5 text-primary-600" /></div>
+            <div><p className="text-xs font-bold uppercase text-slate-500">{lang === 'id' ? 'Sedang berjalan' : 'In progress'}</p><p className="font-extrabold text-slate-900">{activeOrders.length} {lang === 'id' ? 'pekerjaan' : 'jobs'}</p></div>
           </div>
         </div>
 
-        <div className="mt-6 card p-6">
-          <h2 className="text-xl font-extrabold text-slate-900">{lang === 'id' ? 'Belum ada yang perlu dibayar' : 'Nothing to pay yet'}</h2>
-          <p className="mt-2 text-sm leading-6 text-slate-500">
-            {lang === 'id'
-              ? 'Saat Anda memilih jenis pekerjaan, KerjaHarian akan menghitung total final. Jika saldo belum cukup, barulah pilihan Top Up ditawarkan sebesar kekurangannya. Dana baru dikunci setelah Order berhasil dibuat.'
-              : 'After you choose a job, KerjaHarian calculates the final total. If the balance is insufficient, Top Up is offered only for the shortfall. Funds are reserved only after the Order is created successfully.'}
-          </p>
-          <button type="button" onClick={() => setShowOrderForm(true)} className="btn-primary mt-5 inline-flex items-center gap-2">
-            {lang === 'id' ? 'Mulai pilih pekerjaan' : 'Choose a job'}
-            <ArrowRight className="h-4 w-4" />
-          </button>
-        </div>
+        <section aria-labelledby="job-needs-heading">
+          <div className="mb-3 flex items-end justify-between gap-3">
+            <div>
+              <h2 id="job-needs-heading" className="text-xl font-extrabold text-slate-900">{lang === 'id' ? 'Pilih kebutuhan' : 'Choose a need'}</h2>
+              <p className="mt-1 text-sm text-slate-500">{lang === 'id' ? 'Tidak perlu top-up untuk masuk. Top-up hanya muncul saat saldo kurang dari total pekerjaan.' : 'No top-up is needed to enter. Top-up appears only when your balance is below the job total.'}</p>
+            </div>
+          </div>
 
-        {activeOrders.length > 0 && <div className="mt-6 card p-6">
-          <h2 className="font-bold">{lang === 'id' ? 'Pesanan terbaru' : 'Recent orders'}</h2>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {CATEGORIES.map(category => {
+              const Icon = category.icon;
+              return <button
+                key={category.id}
+                type="button"
+                onClick={() => chooseCategory(category.id)}
+                className="group rounded-2xl border-2 border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-primary-400 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="rounded-xl bg-primary-50 p-3"><Icon className="h-6 w-6 text-primary-600" /></div>
+                  <ArrowRight className="mt-2 h-5 w-5 text-slate-300 transition group-hover:translate-x-1 group-hover:text-primary-500" />
+                </div>
+                <h3 className="mt-4 font-extrabold text-slate-900">{category.label}</h3>
+                <p className="mt-1 text-xs leading-5 text-slate-500">{category.examples?.[0] ?? (lang === 'id' ? 'Pilih pekerjaan yang Anda butuhkan.' : 'Choose the job you need.')}</p>
+              </button>;
+            })}
+          </div>
+        </section>
+
+        {activeOrders.length > 0 && <section className="mt-7 card p-5 sm:p-6">
+          <div className="flex items-center justify-between gap-3">
+            <div><h2 className="font-extrabold text-slate-900">{lang === 'id' ? 'Pekerjaan yang sedang berjalan' : 'Jobs in progress'}</h2><p className="mt-1 text-xs text-slate-500">{lang === 'id' ? 'Pantau status pekerjaan Anda.' : 'Track your active jobs.'}</p></div>
+            <CheckCircle2 className="h-5 w-5 text-green-600" />
+          </div>
           <div className="mt-4 space-y-3">
-            {activeOrders.map(order => <div key={order.id} className="flex items-center justify-between rounded-xl border p-4">
+            {activeOrders.map(order => <div key={order.id} className="flex items-center justify-between rounded-xl border bg-white p-4">
               <div><p className="font-semibold text-slate-900">{order.title || (lang === 'id' ? 'Pekerjaan' : 'Job')}</p><p className="text-xs text-slate-500">{order.status}</p></div>
-              <div className="flex items-center gap-2 text-sm font-bold"><CheckCircle2 className="h-4 w-4 text-green-600" />{formatIDR(order.total_price)}</div>
+              <p className="text-sm font-extrabold text-slate-900">{formatIDR(order.total_price)}</p>
             </div>)}
           </div>
-        </div>}
+        </section>}
       </div>
     </div>
   </div>;
