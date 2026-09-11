@@ -59,7 +59,7 @@ export async function onRequest(context) {
   }
 
   const hasPriorOrder = Boolean(job.midtrans_order_id);
-  const orderId = paidAmount > 0 ? `KH-${job.id}-TOPUP-${Date.now()}` : hasPriorOrder ? `KH-${job.id}-RETRY-${Date.now()}` : `KH-${job.id}`;
+  const orderId = paidAmount > 0 ? `KH-${job.id}-PARTIAL-${Date.now()}` : hasPriorOrder ? `KH-${job.id}-RETRY-${Date.now()}` : `KH-${job.id}`;
   const payload = { transaction_details: { order_id: orderId, gross_amount: amountDue }, item_details: [{ id: job.id, price: amountDue, quantity: 1, name: String(job.title || 'KerjaHarian job').slice(0, 50) }] };
   const authorization = btoa(`${serverKey}:`);
   const midtransResponse = await fetch(snapApiUrl, {
@@ -71,5 +71,5 @@ export async function onRequest(context) {
   if (!midtransResponse.ok || !result.token) return Response.json({ error: 'Midtrans transaction creation failed', detail: result?.error_messages || result?.status_message || 'Unknown Midtrans error' }, { status: 502 });
   const { error: updateError } = await admin.from('jobs').update({ midtrans_order_id: orderId, midtrans_snap_token: result.token, midtrans_transaction_status: 'pending', payment_status: 'pending', midtrans_pending_amount: amountDue }).eq('id', job.id);
   if (updateError) return Response.json({ error: 'Payment token created but could not be stored', detail: updateError.message }, { status: 500 });
-  return Response.json({ token: result.token, client_key: clientKey, order_id: orderId, gross_amount: amountDue, environment, top_up: paidAmount > 0 });
+  return Response.json({ token: result.token, client_key: clientKey, order_id: orderId, gross_amount: amountDue, environment, partial_payment: paidAmount > 0 });
 }
