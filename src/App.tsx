@@ -11,6 +11,7 @@ import { EmployerRematchPanel } from '@/components/EmployerRematchPanel';
 import { EmployerMatchingControl } from '@/components/EmployerMatchingControl';
 import { WorkerConfirmationStatus } from '@/components/WorkerConfirmationStatus';
 import { WorkerMatchingProfile } from '@/components/WorkerMatchingProfile';
+import { LogoOpening } from '@/components/LogoOpening';
 import { I18n } from '@/lib/i18n';
 import { useAuth } from '@/lib/auth';
 import type { View, CategoryId } from '@/lib/types';
@@ -76,6 +77,7 @@ export default function App() {
   const [view, setView] = useState<View>(initialView);
   const [lang, setLang] = useState<'id' | 'en'>(() => (localStorage.getItem('kerjaharian_lang') as 'id' | 'en') || 'id');
   const [authModal, setAuthModal] = useState<{ open: boolean; mode: 'signin' | 'signup' }>({ open: false, mode: 'signin' });
+  const [showOpening, setShowOpening] = useState(() => initialView === 'landing' && sessionStorage.getItem('kerjaharian_opening_seen') !== '1');
   const isSecretAdminPath = window.location.pathname === SECRET_PATH;
   const isAdminResolutionPath = window.location.pathname === ADMIN_RESOLUTION_PATH;
   const isAdminIncidentPath = window.location.pathname === ADMIN_INCIDENT_PATH;
@@ -84,10 +86,11 @@ export default function App() {
   const [pendingCategory, setPendingCategory] = useState<CategoryId | null>(null);
   const { user, profile, loading: authLoading } = useAuth();
   const i18n = new I18n(lang);
-  const navigate = useCallback((v: View, category?: CategoryId) => { setView(v); setPendingCategory(category ?? null); const path = Object.entries(routeViews).find(([, x]) => x === v)?.[0]; if (path) window.history.pushState({ view: v }, '', path); window.scrollTo({ top: 0, behavior: 'smooth' }); }, []);
+  const navigate = useCallback((v: View, category?: CategoryId) => { setView(v); setPendingCategory(category ?? null); if (v !== 'landing') setShowOpening(false); const path = Object.entries(routeViews).find(([, x]) => x === v)?.[0]; if (path) window.history.pushState({ view: v }, '', path); window.scrollTo({ top: 0, behavior: 'smooth' }); }, []);
   const openAuth = useCallback((mode: 'signin' | 'signup') => setAuthModal({ open: true, mode }), []);
   const closeAuth = useCallback(() => setAuthModal(p => ({ ...p, open: false })), []);
   const handleLangChange = useCallback((newLang: 'id' | 'en') => { setLang(newLang); localStorage.setItem('kerjaharian_lang', newLang); }, []);
+  const finishOpening = useCallback(() => { sessionStorage.setItem('kerjaharian_opening_seen', '1'); setShowOpening(false); }, []);
   useEffect(() => { if (!adminPreview) setPageMeta(view); }, [view, adminPreview]);
   useEffect(() => { const onPop = () => setView(routeViews[window.location.pathname] ?? 'landing'); window.addEventListener('popstate', onPop); return () => window.removeEventListener('popstate', onPop); }, []);
   useEffect(() => {
@@ -131,5 +134,5 @@ export default function App() {
       <div className="mx-auto w-full max-w-6xl px-4 pb-8 pt-4"><ResolutionCenter /></div>
       <PrivacyCenter /><OvertimeApprovalPanel role={view === 'employer' ? 'employer' : 'worker'} /><JobTimer role={view === 'employer' ? 'employer' : 'worker'} lang={lang} />
     </div></KycGate> : null}
-  </Suspense></main><Footer onNavigate={navigate} /><AuthModal open={authModal.open} onClose={closeAuth} /><AIProblemSolver /><PWAInstallPrompt /></div></AppErrorBoundary>;
+  </Suspense></main><Footer onNavigate={navigate} /><AuthModal open={authModal.open} onClose={closeAuth} /><AIProblemSolver /><PWAInstallPrompt />{showOpening && <LogoOpening onDone={finishOpening} />}</div></AppErrorBoundary>;
 }
