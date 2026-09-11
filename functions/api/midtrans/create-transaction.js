@@ -31,13 +31,14 @@ export async function onRequest(context) {
 
   const { data: job, error: jobError } = await admin
     .from('jobs')
-    .select('id, employer_id, worker_id, title, final_amount, employer_total, total, payment_status, status, midtrans_order_id, midtrans_snap_token, midtrans_transaction_status, midtrans_pending_amount')
+    .select('id, employer_id, worker_id, title, final_amount, employer_total, total, payment_status, status, incident_open, midtrans_order_id, midtrans_snap_token, midtrans_transaction_status, midtrans_pending_amount')
     .eq('id', jobId)
     .single();
 
   if (jobError || !job) return Response.json({ error: 'Job not found' }, { status: 404 });
   if (job.employer_id !== userData.user.id) return Response.json({ error: 'Only the employer can initiate payment' }, { status: 403 });
   if (String(job.status) !== 'completed') return Response.json({ error: 'Job is not payable until it is completed' }, { status: 409 });
+  if (job.incident_open) return Response.json({ error: 'Payment is blocked while a safety incident is open' }, { status: 409 });
   if (job.payment_status === 'refunded' || job.payment_status === 'partial_refund') return Response.json({ error: 'Payment has already been refunded' }, { status: 409 });
 
   const targetAmount = Number(job.final_amount ?? job.employer_total ?? job.total ?? 0);
@@ -62,9 +63,6 @@ export async function onRequest(context) {
     return Response.json({ token: job.midtrans_snap_token, client_key: clientKey, order_id: job.midtrans_order_id, gross_amount: amountDue, environment, reused: true });
   }
 
-  // A terminal/failed Midtrans attempt must never reuse its old order ID.
-  // Reuse is limited to an actually pending transaction; otherwise create a
-  // fresh order ID so a new attempt cannot collide with the old transaction.
   const hasPriorOrder = Boolean(job.midtrans_order_id);
   const orderId = paidAmount > 0
     ? `KH-${job.id}-TOPUP-${Date.now()}`
