@@ -7,6 +7,8 @@ import { payJob } from '@/lib/midtrans';
 
 type Offer = { id: string; job_id: string; rank: number; distance_meters: number | null; score: number | null; expires_at: string; status: string; };
 type PaymentJob = { id: string; title: string | null; total: number | null; employer_total: number | null; final_amount: number | null; payment_status: string | null; status: string | null; };
+function tr(lang:'id'|'en',id:string,en:string){return lang==='en'?en:id;}
+function getLang(){return typeof window!=='undefined'&&localStorage.getItem('kerjaharian_lang')==='en'?'en':'id';}
 
 function useWorkerLocation(enabled: boolean) {
   const { user } = useAuth();
@@ -25,6 +27,7 @@ function useWorkerLocation(enabled: boolean) {
 }
 
 export function WorkerDispatchPanel() {
+  const lang=getLang();
   const { user, profile } = useAuth();
   const [offers, setOffers] = useState<Offer[]>([]);
   const [jobs, setJobs] = useState<Record<string, Job>>({});
@@ -57,13 +60,14 @@ export function WorkerDispatchPanel() {
 
   if (!online || !user || offers.length === 0) return null;
   return <section className="mb-6 rounded-2xl border-2 border-primary-200 bg-primary-50/60 p-5 shadow-sm" aria-live="polite">
-    <div className="flex items-center gap-2"><Bell className="h-5 w-5 text-primary-600" /><div><h2 className="font-display font-bold text-slate-900">Panggilan Kerja Terdekat</h2><p className="text-xs text-slate-500">Dispatch real-time — tawaran berlaku 8 detik per tahap.</p></div></div>
+    <div className="flex items-center gap-2"><Bell className="h-5 w-5 text-primary-600" /><div><h2 className="font-display font-bold text-slate-900">{tr(lang,'Panggilan Kerja Terdekat','Nearby Job Offers')}</h2><p className="text-xs text-slate-500">{tr(lang,'Dispatch real-time — tawaran berlaku 8 detik per tahap.','Real-time dispatch — each offer stage is valid for 8 seconds.')}</p></div></div>
     {error && <p className="mt-3 rounded-lg bg-error-50 p-3 text-xs font-semibold text-error-700">{error}</p>}
-    <div className="mt-4 space-y-3">{offers.map(offer=>{const job=jobs[offer.job_id]; if(!job)return null; return <div key={offer.id} className="rounded-xl bg-white p-4 ring-1 ring-primary-100"><div className="flex items-start justify-between gap-3"><div><p className="font-bold text-slate-900">{job.title||'Pekerjaan'}</p><p className="mt-1 text-xs text-slate-500">{job.location||'Lokasi belum tersedia'}</p><p className="mt-2 text-sm font-extrabold text-primary-700">{formatIDR(Number(job.wage??0))}</p></div><span className="rounded-full bg-primary-100 px-2 py-1 text-[11px] font-bold text-primary-700">{offer.distance_meters!=null?`${(offer.distance_meters/1000).toFixed(1)} km`: 'Terdekat'}</span></div><div className="mt-3 flex items-center gap-2 text-[11px] text-slate-500"><MapPin className="h-3.5 w-3.5" />Panggilan dikirim berdasarkan lokasi, status online, rating, dan ketersediaan.</div><button onClick={()=>void accept(offer.id)} disabled={busy===offer.id} className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-60">{busy===offer.id?<Loader2 className="h-4 w-4 animate-spin"/>:<Navigation className="h-4 w-4"/>}{busy===offer.id?'Mengambil...':'Terima Pekerjaan'}</button></div>})}</div>
+    <div className="mt-4 space-y-3">{offers.map(offer=>{const job=jobs[offer.job_id]; if(!job)return null; return <div key={offer.id} className="rounded-xl bg-white p-4 ring-1 ring-primary-100"><div className="flex items-start justify-between gap-3"><div><p className="font-bold text-slate-900">{job.title||tr(lang,'Pekerjaan','Job')}</p><p className="mt-1 text-xs text-slate-500">{job.location||tr(lang,'Lokasi belum tersedia','Location unavailable')}</p><p className="mt-2 text-sm font-extrabold text-primary-700">{formatIDR(Number(job.wage??0))}</p></div><span className="rounded-full bg-primary-100 px-2 py-1 text-[11px] font-bold text-primary-700">{offer.distance_meters!=null?`${(offer.distance_meters/1000).toFixed(1)} km`:tr(lang,'Terdekat','Nearest')}</span></div><div className="mt-3 flex items-center gap-2 text-[11px] text-slate-500"><MapPin className="h-3.5 w-3.5" />{tr(lang,'Panggilan dikirim berdasarkan lokasi, status online, rating, dan ketersediaan.','Offers are sent based on location, online status, rating, and availability.')}</div><button onClick={()=>void accept(offer.id)} disabled={busy===offer.id} className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-60">{busy===offer.id?<Loader2 className="h-4 w-4 animate-spin"/>:<Navigation className="h-4 w-4"/>}{busy===offer.id?tr(lang,'Mengambil...','Claiming...'):tr(lang,'Terima Pekerjaan','Accept Job')}</button></div>})}</div>
   </section>;
 }
 
 export function EmployerDispatchWatcher() {
+  const lang=getLang();
   const { user, profile } = useAuth();
   const [paymentJobs, setPaymentJobs] = useState<PaymentJob[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
@@ -108,10 +112,10 @@ export function EmployerDispatchWatcher() {
         await loadEmployerJobs();
         await dispatch();
       }, () => {
-        setError('Pembayaran belum terverifikasi. Anda dapat mencoba lagi dari tombol Bayar.');
+        setError(tr(lang,'Pembayaran belum terverifikasi. Anda dapat mencoba lagi dari tombol Bayar.','Payment has not been verified yet. You can try again from the Pay button.'));
       });
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Pembayaran gagal dimulai');
+      setError(e instanceof Error ? e.message : tr(lang,'Pembayaran gagal dimulai','Failed to start payment'));
     } finally {
       setBusy(null);
     }
@@ -120,8 +124,8 @@ export function EmployerDispatchWatcher() {
   if (!user || profile?.role !== 'employer' || paymentJobs.length === 0) return null;
 
   return <section className="mb-6 rounded-2xl border-2 border-amber-200 bg-amber-50 p-5 shadow-sm" aria-live="polite">
-    <div className="flex items-center gap-2"><CreditCard className="h-5 w-5 text-amber-700" /><div><h2 className="font-display font-bold text-slate-900">Pembayaran pekerjaan selesai</h2><p className="text-xs text-slate-600">Pekerjaan sudah selesai. Lakukan pembayaran melalui Midtrans untuk menyelesaikan transaksi.</p></div></div>
+    <div className="flex items-center gap-2"><CreditCard className="h-5 w-5 text-amber-700" /><div><h2 className="font-display font-bold text-slate-900">{tr(lang,'Pembayaran pekerjaan selesai','Completed Job Payment')}</h2><p className="text-xs text-slate-600">{tr(lang,'Pekerjaan sudah selesai. Lakukan pembayaran melalui Midtrans untuk menyelesaikan transaksi.','The job is complete. Pay through Midtrans to complete the transaction.')}</p></div></div>
     {error && <p className="mt-3 rounded-lg bg-error-50 p-3 text-xs font-semibold text-error-700">{error}</p>}
-    <div className="mt-4 space-y-3">{paymentJobs.map((job) => { const amount=Number(job.final_amount ?? job.employer_total ?? job.total ?? 0); return <div key={job.id} className="flex items-center justify-between gap-4 rounded-xl bg-white p-4 ring-1 ring-amber-200"><div><p className="font-bold text-slate-900">{job.title || 'Pekerjaan'}</p><p className="mt-1 text-sm font-extrabold text-amber-700">{formatIDR(amount)}</p><p className="mt-1 text-[11px] text-slate-500">Status: Menunggu pembayaran</p></div><button onClick={()=>void pay(job.id)} disabled={busy===job.id} className="flex shrink-0 items-center gap-2 rounded-lg bg-amber-600 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-60">{busy===job.id?<Loader2 className="h-4 w-4 animate-spin"/>:<CreditCard className="h-4 w-4"/>}{busy===job.id?'Memproses...':'Bayar'}</button></div>; })}</div>
+    <div className="mt-4 space-y-3">{paymentJobs.map((job) => { const amount=Number(job.final_amount ?? job.employer_total ?? job.total ?? 0); return <div key={job.id} className="flex items-center justify-between gap-4 rounded-xl bg-white p-4 ring-1 ring-amber-200"><div><p className="font-bold text-slate-900">{job.title || tr(lang,'Pekerjaan','Job')}</p><p className="mt-1 text-sm font-extrabold text-amber-700">{formatIDR(amount)}</p><p className="mt-1 text-[11px] text-slate-500">{tr(lang,'Status: Menunggu pembayaran','Status: Awaiting payment')}</p></div><button onClick={()=>void pay(job.id)} disabled={busy===job.id} className="flex shrink-0 items-center gap-2 rounded-lg bg-amber-600 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-60">{busy===job.id?<Loader2 className="h-4 w-4 animate-spin"/>:<CreditCard className="h-4 w-4"/>}{busy===job.id?tr(lang,'Memproses...','Processing...'):tr(lang,'Bayar','Pay')}</button></div>; })}</div>
   </section>;
 }
