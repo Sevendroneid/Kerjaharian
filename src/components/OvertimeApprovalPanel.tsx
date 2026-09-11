@@ -21,13 +21,14 @@ type JobRow = {
   employer_id: string | null;
 };
 
-export function OvertimeApprovalPanel({ role }: { role: 'worker' | 'employer' }) {
+export function OvertimeApprovalPanel({ role, lang = 'id' }: { role: 'worker' | 'employer'; lang?: 'id' | 'en' }) {
   const { user } = useAuth();
   const [jobs, setJobs] = useState<JobRow[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [now, setNow] = useState(() => Date.now());
   const [overtimeChecked, setOvertimeChecked] = useState<Record<string, boolean>>({});
+  const id = lang === 'id';
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -47,9 +48,7 @@ export function OvertimeApprovalPanel({ role }: { role: 'worker' | 'employer' })
         const { error: e } = await supabase.rpc('request_job_overtime', { p_job_id: job.id });
         if (e) throw e;
       } else if (action === 'confirm' || action === 'decline') {
-        if (action === 'confirm' && !overtimeChecked[job.id]) {
-          throw new Error('Centang persetujuan lembur terlebih dahulu.');
-        }
+        if (action === 'confirm' && !overtimeChecked[job.id]) throw new Error(id ? 'Centang persetujuan lembur terlebih dahulu.' : 'Please check the overtime consent box first.');
         const { error: e } = await supabase.rpc('confirm_job_overtime', { p_job_id: job.id, p_confirm: action === 'confirm' });
         if (e) throw e;
         if (action === 'confirm') setOvertimeChecked(current => ({ ...current, [job.id]: false }));
@@ -58,7 +57,7 @@ export function OvertimeApprovalPanel({ role }: { role: 'worker' | 'employer' })
         if (e) throw e;
       }
       await load();
-    } catch (e) { setError(e instanceof Error ? e.message : 'Tindakan lembur gagal.'); }
+    } catch (e) { setError(e instanceof Error ? e.message : (id ? 'Tindakan lembur gagal.' : 'Overtime action failed.')); }
     finally { setBusy(null); }
   };
 
@@ -66,17 +65,17 @@ export function OvertimeApprovalPanel({ role }: { role: 'worker' | 'employer' })
   if (!user || visible.length === 0) return error ? <div className="mb-6 rounded-xl border border-error-200 bg-error-50 p-4 text-sm font-semibold text-error-700">{error}</div> : null;
 
   return <section className="mb-6 rounded-2xl border border-warning-200 bg-white p-5 shadow-sm">
-    <div className="flex items-start gap-3"><Clock3 className="mt-0.5 h-5 w-5 text-warning-600"/><div><h2 className="font-display font-bold text-slate-900">Persetujuan Perpanjangan Waktu</h2><p className="mt-1 text-xs leading-5 text-slate-500">Pekerjaan tidak diperpanjang otomatis. Tambahan waktu dan biaya lembur hanya aktif setelah persetujuan eksplisit Pekerja.</p></div></div>
+    <div className="flex items-start gap-3"><Clock3 className="mt-0.5 h-5 w-5 text-warning-600"/><div><h2 className="font-display font-bold text-slate-900">{id ? 'Persetujuan Perpanjangan Waktu' : 'Work Time Extension Consent'}</h2><p className="mt-1 text-xs leading-5 text-slate-500">{id ? 'Pekerjaan tidak diperpanjang otomatis. Tambahan waktu dan biaya lembur hanya aktif setelah persetujuan eksplisit Pekerja.' : 'Work is not extended automatically. Additional time and overtime charges become active only after the Worker gives explicit consent.'}</p></div></div>
     {error && <div className="mt-4 rounded-lg bg-error-50 p-3 text-xs font-semibold text-error-700">{error}</div>}
     <div className="mt-4 space-y-3">{visible.map(job => {
       const expired = !!job.scheduled_end_at && now >= new Date(job.scheduled_end_at).getTime();
       const minutes = job.overtime_consent_status === 'confirmed' && job.scheduled_end_at ? Math.max(0, Math.floor((now - new Date(job.scheduled_end_at).getTime()) / 60000)) : 0;
       const amount = minutes * Math.max(0, Number(job.overtime_rate_per_minute ?? 0));
-      return <div key={job.id} className="rounded-xl bg-slate-50 p-4 ring-1 ring-slate-200"><div className="flex items-start justify-between gap-3"><div><p className="text-sm font-bold">{job.title || 'Pekerjaan'}</p><p className="mt-1 text-xs text-slate-500">{expired ? 'Durasi pekerjaan telah berakhir.' : `Sisa waktu hingga ${job.scheduled_end_at ? new Date(job.scheduled_end_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '-'}`}</p></div><span className="rounded-full bg-warning-50 px-2.5 py-1 text-[10px] font-bold text-warning-700">{job.overtime_consent_status}</span></div>
-        {expired && job.overtime_consent_status === 'not_requested' && role === 'employer' && <button disabled={busy===job.id} onClick={() => void actions(job,'request')} className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-warning-500 px-3 py-2.5 text-sm font-bold text-white"><AlertTriangle className="h-4 w-4"/>Minta Perpanjangan Waktu</button>}
-        {expired && job.overtime_consent_status === 'requested' && role === 'worker' && <div className="mt-3 rounded-lg bg-white p-3 ring-1 ring-warning-200"><p className="text-xs font-semibold text-slate-700">Employer meminta Anda melanjutkan pekerjaan setelah waktu awal berakhir. Persetujuan Anda wajib sebelum waktu tambahan dihitung sebagai lembur.</p><label className="mt-3 flex cursor-pointer gap-3 text-xs leading-5 text-slate-700"><input type="checkbox" checked={!!overtimeChecked[job.id]} onChange={e => setOvertimeChecked(current => ({ ...current, [job.id]: e.target.checked }))} className="mt-1 h-4 w-4"/><span><b>Saya menyetujui perpanjangan waktu pekerjaan.</b> Saya memahami bahwa waktu tambahan setelah durasi awal berakhir dihitung berdasarkan tarif lembur yang ditampilkan dan persetujuan ini dicatat sebagai persetujuan transaksi.</span></label><div className="mt-3 grid grid-cols-2 gap-2"><button disabled={busy===job.id} onClick={() => void actions(job,'decline')} className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold">Tidak Setuju</button><button disabled={busy===job.id || !overtimeChecked[job.id]} onClick={() => void actions(job,'confirm')} className="rounded-lg bg-warning-500 px-3 py-2 text-sm font-bold text-white disabled:opacity-50">Setujui &amp; Lanjutkan</button></div></div>}
-        {job.overtime_consent_status === 'confirmed' && <div className="mt-3 rounded-lg bg-warning-50 p-3 text-xs font-semibold text-warning-800"><div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4"/>Perpanjangan waktu disetujui Pekerja.</div><p className="mt-1">{minutes} menit · {formatIDR(amount)} · tarif {formatIDR(Number(job.overtime_rate_per_minute ?? 0))}/menit</p>{role === 'employer' && <button disabled={busy===job.id} onClick={() => void actions(job,'finish')} className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-success-600 px-3 py-2.5 text-sm font-bold text-white"><CheckCircle2 className="h-4 w-4"/>Selesai &amp; Tutup Pembayaran</button>}</div>}
-        {job.overtime_consent_status === 'declined' && <p className="mt-3 text-xs font-semibold text-slate-500">Pekerja tidak menyetujui perpanjangan. Tidak ada biaya lembur yang ditambahkan.</p>}
+      return <div key={job.id} className="rounded-xl bg-slate-50 p-4 ring-1 ring-slate-200"><div className="flex items-start justify-between gap-3"><div><p className="text-sm font-bold">{job.title || (id ? 'Pekerjaan' : 'Job')}</p><p className="mt-1 text-xs text-slate-500">{expired ? (id ? 'Durasi pekerjaan telah berakhir.' : 'The agreed work duration has ended.') : (id ? `Sisa waktu hingga ${job.scheduled_end_at ? new Date(job.scheduled_end_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '-'}` : `Time remaining until ${job.scheduled_end_at ? new Date(job.scheduled_end_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '-'}`)}</p></div><span className="rounded-full bg-warning-50 px-2.5 py-1 text-[10px] font-bold text-warning-700">{job.overtime_consent_status}</span></div>
+        {expired && job.overtime_consent_status === 'not_requested' && role === 'employer' && <button disabled={busy===job.id} onClick={() => void actions(job,'request')} className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-warning-500 px-3 py-2.5 text-sm font-bold text-white"><AlertTriangle className="h-4 w-4"/>{id ? 'Minta Perpanjangan Waktu' : 'Request Work Time Extension'}</button>}
+        {expired && job.overtime_consent_status === 'requested' && role === 'worker' && <div className="mt-3 rounded-lg bg-white p-3 ring-1 ring-warning-200"><p className="text-xs font-semibold text-slate-700">{id ? 'Employer meminta Anda melanjutkan pekerjaan setelah waktu awal berakhir. Persetujuan Anda wajib sebelum waktu tambahan dihitung sebagai lembur.' : 'The Employer is asking you to continue after the original work period. Your consent is required before additional time can be counted as overtime.'}</p><label className="mt-3 flex cursor-pointer gap-3 text-xs leading-5 text-slate-700"><input type="checkbox" checked={!!overtimeChecked[job.id]} onChange={e => setOvertimeChecked(current => ({ ...current, [job.id]: e.target.checked }))} className="mt-1 h-4 w-4"/><span><b>{id ? 'Saya menyetujui perpanjangan waktu pekerjaan.' : 'I consent to the work time extension.'}</b> {id ? 'Saya memahami bahwa waktu tambahan setelah durasi awal berakhir dihitung berdasarkan tarif lembur yang ditampilkan dan persetujuan ini dicatat sebagai persetujuan transaksi.' : 'I understand that additional time after the original duration is charged at the displayed overtime rate and that this consent is recorded as transaction consent.'}</span></label><div className="mt-3 grid grid-cols-2 gap-2"><button disabled={busy===job.id} onClick={() => void actions(job,'decline')} className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold">{id ? 'Tidak Setuju' : 'Decline'}</button><button disabled={busy===job.id || !overtimeChecked[job.id]} onClick={() => void actions(job,'confirm')} className="rounded-lg bg-warning-500 px-3 py-2 text-sm font-bold text-white disabled:opacity-50">{id ? 'Setujui & Lanjutkan' : 'Consent & Continue'}</button></div></div>}
+        {job.overtime_consent_status === 'confirmed' && <div className="mt-3 rounded-lg bg-warning-50 p-3 text-xs font-semibold text-warning-800"><div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4"/>{id ? 'Perpanjangan waktu disetujui Pekerja.' : 'Work time extension approved by the Worker.'}</div><p className="mt-1">{minutes} {id ? 'menit' : 'minutes'} · {formatIDR(amount)} · {id ? 'tarif' : 'rate'} {formatIDR(Number(job.overtime_rate_per_minute ?? 0))}/{id ? 'menit' : 'minute'}</p>{role === 'employer' && <button disabled={busy===job.id} onClick={() => void actions(job,'finish')} className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-success-600 px-3 py-2.5 text-sm font-bold text-white"><CheckCircle2 className="h-4 w-4"/>{id ? 'Selesai & Tutup Pembayaran' : 'Finish & Close Payment'}</button>}</div>}
+        {job.overtime_consent_status === 'declined' && <p className="mt-3 text-xs font-semibold text-slate-500">{id ? 'Pekerja tidak menyetujui perpanjangan. Tidak ada biaya lembur yang ditambahkan.' : 'The Worker declined the extension. No overtime charge is added.'}</p>}
       </div>;
     })}</div>
   </section>;
