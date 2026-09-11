@@ -62,15 +62,28 @@ export async function onRequest(context) {
     return Response.json({ token: job.midtrans_snap_token, client_key: clientKey, order_id: job.midtrans_order_id, gross_amount: amountDue, environment, reused: true });
   }
 
-  // A terminal/failed Midtrans attempt must never reuse its old order ID.
-  // Reuse is limited to an actually pending transaction; otherwise create a
-  // fresh order ID so a new attempt cannot collide with the old transaction.
+  // Atomically reserve this job for one payment attempt before calling Midtrans.
+  // Without this reservation, two rapid clicks could create two different Midtrans
+  // order IDs for the same payable amount and only the last one would remain linked.
   const hasPriorOrder = Boolean(job.midtrans_order_id);
   const orderId = paidAmount > 0
     ? `KH-${job.id}-TOPUP-${Date.now()}`
     : hasPriorOrder
       ? `KH-${job.id}-RETRY-${Date.now()}`
       : `KH-${job.id}`;
+  const claimStatuses = ['failed', 'failure', 'deny', 'cancel', 'expire', 'cancelled', 'unknown', ''];
+  const { data: claimedJob, error: claimError } = await admin
+    .from('jobs')
+    .update({ midtrans_order_id: orderId, midtrans_snap_token: null, midtrans_transaction_status: 'initializing', midtrans_pending_amount: amountDue })
+    .eq('id', job.id)
+    .eq('status', 'completed')
+    .eq('payment_status', 'pending')
+    .in('midtrans_transaction_status', claimStatuses)
+    .select('id')
+    .maybeSingle();
+  if (claimError) return Response.json({ error: 'Could not reserve payment attempt', detail: claimError.message }, { status: 500 });
+  if (!claimedJob) return Response.json({ error: 'Payment initialization already in progress. Please wait and try again.' }, { status: 409 });
+
   const payload = {
     transaction_details: { order_id: orderId, gross_amount: amountDue },
     item_details: [{ id: job.id, price: amountDue, quantity: 1, name: String(job.title || 'KerjaHarian job').slice(0, 50) }],
@@ -83,9 +96,16 @@ export async function onRequest(context) {
     body: JSON.stringify(payload),
   });
   const result = await midtransResponse.json().catch(() => ({}));
-  if (!midtransResponse.ok || !result.token) return Response.json({ error: 'Midtrans transaction creation failed', detail: result?.error_messages || result?.status_message || 'Unknown Midtrans error' }, { status: 502 });
+  if (!midtransResponse.ok || !result.token) {
+    await admin.from('jobs').update({ midtrans_transaction_status: 'failure', midtrans_snap_token: null, midtrans_pending_amount: null }).eq('id', job.id).eq('midtrans_order_id', orderId);
+    return Response.json({ error: 'Midtrans transaction creation failed', detail: result?.error_messages || result?.status_message || 'Unknown Midtrans error' }, { status: 502 });
+  }
 
-  const { error: updateError } = await admin.from('jobs').update({ midtrans_order_id: orderId, midtrans_snap_token: result.token, midtrans_transaction_status: 'pending', payment_status: 'pending', midtrans_pending_amount: amountDue }).eq('id', job.id);
+  const { error: updateError } = await admin
+    .from('jobs')
+    .update({ midtrans_snap_token: result.token, midtrans_transaction_status: 'pending', payment_status: 'pending', midtrans_pending_amount: amountDue })
+    .eq('id', job.id)
+    .eq('midtrans_order_id', orderId);
   if (updateError) return Response.json({ error: 'Payment token created but could not be stored', detail: updateError.message }, { status: 500 });
 
   return Response.json({ token: result.token, client_key: clientKey, order_id: orderId, gross_amount: amountDue, environment, top_up: paidAmount > 0 });
