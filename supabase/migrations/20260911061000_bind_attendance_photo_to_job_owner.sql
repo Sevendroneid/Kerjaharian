@@ -42,7 +42,7 @@ BEGIN
  SELECT gps_soft_radius_meters,gps_hard_radius_meters INTO v_soft,v_hard FROM public.platform_policy_config WHERE id=true;
  v_soft:=COALESCE(v_soft,v_job.presence_radius_meters,100); v_hard:=GREATEST(v_soft,COALESCE(v_hard,v_soft*2));
  v_distance:=6371000*2*asin(sqrt(power(sin(radians(p_lat-v_lat)/2),2)+cos(radians(v_lat))*cos(radians(p_lat))*power(sin(radians(p_lng-v_lng)/2),2)));
- IF v_distance>v_hard THEN RAISE EXCEPTION 'Anda masih %.0f meter dari lokasi pekerjaan. Maksimal %s meter',v_distance,v_hard END IF;
+ IF v_distance>v_hard THEN RAISE EXCEPTION 'Anda masih %.0f meter dari lokasi pekerjaan. Maksimal %s meter',v_distance,v_hard; END IF;
  v_confidence:=CASE WHEN v_distance<=v_soft THEN 'high' ELSE 'medium' END;
  UPDATE public.jobs SET employer_checked_in_at=now(),employer_checkin_lat=p_lat,employer_checkin_lng=p_lng,employer_checkin_photo_path=NULLIF(p_photo_path,''),gps_confidence=COALESCE(gps_confidence,v_confidence),presence_radius_meters=v_hard,workflow_status=CASE WHEN worker_checked_in_at IS NOT NULL THEN 'ready_to_start' ELSE 'employer_checked_in' END,updated_at=now() WHERE id=p_job_id RETURNING * INTO v_job;
  IF v_confidence='medium' THEN INSERT INTO public.job_reliability_events(job_id,worker_id,employer_id,actor_id,event_type,severity,metadata) VALUES(v_job.id,v_job.worker_id,v_job.employer_id,auth.uid(),'gps_exception',1,jsonb_build_object('distance_meters',round(v_distance::numeric,1),'soft_radius_meters',v_soft,'hard_radius_meters',v_hard)); END IF;
