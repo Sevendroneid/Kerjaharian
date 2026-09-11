@@ -28,18 +28,34 @@ export async function onRequest(context) {
   const refunded = ['refund', 'partial_refund'].includes(transactionStatus);
   const terminalFailure = ['deny', 'cancel', 'expire', 'failure'].includes(transactionStatus);
 
-  const { data: job, error: findError } = await admin.from('jobs').select('id, status, final_amount, employer_total, total, payment_status, midtrans_transaction_status, midtrans_transaction_id, paid_at, midtrans_pending_amount').eq('midtrans_order_id', orderId).maybeSingle();
+  const { data: job, error: findError } = await admin
+    .from('jobs')
+    .select('id, status, final_amount, employer_total, total, payment_status, midtrans_transaction_status, midtrans_transaction_id, paid_at, midtrans_pending_amount')
+    .eq('midtrans_order_id', orderId)
+    .maybeSingle();
   if (findError) return Response.json({ error: findError.message }, { status: 500 });
   if (!job) return Response.json({ error: 'KerjaHarian job not found for Midtrans order' }, { status: 404 });
 
-  // Settlement must never be able to move a non-completed job into a paid state.
-  // This is defense-in-depth for old/stale order IDs because new payment creation
-  // already rejects every status other than completed.
   if (success && String(job.status) !== 'completed') return Response.json({ error: 'Payment notification rejected: job is not completed' }, { status: 409 });
 
-  const expectedAmount = Number(job.midtrans_pending_amount ?? job.final_amount ?? job.employer_total ?? job.total ?? 0);
   const notifiedAmount = Number(notification.gross_amount);
-  if (!Number.isFinite(expectedAmount) || expectedAmount !== notifiedAmount) return Response.json({ error: 'Gross amount mismatch' }, { status: 409 });
+  if (!Number.isFinite(notifiedAmount) || notifiedAmount <= 0) return Response.json({ error: 'Invalid Midtrans gross amount' }, { status: 409 });
+
+  const expectedAmount = Number(job.midtrans_pending_amount ?? job.final_amount ?? job.employer_total ?? job.total ?? 0);
+  if (!Number.isFinite(expectedAmount) || expectedAmount <= 0) return Response.json({ error: 'Invalid server-side payment amount' }, { status: 409 });
+
+  if (!refunded && expectedAmount !== notifiedAmount) return Response.json({ error: 'Gross amount mismatch' }, { status: 409 });
+
+  if (refunded) {
+    const { data: settledRows, error: settledError } = await admin
+      .from('job_payment_events')
+      .select('gross_amount')
+      .eq('job_id', job.id)
+      .eq('payment_status', 'settled');
+    if (settledError) return Response.json({ error: 'Could not verify settled payment amount' }, { status: 500 });
+    const settledAmount = (settledRows ?? []).reduce((sum, row) => sum + Number(row.gross_amount || 0), 0);
+    if (!Number.isFinite(settledAmount) || notifiedAmount > settledAmount) return Response.json({ error: 'Refund amount exceeds settled payment' }, { status: 409 });
+  }
 
   const incomingTransactionId = notification.transaction_id ? String(notification.transaction_id) : null;
   const duplicate = job.midtrans_transaction_status === transactionStatus && job.midtrans_transaction_id === incomingTransactionId;
