@@ -4,6 +4,7 @@ import { supabase, type Job } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
 import { calculateJobTiming } from '@/lib/jobTiming';
 import { formatIDR } from '@/lib/format';
+import { payCompletedJob } from '@/lib/midtrans';
 
 interface JobTimerProps { role: 'employer' | 'worker'; lang?: 'id' | 'en'; }
 type WorkflowStatus = 'assigned' | 'worker_checked_in' | 'employer_checked_in' | 'ready_to_start' | 'active' | 'overtime' | 'completed' | 'cancelled';
@@ -52,6 +53,7 @@ export function JobTimer({ role, lang = 'id' }: JobTimerProps) {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [photoJobId, setPhotoJobId] = useState<string | null>(null);
+  const [payingId, setPayingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!user) { setJobs([]); setLoading(false); return; }
@@ -172,6 +174,17 @@ export function JobTimer({ role, lang = 'id' }: JobTimerProps) {
     finally { setBusyId(null); }
   };
 
+  const payCompleted = async (jobId: string) => {
+    setPayingId(jobId); setError('');
+    try {
+      await payCompletedJob(jobId, () => { void load(); }, () => { void load(); });
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Gagal membuka pembayaran.');
+    } finally {
+      setPayingId(null);
+    }
+  };
+
   const openNavigation = (job: WorkflowJob) => {
     const loc = job.order_id ? locations[job.order_id] : undefined;
     if (loc?.lat != null && loc?.lng != null) window.open(`https://www.google.com/maps/dir/?api=1&destination=${loc.lat},${loc.lng}`, '_blank', 'noopener,noreferrer');
@@ -199,6 +212,30 @@ export function JobTimer({ role, lang = 'id' }: JobTimerProps) {
         return (
           <div key={job.id} className="mt-4 rounded-xl bg-slate-50 p-4 ring-1 ring-slate-200">
             <div className="flex items-start justify-between gap-3"><div><p className="text-sm font-bold text-slate-900">{job.title || 'Pekerjaan'}</p><p className="mt-1 text-xs text-slate-500">{job.location || 'Lokasi belum tersedia'}</p>{role === 'employer' && job.worker_id && <p className="mt-1 text-xs font-semibold text-primary-700">Mitra: {workerNames[job.worker_id] || 'Mitra pekerja'}</p>}</div><span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${job.status === 'completed' ? 'bg-success-50 text-success-700' : job.workflow_status === 'overtime' ? 'bg-warning-100 text-warning-700' : 'bg-primary-50 text-primary-700'}`}>{statusLabel}</span></div>
+            {role === 'employer' && job.status === 'completed' && (
+              <div className="mt-4 rounded-xl bg-white p-4 ring-1 ring-slate-200">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-bold text-slate-900">Pembayaran</p>
+                    <p className="mt-1 text-xs text-slate-500">Total: {formatIDR(finalAmount)}</p>
+                  </div>
+                  <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${job.payment_status === 'settled' ? 'bg-success-50 text-success-700' : 'bg-warning-50 text-warning-700'}`}>
+                    {job.payment_status === 'settled' ? 'SUDAH DIBAYAR' : 'BELUM DIBAYAR'}
+                  </span>
+                </div>
+                {job.payment_status !== 'settled' && job.payment_status !== 'refunded' && job.payment_status !== 'partial_refund' && (
+                  <button
+                    onClick={() => void payCompleted(job.id)}
+                    disabled={payingId === job.id}
+                    className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-primary-600 px-3 py-2.5 text-sm font-bold text-white disabled:opacity-60"
+                  >
+                    {payingId === job.id ? 'Membuka pembayaran…' : `Bayar ${formatIDR(finalAmount)}`}
+                  </button>
+                )}
+                {job.payment_status === 'pending' && <p className="mt-2 text-[11px] text-slate-500">Pembayaran sedang diproses. Status akan diperbarui otomatis setelah konfirmasi Midtrans.</p>}
+              </div>
+            )}
+
             {role === 'worker' && job.status !== 'completed' && !job.started_at && (
               <div className="mt-4 space-y-3">
                 <button onClick={() => openNavigation(job)} className="flex w-full items-center justify-center gap-2 rounded-lg border border-primary-200 bg-white px-3 py-2.5 text-sm font-bold text-primary-700"><ExternalLink className="h-4 w-4" />Navigasi ke Lokasi</button>
