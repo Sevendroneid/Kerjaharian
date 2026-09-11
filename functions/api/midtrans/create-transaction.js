@@ -37,7 +37,7 @@ export async function onRequest(context) {
 
   if (jobError || !job) return Response.json({ error: 'Job not found' }, { status: 404 });
   if (job.employer_id !== userData.user.id) return Response.json({ error: 'Only the employer can initiate payment' }, { status: 403 });
-  if (!['open', 'assigned', 'completed'].includes(String(job.status))) return Response.json({ error: 'Job is not payable in its current state' }, { status: 409 });
+  if (String(job.status) !== 'completed') return Response.json({ error: 'Job is not payable until it is completed' }, { status: 409 });
   if (job.payment_status === 'refunded' || job.payment_status === 'partial_refund') return Response.json({ error: 'Payment has already been refunded' }, { status: 409 });
 
   const targetAmount = Number(job.final_amount ?? job.employer_total ?? job.total ?? 0);
