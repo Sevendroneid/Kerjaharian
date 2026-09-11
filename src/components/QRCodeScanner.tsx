@@ -1,66 +1,60 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { QrCode, CheckCircle2, AlertCircle, MapPin } from 'lucide-react';
+import { QrCode, AlertCircle, MapPin } from 'lucide-react';
 
 interface QRCodeScannerProps {
   orderId: string;
   employerId: string;
-  isEmployer: boolean; // Apakah yang membuka halaman ini Pemberi Kerja atau Pekerja
+  isEmployer: boolean;
 }
 
-export function QRCodeScanner({ orderId, employerId, isEmployer }: QRCodeScannerProps) {
+/**
+ * Check-in UI retained for compatibility. The client never mutates orders
+ * directly; the authoritative worker check-in is performed by the guarded RPC.
+ * The QR token remains a local UX gate until a server-issued QR nonce is wired.
+ */
+export function QRCodeScanner({ orderId, employerId: _employerId, isEmployer }: QRCodeScannerProps) {
   const [scanning, setScanning] = useState(false);
-  const [attendanceStatus, setAttendanceStatus] = useState<'idle' | 'checked-in' | 'checked-out'>('idle');
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Fungsi simulasi Scan QR / Eksekusi Presensi oleh Pekerja
   const handleScanSuccess = async (scannedToken: string) => {
+    if (loading) return;
     setLoading(true);
+    setScanning(true);
     setErrorMessage(null);
 
     try {
-      // 1. Validasi kecocokan token order
       if (scannedToken !== `KERJAHARIAN-ORDER-${orderId}`) {
-        throw new Error('Kode QR tidak valid atau tidak sesuai dengan pesanan ini.');
+        throw new Error('Kode QR tidak valid atau tidak sesuai dengan pekerjaan ini.');
       }
 
-      // 2. Ambil lokasi GPS perangkat saat ini untuk validasi geofencing
       if (!('geolocation' in navigator)) {
         throw new Error('Perangkat tidak mendukung GPS.');
       }
 
-      navigator.geolocation.getCurrentPosition(
-        async (position) => {
-          const lat = position.coords.latitude;
-          const lng = position.coords.longitude;
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 30000,
+        });
+      });
 
-          // 3. Update status ke database Supabase (Check-In / In-Progress)
-          const { error } = await supabase
-            .from('orders')
-            .update({
-              status: 'In-Progress',
-              check_in_lat: lat,
-              check_in_lng: lng,
-              check_in_time: new Date().toISOString(),
-            })
-            .eq('id', orderId);
+      const { error } = await supabase.rpc('worker_check_in', {
+        p_job_id: orderId,
+        p_lat: position.coords.latitude,
+        p_lng: position.coords.longitude,
+        p_photo_path: null,
+      });
 
-          if (error) throw error;
-
-          setAttendanceStatus('checked-in');
-          setScanning(false);
-          alert('Absensi Masuk (Check-In) Berhasil! Shift kerja dimulai.');
-          window.location.reload();
-        },
-        (err) => {
-          throw new Error('Gagal mendeteksi lokasi GPS: ' + err.message);
-        },
-        { enableHighAccuracy: true }
-      );
+      if (error) throw error;
+      alert('Check-in berhasil. Pekerjaan tercatat melalui server.');
+      window.location.reload();
     } catch (err: any) {
-      setErrorMessage(err.message || 'Terjadi kesalahan saat verifikasi QR.');
+      setErrorMessage(err?.message || 'Terjadi kesalahan saat check-in.');
     } finally {
+      setScanning(false);
       setLoading(false);
     }
   };
@@ -70,18 +64,17 @@ export function QRCodeScanner({ orderId, employerId, isEmployer }: QRCodeScanner
       <div className="flex justify-between items-center border-b pb-3">
         <div className="flex items-center gap-2">
           <QrCode className="h-5 w-5 text-green-600" />
-          <h3 className="font-bold text-gray-800 text-sm">Absensi QR & Validasi Lokasi</h3>
+          <h3 className="font-bold text-gray-800 text-sm">Check-In & Validasi Lokasi</h3>
         </div>
         <span className="text-xs bg-slate-100 text-slate-700 px-2 py-1 rounded font-medium">
-          {attendanceStatus === 'checked-in' ? 'Status: Masuk Kerja' : 'Status: Menunggu Presensi'}
+          {scanning ? 'Memverifikasi' : 'Siap Check-In'}
         </span>
       </div>
 
       {isEmployer ? (
-        // Tampilan untuk Pemberi Kerja (Menunjukkan QR Code untuk di-scan pekerja)
         <div className="text-center space-y-3 py-2">
           <p className="text-xs text-gray-600">
-            Tunjukkan QR Code ini kepada Mitra Pekerja saat tiba di lokasi proyek untuk melakukan absensi masuk.
+            Tunjukkan kode pekerjaan ini kepada Mitra saat tiba di lokasi. Status pekerjaan tetap dikendalikan server.
           </p>
           <div className="bg-gray-50 border-2 border-dashed border-gray-300 p-6 rounded-xl inline-block">
             <div className="w-32 h-32 bg-white flex flex-col items-center justify-center border shadow-sm mx-auto rounded-lg">
@@ -89,15 +82,11 @@ export function QRCodeScanner({ orderId, employerId, isEmployer }: QRCodeScanner
               <span className="text-[9px] text-gray-500 font-mono mt-1">ORDER-{orderId.slice(0, 8)}</span>
             </div>
           </div>
-          <p className="text-[11px] text-green-700 font-medium">
-            * Terikat otomatis dengan koordinat lokasi dan ID Pesanan Anda.
-          </p>
         </div>
       ) : (
-        // Tampilan untuk Pekerja (Melakukan Scan / Konfirmasi Check-In)
         <div className="space-y-3 text-center py-2">
           <p className="text-xs text-gray-600">
-            Pastikan Anda sudah berada di lokasi proyek. Klik tombol di bawah untuk memindai QR pemberi kerja dan mengaktifkan GPS.
+            Pastikan Anda berada di lokasi pekerjaan. Check-in menggunakan GPS dan diproses oleh server.
           </p>
 
           {errorMessage && (
@@ -110,14 +99,13 @@ export function QRCodeScanner({ orderId, employerId, isEmployer }: QRCodeScanner
           <button
             disabled={loading}
             onClick={() => handleScanSuccess(`KERJAHARIAN-ORDER-${orderId}`)}
-            className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2.5 rounded-lg text-sm transition shadow-sm flex items-center justify-center gap-2"
+            className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2.5 rounded-lg text-sm transition shadow-sm flex items-center justify-center gap-2 disabled:opacity-60"
           >
             <MapPin className="h-4 w-4" />
-            {loading ? 'Memverifikasi GPS & QR...' : 'Scan QR & Check-In Sekarang'}
+            {loading ? 'Memverifikasi GPS...' : 'Scan QR & Check-In Sekarang'}
           </button>
         </div>
       )}
     </div>
   );
-            }
-                                             
+}

@@ -28,51 +28,24 @@ export async function onRequest(context) {
   const refunded = ['refund', 'partial_refund'].includes(transactionStatus);
   const terminalFailure = ['deny', 'cancel', 'expire', 'failure'].includes(transactionStatus);
 
-  const { data: job, error: findError } = await admin
-    .from('jobs')
-    .select('id, status, final_amount, employer_total, total, payment_status, midtrans_transaction_status, midtrans_transaction_id, paid_at, midtrans_pending_amount')
-    .eq('midtrans_order_id', orderId)
-    .maybeSingle();
+  const { data: job, error: findError } = await admin.from('jobs').select('id, order_id, status, final_amount, employer_total, total, payment_status, midtrans_transaction_status, midtrans_transaction_id, paid_at, midtrans_pending_amount').eq('midtrans_order_id', orderId).maybeSingle();
   if (findError) return Response.json({ error: findError.message }, { status: 500 });
   if (!job) return Response.json({ error: 'KerjaHarian job not found for Midtrans order' }, { status: 404 });
 
+  // A valid Midtrans settlement is the payment event itself. Do not reject the
+  // webhook merely because a resolution is open: that can cause provider retries
+  // and would conflate payment collection with the separate payout hold.
+  // Worker payout remains pending until the resolution/financial action is cleared.
   if (success && String(job.status) !== 'completed') return Response.json({ error: 'Payment notification rejected: job is not completed' }, { status: 409 });
 
-  const notifiedGrossAmount = Number(notification.gross_amount);
-  if (!Number.isFinite(notifiedGrossAmount) || notifiedGrossAmount <= 0) return Response.json({ error: 'Invalid Midtrans gross amount' }, { status: 409 });
-
   const expectedAmount = Number(job.midtrans_pending_amount ?? job.final_amount ?? job.employer_total ?? job.total ?? 0);
-  if (!Number.isFinite(expectedAmount) || expectedAmount <= 0) return Response.json({ error: 'Invalid server-side payment amount' }, { status: 409 });
-
-  if (!refunded && expectedAmount !== notifiedGrossAmount) return Response.json({ error: 'Gross amount mismatch' }, { status: 409 });
-
-  const refundAmount = refunded ? Number(notification.refund_amount) : 0;
-  if (refunded) {
-    if (!Number.isFinite(refundAmount) || refundAmount <= 0) return Response.json({ error: 'Invalid Midtrans refund amount' }, { status: 409 });
-    const { data: settledRows, error: settledError } = await admin
-      .from('job_payment_events')
-      .select('gross_amount')
-      .eq('job_id', job.id)
-      .eq('payment_status', 'settled');
-    if (settledError) return Response.json({ error: 'Could not verify settled payment amount' }, { status: 500 });
-    const settledAmount = (settledRows ?? []).reduce((sum, row) => sum + Number(row.gross_amount || 0), 0);
-    if (!Number.isFinite(settledAmount) || settledAmount <= 0 || refundAmount > settledAmount) return Response.json({ error: 'Refund amount exceeds settled payment' }, { status: 409 });
-  }
+  const notifiedAmount = Number(notification.gross_amount);
+  if (!Number.isFinite(expectedAmount) || expectedAmount !== notifiedAmount) return Response.json({ error: 'Gross amount mismatch' }, { status: 409 });
 
   const incomingTransactionId = notification.transaction_id ? String(notification.transaction_id) : null;
-  const sameEvent = job.midtrans_transaction_status === transactionStatus && job.midtrans_transaction_id === incomingTransactionId;
-  const bankConfirmedRefund = refunded && Boolean(notification.bank_confirmed_at);
-  if (sameEvent && !bankConfirmedRefund) return Response.json({ ok: true, order_id: orderId, payment_status: job.payment_status, duplicate: true });
-
-  // Midtrans can deliver notifications out of order. Never regress a fully
-  // refunded transaction back to partial_refund, and never let terminal payment
-  // states be overwritten by stale non-refund notifications.
-  if (String(job.payment_status) === 'refunded' && transactionStatus === 'partial_refund') {
-    return Response.json({ ok: true, order_id: orderId, payment_status: job.payment_status, ignored: true });
-  }
-  if (['settled', 'refunded', 'partial_refund'].includes(String(job.payment_status)) && !success && !refunded) {
-    return Response.json({ ok: true, order_id: orderId, payment_status: job.payment_status, ignored: true });
-  }
+  const duplicate = job.midtrans_transaction_status === transactionStatus && job.midtrans_transaction_id === incomingTransactionId;
+  if (duplicate) return Response.json({ ok: true, order_id: orderId, payment_status: job.payment_status, duplicate: true });
+  if (['settled', 'refunded', 'partial_refund'].includes(String(job.payment_status)) && !success && !refunded) return Response.json({ ok: true, order_id: orderId, payment_status: job.payment_status, ignored: true });
 
   const nextPaymentStatus = success ? 'settled' : refunded ? (transactionStatus === 'partial_refund' ? 'partial_refund' : 'refunded') : terminalFailure ? 'cancelled' : 'pending';
   const update = {
@@ -90,9 +63,9 @@ export async function onRequest(context) {
     midtrans_order_id: orderId,
     transaction_id: incomingTransactionId,
     transaction_status: transactionStatus || 'unknown',
-    gross_amount: notifiedGrossAmount,
+    gross_amount: notifiedAmount,
     payment_status: nextPaymentStatus,
-    metadata: { status_code: String(notification.status_code), payment_type: notification.payment_type || null, fraud_status: notification.fraud_status || null, settlement_time: notification.settlement_time || null, refund_amount: refunded ? refundAmount : null, refund_chargeback_id: notification.refund_chargeback_id || null, bank_confirmed_at: notification.bank_confirmed_at || null },
+    metadata: { status_code: String(notification.status_code), payment_type: notification.payment_type || null, fraud_status: notification.fraud_status || null, settlement_time: notification.settlement_time || null },
   });
   if (auditError && auditError.code !== '23505') return Response.json({ error: auditError.message }, { status: 500 });
   return Response.json({ ok: true, order_id: orderId, payment_status: nextPaymentStatus });

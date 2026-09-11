@@ -4,10 +4,8 @@ import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 
 const LEGAL_VERSION = '1.0';
-function tr(lang: 'id' | 'en', id: string, en: string) { return lang === 'en' ? en : id; }
 
-export default function KycGate({ children, lang: propLang }: { children: ReactNode; lang?: 'id' | 'en' }) {
-  const lang = propLang ?? (typeof window !== 'undefined' && localStorage.getItem('kerjaharian_lang') === 'en' ? 'en' : 'id');
+export default function KycGate({ children }: { children: ReactNode }) {
   const { user, profile, refreshProfile } = useAuth();
   const [legalLoading, setLegalLoading] = useState(true);
   const [legalSaving, setLegalSaving] = useState(false);
@@ -23,7 +21,7 @@ export default function KycGate({ children, lang: propLang }: { children: ReactN
   const status = profile?.kyc_status ?? (profile?.kyc_verified ? 'approved' : 'not_started');
   const verified = status === 'approved' || profile?.kyc_verified === true;
   const role = profile?.role === 'worker' ? 'worker' : 'employer';
-  const roleLabel = role === 'worker' ? tr(lang, 'Pekerja', 'Worker') : tr(lang, 'Pemberi Kerja', 'Employer');
+  const roleLabel = role === 'worker' ? 'Pekerja' : 'Employer';
 
   useEffect(() => {
     let cancelled = false;
@@ -64,25 +62,25 @@ export default function KycGate({ children, lang: propLang }: { children: ReactN
 
   if (!user || !profile || verified && legalAccepted) return <>{children}</>;
 
-  if (legalLoading) return <div className="min-h-screen bg-slate-50 grid place-items-center p-6"><div className="flex items-center gap-2 text-sm font-semibold text-slate-600"><Loader2 className="h-5 w-5 animate-spin" />{tr(lang, 'Memuat persetujuan akun...', 'Loading account consent...')}</div></div>;
+  if (legalLoading) return <div className="min-h-screen bg-slate-50 grid place-items-center p-6"><div className="flex items-center gap-2 text-sm font-semibold text-slate-600"><Loader2 className="h-5 w-5 animate-spin" />Memuat persetujuan akun...</div></div>;
 
   if (!legalAccepted) return (
     <div className="min-h-screen bg-slate-50 px-4 py-10">
       <div className="mx-auto max-w-lg">
         <div className="card overflow-hidden">
-          <div className="bg-slate-900 p-6 text-white"><div className="flex items-center gap-3"><ShieldCheck className="h-7 w-7" /><div><h1 className="text-xl font-extrabold">{tr(lang, 'Sebelum mulai', 'Before you start')}</h1><p className="text-sm text-slate-300">{tr(lang, 'Persetujuan penggunaan KerjaHarian', 'KerjaHarian platform consent')}</p></div></div></div>
+          <div className="bg-slate-900 p-6 text-white"><div className="flex items-center gap-3"><ShieldCheck className="h-7 w-7" /><div><h1 className="text-xl font-extrabold">Sebelum mulai</h1><p className="text-sm text-slate-300">Persetujuan penggunaan KerjaHarian</p></div></div></div>
           <div className="space-y-4 p-6">
-            <p className="text-sm leading-6 text-slate-600">{tr(lang, 'KerjaHarian adalah platform marketplace pekerjaan harian. Anda dapat membaca dokumen lengkap melalui tautan di bawah sebelum menyetujui.', 'KerjaHarian is a daily-work marketplace platform. You can read the full documents through the links below before agreeing.')}</p>
+            <p className="text-sm leading-6 text-slate-600">KerjaHarian adalah platform marketplace pekerjaan harian. Anda dapat membaca dokumen lengkap melalui tautan di bawah sebelum menyetujui.</p>
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-700">
-              <p><b>{tr(lang, 'Peran Anda', 'Your role')}: {roleLabel}</b></p>
-              {role === 'worker' ? <p className="mt-2">{tr(lang, 'Anda bebas memilih, menerima, atau menolak pekerjaan yang tersedia. KerjaHarian bukan atasan Anda dan tidak menjamin jumlah pekerjaan atau pendapatan.', 'You are free to choose, accept, or decline available jobs. KerjaHarian is not your employer and does not guarantee a number of jobs or income.')}</p> : <p className="mt-2">{tr(lang, 'Anda bertanggung jawab memberikan informasi pekerjaan, lokasi, ruang lingkup, dan kondisi keselamatan yang benar kepada Pekerja.', 'You are responsible for providing Workers with accurate job, location, scope, and safety information.')}</p>}
+              <p><b>Peran Anda: {roleLabel}</b></p>
+              {role === 'worker' ? <p className="mt-2">Anda bebas memilih, menerima, atau menolak pekerjaan yang tersedia. KerjaHarian bukan atasan Anda dan tidak menjamin jumlah pekerjaan atau pendapatan.</p> : <p className="mt-2">Anda bertanggung jawab memberikan informasi pekerjaan, lokasi, ruang lingkup, dan kondisi keselamatan yang benar kepada Pekerja.</p>}
             </div>
-            <label className="flex gap-3 text-sm text-slate-700"><input type="checkbox" checked={termsChecked} onChange={e => setTermsChecked(e.target.checked)} className="mt-1 h-4 w-4"/><span>{tr(lang, 'Saya telah membaca dan menyetujui', 'I have read and agree to the')} <a href="/terms" target="_blank" rel="noreferrer" className="font-bold text-blue-700 underline">{tr(lang, 'Syarat & Ketentuan', 'Terms & Conditions')}</a>.</span></label>
-            <label className="flex gap-3 text-sm text-slate-700"><input type="checkbox" checked={privacyChecked} onChange={e => setPrivacyChecked(e.target.checked)} className="mt-1 h-4 w-4"/><span>{tr(lang, 'Saya telah membaca', 'I have read the')} <a href="/privacy" target="_blank" rel="noreferrer" className="font-bold text-blue-700 underline">{tr(lang, 'Kebijakan Privasi', 'Privacy Policy')}</a>.</span></label>
-            <label className="flex gap-3 text-sm text-slate-700"><input type="checkbox" checked={roleChecked} onChange={e => setRoleChecked(e.target.checked)} className="mt-1 h-4 w-4"/><span>{tr(lang, 'Saya memahami peran dan tanggung jawab saya sebagai', 'I understand my role and responsibilities as a')} {roleLabel} {tr(lang, 'di KerjaHarian.', 'on KerjaHarian.')}</span></label>
+            <label className="flex gap-3 text-sm text-slate-700"><input type="checkbox" checked={termsChecked} onChange={e => setTermsChecked(e.target.checked)} className="mt-1 h-4 w-4"/><span>Saya telah membaca dan menyetujui <a href="/terms" target="_blank" rel="noreferrer" className="font-bold text-blue-700 underline">Syarat &amp; Ketentuan</a>.</span></label>
+            <label className="flex gap-3 text-sm text-slate-700"><input type="checkbox" checked={privacyChecked} onChange={e => setPrivacyChecked(e.target.checked)} className="mt-1 h-4 w-4"/><span>Saya telah membaca <a href="/privacy" target="_blank" rel="noreferrer" className="font-bold text-blue-700 underline">Kebijakan Privasi</a>.</span></label>
+            <label className="flex gap-3 text-sm text-slate-700"><input type="checkbox" checked={roleChecked} onChange={e => setRoleChecked(e.target.checked)} className="mt-1 h-4 w-4"/><span>Saya memahami peran dan tanggung jawab saya sebagai {roleLabel} di KerjaHarian.</span></label>
             {error && <div className="rounded-lg bg-red-50 p-3 text-sm font-semibold text-red-700">{error}</div>}
-            <button disabled={!termsChecked || !privacyChecked || !roleChecked || legalSaving} onClick={() => void acceptLegal()} className="btn-primary flex w-full items-center justify-center gap-2 disabled:opacity-50">{legalSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}{legalSaving ? tr(lang, 'Menyimpan persetujuan...', 'Saving consent...') : tr(lang, 'Saya Setuju & Lanjutkan', 'I Agree & Continue')}</button>
-            <p className="text-center text-[11px] leading-5 text-slate-400">{tr(lang, 'Versi dokumen yang disetujui dicatat bersama waktu dan konteks akun/transaksi sebagai bukti persetujuan elektronik.', 'The agreed document version is recorded with the account/transaction time and context as evidence of electronic consent.')}</p>
+            <button disabled={!termsChecked || !privacyChecked || !roleChecked || legalSaving} onClick={() => void acceptLegal()} className="btn-primary flex w-full items-center justify-center gap-2 disabled:opacity-50">{legalSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}{legalSaving ? 'Menyimpan persetujuan...' : 'Saya Setuju & Lanjutkan'}</button>
+            <p className="text-center text-[11px] leading-5 text-slate-400">Versi dokumen yang disetujui dicatat bersama waktu dan konteks akun/transaksi sebagai bukti persetujuan elektronik.</p>
           </div>
         </div>
       </div>
@@ -93,8 +91,8 @@ export default function KycGate({ children, lang: propLang }: { children: ReactN
 
   const selectFile = (next: File | undefined) => {
     if (!next) return;
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(next.type)) { setError(tr(lang, 'Gunakan foto KTP JPG, PNG, atau WEBP.', 'Use a JPG, PNG, or WEBP ID card photo.')); return; }
-    if (next.size > 5 * 1024 * 1024) { setError(tr(lang, 'Ukuran foto maksimal 5MB.', 'Maximum photo size is 5MB.')); return; }
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(next.type)) { setError('Gunakan foto KTP JPG, PNG, atau WEBP.'); return; }
+    if (next.size > 5 * 1024 * 1024) { setError('Ukuran foto maksimal 5MB.'); return; }
     setError(''); setFile(next);
     const reader = new FileReader(); reader.onload = (e) => setPreview(String(e.target?.result ?? '')); reader.readAsDataURL(next);
   };
@@ -117,11 +115,11 @@ export default function KycGate({ children, lang: propLang }: { children: ReactN
     <div className="min-h-screen bg-slate-50 px-4 py-10">
       <div className="mx-auto max-w-lg">
         <div className="card overflow-hidden">
-          <div className="bg-slate-900 p-6 text-white"><div className="flex items-center gap-3"><ShieldCheck className="h-7 w-7" /><div><h1 className="text-xl font-extrabold">{tr(lang, 'Verifikasi Identitas', 'Identity Verification')}</h1><p className="text-sm text-slate-300">{tr(lang, 'Wajib untuk', 'Required for')} {roleLabel}</p></div></div></div>
+          <div className="bg-slate-900 p-6 text-white"><div className="flex items-center gap-3"><ShieldCheck className="h-7 w-7" /><div><h1 className="text-xl font-extrabold">Verifikasi Identitas</h1><p className="text-sm text-slate-300">Wajib untuk {roleLabel}</p></div></div></div>
           <div className="p-6">
-            {status === 'pending' ? <div className="rounded-xl bg-amber-50 p-5 ring-1 ring-amber-200"><CheckCircle2 className="h-8 w-8 text-amber-600" /><h2 className="mt-3 font-bold text-amber-900">{tr(lang, 'Dokumen sedang diperiksa', 'Documents are under review')}</h2><p className="mt-1 text-sm leading-relaxed text-amber-800">{tr(lang, 'KTP Anda sudah diterima dan menunggu pemeriksaan admin. Anda belum dapat melakukan transaksi sampai identitas disetujui.', 'Your ID card has been received and is awaiting admin review. You cannot transact until your identity is approved.')}</p></div> : status === 'rejected' ? <div className="mb-5 rounded-xl bg-red-50 p-4 ring-1 ring-red-200"><XCircle className="h-6 w-6 text-red-600" /><p className="mt-2 text-sm font-bold text-red-900">{tr(lang, 'Verifikasi ditolak', 'Verification rejected')}</p><p className="mt-1 text-sm text-red-800">{profile.kyc_rejection_reason || tr(lang, 'Foto KTP perlu diperbaiki atau diganti.', 'The ID card photo needs to be corrected or replaced.')}</p></div> : null}
-            {status !== 'pending' && <><p className="text-sm leading-relaxed text-slate-600">{tr(lang, 'Upload foto KTP asli yang jelas. Jangan upload screenshot, SIM, kartu lain, atau hasil edit. Pemeriksaan akhir dilakukan admin KerjaHarian.', 'Upload a clear photo of your original ID card. Do not upload a screenshot, driver license, another card, or an edited image. Final review is performed by KerjaHarian admin.')}</p><div className="mt-5 rounded-xl border-2 border-dashed border-slate-200 p-5 text-center">{preview ? <img src={preview} alt={tr(lang, 'Preview KTP', 'ID card preview')} className="mx-auto max-h-56 rounded-lg object-contain" /> : <><IdCard className="mx-auto h-12 w-12 text-slate-300" /><p className="mt-2 text-sm font-semibold text-slate-600">{tr(lang, 'Foto KTP bagian depan', 'Front side of ID card')}</p></>}<input ref={input} type="file" accept="image/jpeg,image/png,image/webp" capture="environment" className="hidden" onChange={(e) => selectFile(e.target.files?.[0])} /><button onClick={() => input.current?.click()} className="btn-secondary mt-4 inline-flex items-center gap-2"><Upload className="h-4 w-4" />{file ? tr(lang, 'Ganti Foto', 'Change Photo') : tr(lang, 'Ambil / Pilih Foto KTP', 'Take / Choose ID Card Photo')}</button></div>{error && <p className="mt-3 text-sm font-semibold text-red-600">{error}</p>}<button disabled={!file || busy} onClick={submit} className="btn-primary mt-5 flex w-full items-center justify-center gap-2 disabled:opacity-50">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileCheck2 className="h-4 w-4" />}{busy ? tr(lang, 'Mengirim...', 'Sending...') : tr(lang, 'Kirim untuk Verifikasi', 'Submit for Verification')}</button><div className="mt-4 flex gap-2 rounded-lg bg-slate-50 p-3 text-xs text-slate-500"><Lock className="h-4 w-4 shrink-0" /><span>{tr(lang, 'Dokumen disimpan di penyimpanan privat dan hanya dapat diakses untuk proses verifikasi.', 'Documents are stored privately and can only be accessed for the verification process.')}</span></div></>}
-            {status === 'pending' && <div className="mt-5 flex items-center gap-2 text-xs text-slate-500"><Loader2 className="h-4 w-4 animate-spin" />{tr(lang, 'Status akan diperbarui setelah admin selesai memeriksa.', 'Status will update after admin review is complete.')}</div>}
+            {status === 'pending' ? <div className="rounded-xl bg-amber-50 p-5 ring-1 ring-amber-200"><CheckCircle2 className="h-8 w-8 text-amber-600" /><h2 className="mt-3 font-bold text-amber-900">Dokumen sedang diperiksa</h2><p className="mt-1 text-sm leading-relaxed text-amber-800">KTP Anda sudah diterima dan menunggu pemeriksaan admin. Anda belum dapat melakukan transaksi sampai identitas disetujui.</p></div> : status === 'rejected' ? <div className="mb-5 rounded-xl bg-red-50 p-4 ring-1 ring-red-200"><XCircle className="h-6 w-6 text-red-600" /><p className="mt-2 text-sm font-bold text-red-900">Verifikasi ditolak</p><p className="mt-1 text-sm text-red-800">{profile.kyc_rejection_reason || 'Foto KTP perlu diperbaiki atau diganti.'}</p></div> : null}
+            {status !== 'pending' && <><p className="text-sm leading-relaxed text-slate-600">Upload <b>foto KTP asli</b> yang jelas. Jangan upload screenshot, SIM, kartu lain, atau hasil edit. Pemeriksaan akhir dilakukan admin KerjaHarian.</p><div className="mt-5 rounded-xl border-2 border-dashed border-slate-200 p-5 text-center">{preview ? <img src={preview} alt="Preview KTP" className="mx-auto max-h-56 rounded-lg object-contain" /> : <><IdCard className="mx-auto h-12 w-12 text-slate-300" /><p className="mt-2 text-sm font-semibold text-slate-600">Foto KTP bagian depan</p></>}<input ref={input} type="file" accept="image/jpeg,image/png,image/webp" capture="environment" className="hidden" onChange={(e) => selectFile(e.target.files?.[0])} /><button onClick={() => input.current?.click()} className="btn-secondary mt-4 inline-flex items-center gap-2"><Upload className="h-4 w-4" />{file ? 'Ganti Foto' : 'Ambil / Pilih Foto KTP'}</button></div>{error && <p className="mt-3 text-sm font-semibold text-red-600">{error}</p>}<button disabled={!file || busy} onClick={submit} className="btn-primary mt-5 flex w-full items-center justify-center gap-2 disabled:opacity-50">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileCheck2 className="h-4 w-4" />}{busy ? 'Mengirim...' : 'Kirim untuk Verifikasi'}</button><div className="mt-4 flex gap-2 rounded-lg bg-slate-50 p-3 text-xs text-slate-500"><Lock className="h-4 w-4 shrink-0" /><span>Dokumen disimpan di penyimpanan privat dan hanya dapat diakses untuk proses verifikasi.</span></div></>}
+            {status === 'pending' && <div className="mt-5 flex items-center gap-2 text-xs text-slate-500"><Loader2 className="h-4 w-4 animate-spin" />Status akan diperbarui setelah admin selesai memeriksa.</div>}
           </div>
         </div>
       </div>
