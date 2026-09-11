@@ -26,7 +26,21 @@ async function loadSnap(clientKey: string, environment: 'sandbox' | 'production'
   });
 }
 
-export async function payCompletedJob(jobId: string, onFinished?: () => void) {
+async function waitForPaymentSettlement(jobId: string, maxAttempts = 20) {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const { data, error } = await supabase
+      .from('jobs')
+      .select('payment_status,midtrans_transaction_status')
+      .eq('id', jobId)
+      .single();
+    if (!error && data?.payment_status === 'settled') return true;
+    if (!error && ['cancelled', 'refunded', 'partial_refund'].includes(String(data?.payment_status))) return false;
+    await new Promise((resolve) => window.setTimeout(resolve, 1500));
+  }
+  return false;
+}
+
+export async function payJob(jobId: string, onSettled?: () => void, onPending?: () => void) {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.access_token) throw new Error('Sesi login tidak ditemukan');
 
@@ -42,10 +56,17 @@ export async function payCompletedJob(jobId: string, onFinished?: () => void) {
   await loadSnap(result.client_key, environment);
   if (!window.snap) throw new Error('Midtrans Snap belum siap');
 
+  const finish = async (success: boolean) => {
+    if (success && await waitForPaymentSettlement(jobId)) onSettled?.();
+    else onPending?.();
+  };
+
   window.snap.pay(result.token, {
-    onSuccess: onFinished,
-    onPending: onFinished,
-    onError: onFinished,
-    onClose: onFinished,
+    onSuccess: () => { void finish(true); },
+    onPending: () => { void finish(true); },
+    onError: () => { onPending?.(); },
+    onClose: () => { onPending?.(); },
   });
 }
+
+export const payCompletedJob = payJob;
