@@ -1,7 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
 
-const MIDTRANS_SNAP_URL = 'https://app.sandbox.midtrans.com/snap/v1/transactions';
-
 export async function onRequest(context) {
   const { request, env } = context;
   if (request.method !== 'POST') return Response.json({ error: 'Method not allowed' }, { status: 405 });
@@ -11,6 +9,8 @@ export async function onRequest(context) {
   const serviceKey = env.SUPABASE_SERVICE_ROLE_KEY;
   const serverKey = env.MIDTRANS_SERVER_KEY;
   const clientKey = env.MIDTRANS_CLIENT_KEY;
+  const environment = String(env.MIDTRANS_ENV || 'sandbox').toLowerCase() === 'production' ? 'production' : 'sandbox';
+  const snapApiUrl = environment === 'production' ? 'https://app.midtrans.com/snap/v1/transactions' : 'https://app.sandbox.midtrans.com/snap/v1/transactions';
 
   if (!supabaseUrl || !anonKey || !serviceKey || !serverKey || !clientKey) {
     return Response.json({ error: 'Payment service is not configured' }, { status: 500 });
@@ -40,15 +40,15 @@ export async function onRequest(context) {
   if (job.status !== 'completed') return Response.json({ error: 'Job must be completed before payment' }, { status: 409 });
   if (!job.worker_id) return Response.json({ error: 'Job has no worker' }, { status: 409 });
   if (job.payment_status === 'settled') return Response.json({ error: 'Payment is already settled' }, { status: 409 });
+  if (job.payment_status === 'refunded' || job.payment_status === 'partial_refund') return Response.json({ error: 'Payment has already been refunded' }, { status: 409 });
 
   const grossAmount = Number(job.final_amount ?? job.employer_total ?? job.total ?? 0);
   if (!Number.isInteger(grossAmount) || grossAmount <= 0) return Response.json({ error: 'Invalid server-side payment amount' }, { status: 409 });
 
   const orderId = job.midtrans_order_id || `KH-${job.id}`;
 
-  // Reuse an already-created pending Snap token instead of creating a second transaction.
   if (job.midtrans_snap_token && ['pending', 'authorize'].includes(String(job.midtrans_transaction_status || '').toLowerCase())) {
-    return Response.json({ token: job.midtrans_snap_token, client_key: clientKey, order_id: orderId, gross_amount: grossAmount, environment: 'sandbox', reused: true });
+    return Response.json({ token: job.midtrans_snap_token, client_key: clientKey, order_id: orderId, gross_amount: grossAmount, environment, reused: true });
   }
 
   const payload = {
@@ -57,7 +57,7 @@ export async function onRequest(context) {
   };
 
   const authorization = btoa(`${serverKey}:`);
-  const midtransResponse = await fetch(MIDTRANS_SNAP_URL, {
+  const midtransResponse = await fetch(snapApiUrl, {
     method: 'POST',
     headers: {
       Accept: 'application/json',
@@ -82,5 +82,5 @@ export async function onRequest(context) {
 
   if (updateError) return Response.json({ error: 'Payment token created but could not be stored', detail: updateError.message }, { status: 500 });
 
-  return Response.json({ token: result.token, client_key: clientKey, order_id: orderId, gross_amount: grossAmount, environment: 'sandbox' });
+  return Response.json({ token: result.token, client_key: clientKey, order_id: orderId, gross_amount: grossAmount, environment });
 }
