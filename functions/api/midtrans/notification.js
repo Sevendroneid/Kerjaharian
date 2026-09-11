@@ -28,14 +28,14 @@ export async function onRequest(context) {
   const refunded = ['refund', 'partial_refund'].includes(transactionStatus);
   const terminalFailure = ['deny', 'cancel', 'expire', 'failure'].includes(transactionStatus);
 
-  const { data: job, error: findError } = await admin.from('jobs').select('id, order_id, status, final_amount, employer_total, total, payment_status, midtrans_transaction_status, midtrans_transaction_id, paid_at, midtrans_pending_amount').eq('midtrans_order_id', orderId).maybeSingle();
+  const { data: job, error: findError } = await admin.from('jobs').select('id, order_id, worker_id, status, worker_amount, final_amount, employer_total, total, payment_status, midtrans_transaction_status, midtrans_transaction_id, paid_at, midtrans_pending_amount').eq('midtrans_order_id', orderId).maybeSingle();
   if (findError) return Response.json({ error: findError.message }, { status: 500 });
   if (!job) return Response.json({ error: 'KerjaHarian job not found for Midtrans order' }, { status: 404 });
 
   // A valid Midtrans settlement is the payment event itself. Do not reject the
   // webhook merely because a resolution is open: that can cause provider retries
   // and would conflate payment collection with the separate payout hold.
-  // Worker payout remains pending until the resolution/financial action is cleared.
+  // Worker payout remains pending until the payment reaches settlement.
   if (success && String(job.status) !== 'completed') return Response.json({ error: 'Payment notification rejected: job is not completed' }, { status: 409 });
 
   const expectedAmount = Number(job.midtrans_pending_amount ?? job.final_amount ?? job.employer_total ?? job.total ?? 0);
@@ -68,5 +68,29 @@ export async function onRequest(context) {
     metadata: { status_code: String(notification.status_code), payment_type: notification.payment_type || null, fraud_status: notification.fraud_status || null, settlement_time: notification.settlement_time || null },
   });
   if (auditError && auditError.code !== '23505') return Response.json({ error: auditError.message }, { status: 500 });
+
+  // Connect verified Midtrans payment state to the worker earnings ledger.
+  // capture is recorded as pending; settlement makes the earnings withdrawable.
+  // A partial refund is held for admin review instead of silently reducing pay.
+  if (job.worker_id && Number(job.worker_amount ?? 0) > 0) {
+    const earningStatus = transactionStatus === 'settlement' ? 'posted' : transactionStatus === 'capture' ? 'pending' : transactionStatus === 'partial_refund' ? 'review' : transactionStatus === 'refund' ? 'reversed' : null;
+    if (earningStatus) {
+      const { error: earningError } = await admin.from('worker_earning_ledger').upsert({
+        worker_id: job.worker_id,
+        job_id: job.id,
+        order_id: job.order_id,
+        midtrans_order_id: orderId,
+        midtrans_transaction_id: incomingTransactionId,
+        entry_type: 'job_credit',
+        status: earningStatus,
+        amount: Math.max(0, Number(job.worker_amount)),
+        description: earningStatus === 'posted' ? 'Penghasilan pekerjaan telah tersedia' : earningStatus === 'pending' ? 'Penghasilan menunggu settlement Midtrans' : earningStatus === 'review' ? 'Penghasilan ditahan untuk pemeriksaan refund parsial' : 'Penghasilan dibalik karena refund',
+        metadata: { transaction_status: transactionStatus, gross_amount: notifiedAmount },
+        posted_at: earningStatus === 'posted' ? new Date().toISOString() : null,
+      }, { onConflict: 'job_id,entry_type' });
+      if (earningError) return Response.json({ error: earningError.message }, { status: 500 });
+    }
+  }
+
   return Response.json({ ok: true, order_id: orderId, payment_status: nextPaymentStatus });
 }
