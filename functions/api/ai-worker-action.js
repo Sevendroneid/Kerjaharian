@@ -22,6 +22,22 @@ async function listOffers(a){
   return (data||[]).filter(x=>x.job);
 }
 
+async function writeAudit(a,{requestText,action,offerId,jobId,result}){
+  const {error}=await a.client.from('ai_action_logs').insert({
+    actor_id:a.user.id,
+    role:a.profile.role,
+    request_text:requestText,
+    intent:'accept_offer',
+    action,
+    permission_level:'confirmation',
+    status:'executed',
+    evidence:{offer_id:offerId,job_id:jobId},
+    recommendation:{source:'ai-worker-action',requires_confirmation:true},
+    result:result??{}
+  });
+  return !error;
+}
+
 export async function onRequest({request,env}){
   const headers=cors(request.headers.get('origin')||'*');
   if(request.method==='OPTIONS')return new Response(null,{status:204,headers});
@@ -39,11 +55,13 @@ export async function onRequest({request,env}){
     if(body?.confirmed!==true)return json({error:'Konfirmasi eksplisit diperlukan sebelum menerima pekerjaan.'},400,headers);
     const offerId=typeof body?.offer_id==='string'?body.offer_id:'';
     if(!offerId)return json({error:'Penawaran kerja belum dipilih.'},400,headers);
+    const requestText=typeof body?.message==='string'?body.message.trim().slice(0,2000):`accept_offer:${offerId}`;
     const {data:offer,error:offerError}=await a.client.from('dispatch_offers').select('id,job_id,worker_id,status,expires_at').eq('id',offerId).eq('worker_id',a.user.id).maybeSingle();
     if(offerError||!offer)return json({error:'Penawaran tidak ditemukan atau bukan milik akun ini.'},404,headers);
     if(offer.status!=='offered'||new Date(offer.expires_at).getTime()<=Date.now())return json({error:'Penawaran sudah tidak aktif.'},409,headers);
     const {data:accepted,error:acceptError}=await a.client.rpc('accept_dispatch_offer',{p_offer_id:offerId});
     if(acceptError)return json({error:'Penawaran gagal diterima: '+acceptError.message},409,headers);
-    return json({ok:true,accepted,action:'accept_offer',permission_level:'confirmation',requires_confirmation:false,writes_performed:true},200,headers);
+    const auditLogged=await writeAudit(a,{requestText,action,offerId,jobId:offer.job_id,result:accepted});
+    return json({ok:true,accepted,action:'accept_offer',permission_level:'confirmation',requires_confirmation:false,writes_performed:true,audit_logged:auditLogged},200,headers);
   }catch(error){return json({error:error instanceof Error?error.message:'Gagal menjalankan tindakan AI pekerja.'},500,headers);}
 }
