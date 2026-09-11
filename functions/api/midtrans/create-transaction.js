@@ -31,7 +31,7 @@ export async function onRequest(context) {
 
   const { data: job, error: jobError } = await admin
     .from('jobs')
-    .select('id, employer_id, worker_id, title, final_amount, employer_total, total, payment_status, status, incident_open, midtrans_order_id, midtrans_snap_token, midtrans_transaction_status, midtrans_pending_amount')
+    .select('id, order_id, employer_id, worker_id, title, final_amount, employer_total, total, payment_status, status, incident_open, midtrans_order_id, midtrans_snap_token, midtrans_transaction_status, midtrans_pending_amount')
     .eq('id', jobId)
     .single();
 
@@ -39,6 +39,18 @@ export async function onRequest(context) {
   if (job.employer_id !== userData.user.id) return Response.json({ error: 'Only the employer can initiate payment' }, { status: 403 });
   if (String(job.status) !== 'completed') return Response.json({ error: 'Job is not payable until it is completed' }, { status: 409 });
   if (job.incident_open) return Response.json({ error: 'Payment is blocked while a safety incident is open' }, { status: 409 });
+
+  if (job.order_id) {
+    const { data: openCases, error: resolutionError } = await admin
+      .from('resolutions')
+      .select('id')
+      .eq('order_id', job.order_id)
+      .in('status', ['open', 'waiting_response', 'under_review', 'waiting_evidence', 'negotiation'])
+      .limit(1);
+    if (resolutionError) return Response.json({ error: resolutionError.message }, { status: 500 });
+    if ((openCases ?? []).length > 0) return Response.json({ error: 'Payment is blocked while a resolution case is open' }, { status: 409 });
+  }
+
   if (job.payment_status === 'refunded' || job.payment_status === 'partial_refund') return Response.json({ error: 'Payment has already been refunded' }, { status: 409 });
 
   const targetAmount = Number(job.final_amount ?? job.employer_total ?? job.total ?? 0);
@@ -74,7 +86,7 @@ export async function onRequest(context) {
     item_details: [{ id: job.id, price: amountDue, quantity: 1, name: String(job.title || 'KerjaHarian job').slice(0, 50) }],
   };
 
-  const authorization = btoa(`${serverKey}:`);
+  const authorization = btoa(`${serverKey}:`;
   const midtransResponse = await fetch(snapApiUrl, {
     method: 'POST',
     headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Basic ${authorization}`, 'Idempotency-Key': orderId.slice(0, 46) },
