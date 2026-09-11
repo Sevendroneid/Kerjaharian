@@ -60,9 +60,19 @@ export async function onRequest(context) {
   }
 
   const incomingTransactionId = notification.transaction_id ? String(notification.transaction_id) : null;
-  const duplicate = job.midtrans_transaction_status === transactionStatus && job.midtrans_transaction_id === incomingTransactionId;
-  if (duplicate) return Response.json({ ok: true, order_id: orderId, payment_status: job.payment_status, duplicate: true });
-  if (['settled', 'refunded', 'partial_refund'].includes(String(job.payment_status)) && !success && !refunded) return Response.json({ ok: true, order_id: orderId, payment_status: job.payment_status, ignored: true });
+  const sameEvent = job.midtrans_transaction_status === transactionStatus && job.midtrans_transaction_id === incomingTransactionId;
+  const bankConfirmedRefund = refunded && Boolean(notification.bank_confirmed_at);
+  if (sameEvent && !bankConfirmedRefund) return Response.json({ ok: true, order_id: orderId, payment_status: job.payment_status, duplicate: true });
+
+  // Midtrans can deliver notifications out of order. Never regress a fully
+  // refunded transaction back to partial_refund, and never let terminal payment
+  // states be overwritten by stale non-refund notifications.
+  if (String(job.payment_status) === 'refunded' && transactionStatus === 'partial_refund') {
+    return Response.json({ ok: true, order_id: orderId, payment_status: job.payment_status, ignored: true });
+  }
+  if (['settled', 'refunded', 'partial_refund'].includes(String(job.payment_status)) && !success && !refunded) {
+    return Response.json({ ok: true, order_id: orderId, payment_status: job.payment_status, ignored: true });
+  }
 
   const nextPaymentStatus = success ? 'settled' : refunded ? (transactionStatus === 'partial_refund' ? 'partial_refund' : 'refunded') : terminalFailure ? 'cancelled' : 'pending';
   const update = {
