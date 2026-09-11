@@ -2,11 +2,12 @@ import { HardHat, MapPin, Phone, Shield, MessageCircle } from 'lucide-react';
 import { Logo } from './Logo';
 import type { View, CategoryId } from '@/lib/types';
 
-interface FooterProps { onNavigate: (view: View, category?: CategoryId) => void; lang: 'id' | 'en'; }
+interface FooterProps { onNavigate: (view: View, category?: CategoryId) => void; lang?: 'id' | 'en'; }
 const LinkItem = ({ href, children, onNavigate, view }: { href: string; children: React.ReactNode; onNavigate: (view: View) => void; view: View }) => <a href={href} onClick={(e) => { e.preventDefault(); onNavigate(view); }} className="transition hover:text-white">{children}</a>;
 
 export function Footer({ onNavigate, lang }: FooterProps) {
-  const id = lang === 'id';
+  const currentLang = lang ?? ((typeof window !== 'undefined' && localStorage.getItem('kerjaharian_lang') === 'en') ? 'en' : 'id');
+  const id = currentLang === 'id';
   const t = id ? {
     description: 'Platform on-demand yang menghubungkan pemberi kerja dengan tenaga kerja harian di Indonesia.', services: 'Layanan', hire: 'Pesan Tenaga Kerja', worker: 'Jadi Mitra Pekerja', logistics: 'Logistik & Pindahan', renovation: 'Tukang & Renovasi', cleaning: 'Jasa Kebersihan Rumah', general: 'Tenaga Serabutan Profesional', legal: 'Perusahaan & Legal', about: 'Tentang Kami', privacy: 'Kebijakan Privasi', terms: 'Syarat & Ketentuan', help: 'Pusat Bantuan', contact: 'Kontak Resmi CS', chat: 'Chat WhatsApp CS', service: 'Layanan KerjaHarian', rights: 'Semua hak dilindungi.', tagline: 'Solusi Cepat Tenaga Kerja Harian'
   } : {
