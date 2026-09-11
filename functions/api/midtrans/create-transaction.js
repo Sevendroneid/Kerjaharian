@@ -31,56 +31,54 @@ export async function onRequest(context) {
 
   const { data: job, error: jobError } = await admin
     .from('jobs')
-    .select('id, employer_id, worker_id, title, final_amount, employer_total, total, payment_status, status, midtrans_order_id, midtrans_snap_token, midtrans_transaction_status')
+    .select('id, employer_id, worker_id, title, final_amount, employer_total, total, payment_status, status, midtrans_order_id, midtrans_snap_token, midtrans_transaction_status, midtrans_pending_amount')
     .eq('id', jobId)
     .single();
 
   if (jobError || !job) return Response.json({ error: 'Job not found' }, { status: 404 });
   if (job.employer_id !== userData.user.id) return Response.json({ error: 'Only the employer can initiate payment' }, { status: 403 });
   if (!['open', 'assigned', 'completed'].includes(String(job.status))) return Response.json({ error: 'Job is not payable in its current state' }, { status: 409 });
-  if (job.status === 'completed' && !job.worker_id) return Response.json({ error: 'Job has no worker' }, { status: 409 });
-  if (job.payment_status === 'settled') return Response.json({ error: 'Payment is already settled' }, { status: 409 });
   if (job.payment_status === 'refunded' || job.payment_status === 'partial_refund') return Response.json({ error: 'Payment has already been refunded' }, { status: 409 });
 
-  const grossAmount = Number(job.final_amount ?? job.employer_total ?? job.total ?? 0);
-  if (!Number.isInteger(grossAmount) || grossAmount <= 0) return Response.json({ error: 'Invalid server-side payment amount' }, { status: 409 });
+  const targetAmount = Number(job.final_amount ?? job.employer_total ?? job.total ?? 0);
+  if (!Number.isInteger(targetAmount) || targetAmount <= 0) return Response.json({ error: 'Invalid server-side payment amount' }, { status: 409 });
 
-  const orderId = job.midtrans_order_id || `KH-${job.id}`;
+  const { data: paidRows, error: paidError } = await admin
+    .from('job_payment_events')
+    .select('gross_amount')
+    .eq('job_id', job.id)
+    .eq('payment_status', 'settled');
+  if (paidError) return Response.json({ error: 'Could not verify previous payments' }, { status: 500 });
+  const paidAmount = (paidRows ?? []).reduce((sum, row) => sum + Number(row.gross_amount || 0), 0);
+  const amountDue = Math.max(0, targetAmount - paidAmount);
 
-  if (job.midtrans_snap_token && ['pending', 'authorize'].includes(String(job.midtrans_transaction_status || '').toLowerCase())) {
-    return Response.json({ token: job.midtrans_snap_token, client_key: clientKey, order_id: orderId, gross_amount: grossAmount, environment, reused: true });
+  if (amountDue === 0) {
+    if (job.payment_status !== 'settled') await admin.from('jobs').update({ payment_status: 'settled', midtrans_pending_amount: null }).eq('id', job.id);
+    return Response.json({ error: 'Payment is already fully settled' }, { status: 409 });
   }
 
+  const pendingStatus = String(job.midtrans_transaction_status || '').toLowerCase();
+  if (job.midtrans_snap_token && ['pending', 'authorize'].includes(pendingStatus) && Number(job.midtrans_pending_amount || 0) === amountDue) {
+    return Response.json({ token: job.midtrans_snap_token, client_key: clientKey, order_id: job.midtrans_order_id, gross_amount: amountDue, environment, reused: true });
+  }
+
+  const orderId = paidAmount > 0 ? `KH-${job.id}-TOPUP-${Date.now()}` : (job.midtrans_order_id || `KH-${job.id}`);
   const payload = {
-    transaction_details: { order_id: orderId, gross_amount: grossAmount },
-    item_details: [{ id: job.id, price: grossAmount, quantity: 1, name: String(job.title || 'KerjaHarian job').slice(0, 50) }],
+    transaction_details: { order_id: orderId, gross_amount: amountDue },
+    item_details: [{ id: job.id, price: amountDue, quantity: 1, name: String(job.title || 'KerjaHarian job').slice(0, 50) }],
   };
 
   const authorization = btoa(`${serverKey}:`);
   const midtransResponse = await fetch(snapApiUrl, {
     method: 'POST',
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      Authorization: `Basic ${authorization}`,
-      'Idempotency-Key': orderId.slice(0, 46),
-    },
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Basic ${authorization}`, 'Idempotency-Key': orderId.slice(0, 46) },
     body: JSON.stringify(payload),
   });
-
   const result = await midtransResponse.json().catch(() => ({}));
-  if (!midtransResponse.ok || !result.token) {
-    return Response.json({ error: 'Midtrans transaction creation failed', detail: result?.error_messages || result?.status_message || 'Unknown Midtrans error' }, { status: 502 });
-  }
+  if (!midtransResponse.ok || !result.token) return Response.json({ error: 'Midtrans transaction creation failed', detail: result?.error_messages || result?.status_message || 'Unknown Midtrans error' }, { status: 502 });
 
-  const { error: updateError } = await admin.from('jobs').update({
-    midtrans_order_id: orderId,
-    midtrans_snap_token: result.token,
-    midtrans_transaction_status: 'pending',
-    payment_status: 'pending',
-  }).eq('id', job.id);
-
+  const { error: updateError } = await admin.from('jobs').update({ midtrans_order_id: orderId, midtrans_snap_token: result.token, midtrans_transaction_status: 'pending', payment_status: 'pending', midtrans_pending_amount: amountDue }).eq('id', job.id);
   if (updateError) return Response.json({ error: 'Payment token created but could not be stored', detail: updateError.message }, { status: 500 });
 
-  return Response.json({ token: result.token, client_key: clientKey, order_id: orderId, gross_amount: grossAmount, environment });
+  return Response.json({ token: result.token, client_key: clientKey, order_id: orderId, gross_amount: amountDue, environment, top_up: paidAmount > 0 });
 }
