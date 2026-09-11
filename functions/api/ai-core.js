@@ -41,7 +41,16 @@ export async function onRequest({ request, env }) {
 
     const role = auth.profile.role;
     const intent = classifyIntent(message);
-    const target = role === 'admin' ? '/api/ai-admin' : '/api/ai-user';
+
+    // One AI Core, but never one unrestricted permission set.
+    // The grounded problem resolver is preferred for user problem reports;
+    // admin operations/critical requests remain behind the admin agent.
+    const target = role === 'admin'
+      ? '/api/ai-admin'
+      : intent === 'problem'
+        ? '/api/ai-problem-solver'
+        : '/api/ai-user';
+
     const delegated = await invokeRoleAgent(request, target, message);
     const payload = await delegated.json().catch(() => ({}));
 
