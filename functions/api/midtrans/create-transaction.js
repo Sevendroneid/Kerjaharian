@@ -71,14 +71,13 @@ export async function onRequest(context) {
     : hasPriorOrder
       ? `KH-${job.id}-RETRY-${Date.now()}`
       : `KH-${job.id}`;
-  const claimStatuses = ['failed', 'failure', 'deny', 'cancel', 'expire', 'cancelled', 'unknown', ''];
   const { data: claimedJob, error: claimError } = await admin
     .from('jobs')
     .update({ midtrans_order_id: orderId, midtrans_snap_token: null, midtrans_transaction_status: 'initializing', midtrans_pending_amount: amountDue })
     .eq('id', job.id)
     .eq('status', 'completed')
     .eq('payment_status', 'pending')
-    .in('midtrans_transaction_status', claimStatuses)
+    .or('midtrans_transaction_status.is.null,midtrans_transaction_status.in.(failed,failure,deny,cancel,expire,cancelled,unknown)')
     .select('id')
     .maybeSingle();
   if (claimError) return Response.json({ error: 'Could not reserve payment attempt', detail: claimError.message }, { status: 500 });
