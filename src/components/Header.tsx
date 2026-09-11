@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-expressions */
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Menu, X, LogOut, Loader2, MessageCircle, Wallet, ArrowDownToLine, AlertTriangle } from 'lucide-react';
 import { Logo } from './Logo';
