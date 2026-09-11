@@ -28,9 +28,14 @@ export async function onRequest(context) {
   const refunded = ['refund', 'partial_refund'].includes(transactionStatus);
   const terminalFailure = ['deny', 'cancel', 'expire', 'failure'].includes(transactionStatus);
 
-  const { data: job, error: findError } = await admin.from('jobs').select('id, final_amount, employer_total, total, payment_status, midtrans_transaction_status, midtrans_transaction_id, paid_at, midtrans_pending_amount').eq('midtrans_order_id', orderId).maybeSingle();
+  const { data: job, error: findError } = await admin.from('jobs').select('id, status, final_amount, employer_total, total, payment_status, midtrans_transaction_status, midtrans_transaction_id, paid_at, midtrans_pending_amount').eq('midtrans_order_id', orderId).maybeSingle();
   if (findError) return Response.json({ error: findError.message }, { status: 500 });
   if (!job) return Response.json({ error: 'KerjaHarian job not found for Midtrans order' }, { status: 404 });
+
+  // Settlement must never be able to move a non-completed job into a paid state.
+  // This is defense-in-depth for old/stale order IDs because new payment creation
+  // already rejects every status other than completed.
+  if (success && String(job.status) !== 'completed') return Response.json({ error: 'Payment notification rejected: job is not completed' }, { status: 409 });
 
   const expectedAmount = Number(job.midtrans_pending_amount ?? job.final_amount ?? job.employer_total ?? job.total ?? 0);
   const notifiedAmount = Number(notification.gross_amount);
