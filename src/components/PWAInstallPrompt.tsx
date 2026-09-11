@@ -42,7 +42,7 @@ export function PWAInstallPrompt() {
     window.addEventListener('beforeinstallprompt', onBeforeInstallPrompt);
     window.addEventListener('appinstalled', onAppInstalled);
 
-    // iOS never exposes beforeinstallprompt, so show the native-install instructions directly.
+    // iOS/Android do not always expose beforeinstallprompt, so keep a compact hint available.
     if (isIOS() || isAndroid()) setOpen(true);
 
     return () => {
@@ -67,59 +67,49 @@ export function PWAInstallPrompt() {
   const android = isAndroid();
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-[100] flex justify-center p-3 sm:inset-x-auto sm:bottom-5 sm:right-5 sm:w-[390px] sm:p-0">
-      <div className="relative w-full max-w-md rounded-3xl bg-white p-5 shadow-2xl ring-1 ring-slate-200">
+    <div className="fixed inset-x-0 bottom-0 z-[100] flex justify-center p-2 sm:bottom-4 sm:left-auto sm:right-4 sm:w-[min(100%-2rem,420px)] sm:p-0">
+      <div className="relative w-full rounded-2xl bg-white px-3 py-2.5 shadow-xl ring-1 ring-slate-200 sm:px-3.5 sm:py-3">
         <button
           type="button"
           aria-label="Tutup"
           onClick={() => setOpen(false)}
-          className="absolute right-3 top-3 rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+          className="absolute right-1.5 top-1.5 rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
         >
-          <X size={18} />
+          <X size={15} />
         </button>
 
-        <div className="flex items-start gap-4 pr-7">
-          <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-slate-900 text-amber-400 shadow-sm">
-            <Download size={26} strokeWidth={2.5} />
+        <div className="flex items-center gap-2.5 pr-6">
+          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-slate-900 text-amber-400">
+            <Download size={18} strokeWidth={2.5} />
           </div>
-          <div>
-            <p className="text-xs font-bold uppercase tracking-wider text-amber-600">KerjaHarian</p>
-            <h2 className="mt-1 text-lg font-extrabold text-slate-900">Pasang aplikasi KerjaHarian</h2>
-            <p className="mt-1 text-sm leading-5 text-slate-500">Lebih cepat dibuka dari layar utama, tanpa perlu mencari website lagi.</p>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-extrabold text-slate-900">Pasang KerjaHarian</p>
+            <p className="truncate text-[11px] leading-4 text-slate-500">Akses lebih cepat dari layar utama.</p>
           </div>
+
+          {deferredPrompt ? (
+            <button
+              type="button"
+              onClick={handleInstall}
+              disabled={installing}
+              className="shrink-0 rounded-xl bg-slate-900 px-3 py-2 text-xs font-extrabold text-white transition hover:bg-slate-800 disabled:opacity-60"
+            >
+              {installing ? 'Memasang…' : 'Pasang'}
+            </button>
+          ) : ios ? (
+            <span className="shrink-0 rounded-xl bg-slate-100 px-2.5 py-2 text-[11px] font-bold text-slate-600">
+              <Share className="mr-1 inline-block" size={13} />Bagikan → Layar Utama
+            </span>
+          ) : android ? (
+            <span className="shrink-0 rounded-xl bg-slate-100 px-2.5 py-2 text-[11px] font-bold text-slate-600">
+              Menu ⋮ → Install app
+            </span>
+          ) : (
+            <button type="button" onClick={() => setOpen(false)} className="shrink-0 px-2 py-1 text-[11px] font-bold text-slate-400">
+              Nanti
+            </button>
+          )}
         </div>
-
-        {deferredPrompt ? (
-          <button
-            type="button"
-            onClick={handleInstall}
-            disabled={installing}
-            className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 py-3.5 text-sm font-extrabold text-white shadow-lg transition hover:bg-slate-800 disabled:opacity-60"
-          >
-            <Download size={18} />
-            {installing ? 'Memasang…' : 'Pasang KerjaHarian'}
-          </button>
-        ) : ios ? (
-          <div className="mt-5 rounded-2xl bg-slate-50 p-4 text-sm text-slate-700">
-            <p className="font-extrabold text-slate-900">Cara pasang di iPhone/iPad</p>
-            <ol className="mt-2 list-decimal space-y-1.5 pl-5 leading-5">
-              <li>Tekan tombol <Share className="mx-1 inline-block" size={16} /> <b>Bagikan</b> di Safari.</li>
-              <li>Pilih <b>Tambahkan ke Layar Utama</b>.</li>
-              <li>Tekan <b>Tambah</b>.</li>
-            </ol>
-          </div>
-        ) : android ? (
-          <div className="mt-5 rounded-2xl bg-slate-50 p-4 text-sm text-slate-700">
-            <p className="font-extrabold text-slate-900">Jika tombol instal belum muncul</p>
-            <p className="mt-1 leading-5">Di Chrome, buka menu <b>⋮</b> lalu pilih <b>Install app</b> atau <b>Tambahkan ke layar utama</b>.</p>
-          </div>
-        ) : (
-          <p className="mt-5 rounded-2xl bg-slate-50 p-4 text-sm leading-5 text-slate-600">Buka KerjaHarian di Chrome atau Safari pada perangkat Android/iPhone untuk memasangnya sebagai aplikasi.</p>
-        )}
-
-        <button type="button" onClick={() => setOpen(false)} className="mt-3 w-full py-2 text-xs font-bold text-slate-400 hover:text-slate-600">
-          Nanti saja
-        </button>
       </div>
     </div>
   );
