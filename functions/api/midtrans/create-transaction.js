@@ -37,8 +37,8 @@ export async function onRequest(context) {
 
   if (jobError || !job) return Response.json({ error: 'Job not found' }, { status: 404 });
   if (job.employer_id !== userData.user.id) return Response.json({ error: 'Only the employer can initiate payment' }, { status: 403 });
-  if (job.status !== 'completed') return Response.json({ error: 'Job must be completed before payment' }, { status: 409 });
-  if (!job.worker_id) return Response.json({ error: 'Job has no worker' }, { status: 409 });
+  if (!['open', 'assigned', 'completed'].includes(String(job.status))) return Response.json({ error: 'Job is not payable in its current state' }, { status: 409 });
+  if (job.status === 'completed' && !job.worker_id) return Response.json({ error: 'Job has no worker' }, { status: 409 });
   if (job.payment_status === 'settled') return Response.json({ error: 'Payment is already settled' }, { status: 409 });
   if (job.payment_status === 'refunded' || job.payment_status === 'partial_refund') return Response.json({ error: 'Payment has already been refunded' }, { status: 409 });
 
