@@ -100,12 +100,21 @@ export async function onRequest(context) {
     return Response.json({ error: 'Midtrans transaction creation failed', detail: result?.error_messages || result?.status_message || 'Unknown Midtrans error' }, { status: 502 });
   }
 
-  const { error: updateError } = await admin
+  const { error: tokenError } = await admin
     .from('jobs')
-    .update({ midtrans_snap_token: result.token, midtrans_transaction_status: 'pending', payment_status: 'pending', midtrans_pending_amount: amountDue })
+    .update({ midtrans_snap_token: result.token, midtrans_pending_amount: amountDue })
     .eq('id', job.id)
     .eq('midtrans_order_id', orderId);
-  if (updateError) return Response.json({ error: 'Payment token created but could not be stored', detail: updateError.message }, { status: 500 });
+  if (tokenError) return Response.json({ error: 'Payment token created but could not be stored', detail: tokenError.message }, { status: 500 });
+
+  // Do not overwrite a settlement that may have arrived between the Midtrans
+  // response and this database write. Only transition our own reservation.
+  await admin
+    .from('jobs')
+    .update({ midtrans_transaction_status: 'pending', payment_status: 'pending' })
+    .eq('id', job.id)
+    .eq('midtrans_order_id', orderId)
+    .eq('midtrans_transaction_status', 'initializing');
 
   return Response.json({ token: result.token, client_key: clientKey, order_id: orderId, gross_amount: amountDue, environment, top_up: paidAmount > 0 });
 }
