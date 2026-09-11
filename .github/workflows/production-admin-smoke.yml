@@ -65,7 +65,7 @@ jobs:
           if (!response || !response.ok()) throw new Error(`Admin route HTTP failure: ${response?.status() ?? 'no response'}`);
           if (page.url() !== 'https://www.kerjaharian.my.id/rahasia') throw new Error(`Unexpected admin origin: ${page.url()}`);
           await page.getByText('Login Admin',{exact:true}).waitFor({state:'visible',timeout:20000});
-          await page.getByText('Masuk',{exact:true}).waitFor({state:'visible',timeout:10000});
+          await page.getByText('Masuk dengan PIN',{exact:true}).waitFor({state:'visible',timeout:10000});
           await page.waitForTimeout(1000);
           const body=await page.locator('body').innerText();
           if (body.includes('Memverifikasi sesi Admin...')) throw new Error('Admin route is stuck on session verification');

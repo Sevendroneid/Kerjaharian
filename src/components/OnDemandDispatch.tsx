@@ -75,18 +75,20 @@ export function EmployerDispatchWatcher() {
       .from('jobs')
       .select('id,title,total,employer_total,final_amount,payment_status,status')
       .eq('employer_id', user.id)
-      .eq('status', 'open')
-      .order('created_at', { ascending: false })
+      .eq('status', 'completed')
+      .eq('payment_status', 'pending')
+      .order('completed_at', { ascending: false })
       .limit(10);
-    if (!queryError) setPaymentJobs((data ?? []) as PaymentJob[]);
+    if (queryError) setError(queryError.message); else setPaymentJobs((data ?? []) as PaymentJob[]);
   }, [profile?.role, user]);
 
   const dispatch = useCallback(async () => {
     if (!user || profile?.role !== 'employer') return;
-    const { data } = await supabase.from('jobs').select('id').eq('employer_id',user.id).eq('status','open').order('created_at',{ascending:false}).limit(10);
+    const { data, error: queryError } = await supabase.from('jobs').select('id').eq('employer_id',user.id).eq('status','open').order('created_at',{ascending:false}).limit(10);
+    if (queryError) { setError(queryError.message); return; }
     for (const row of data ?? []) {
       const { error: dispatchError }=await supabase.rpc('dispatch_open_job',{p_job_id:row.id,p_limit:10});
-      if(dispatchError && !dispatchError.message.toLowerCase().includes('koordinat') && !dispatchError.message.toLowerCase().includes('pembayaran')) console.warn('Dispatch:',dispatchError.message);
+      if(dispatchError && !dispatchError.message.toLowerCase().includes('koordinat')) setError(dispatchError.message);
     }
   }, [profile?.role, user]);
 
@@ -116,12 +118,10 @@ export function EmployerDispatchWatcher() {
   };
 
   if (!user || profile?.role !== 'employer' || paymentJobs.length === 0) return null;
-  const unpaid = paymentJobs.filter((job) => job.payment_status !== 'settled');
-  if (unpaid.length === 0) return null;
 
   return <section className="mb-6 rounded-2xl border-2 border-amber-200 bg-amber-50 p-5 shadow-sm" aria-live="polite">
-    <div className="flex items-center gap-2"><CreditCard className="h-5 w-5 text-amber-700" /><div><h2 className="font-display font-bold text-slate-900">Pembayaran diperlukan sebelum pencarian mitra</h2><p className="text-xs text-slate-600">Dana pekerjaan harus terverifikasi terlebih dahulu agar job dapat masuk ke Golden Window.</p></div></div>
+    <div className="flex items-center gap-2"><CreditCard className="h-5 w-5 text-amber-700" /><div><h2 className="font-display font-bold text-slate-900">Pembayaran pekerjaan selesai</h2><p className="text-xs text-slate-600">Pekerjaan sudah selesai. Lakukan pembayaran melalui Midtrans untuk menyelesaikan transaksi.</p></div></div>
     {error && <p className="mt-3 rounded-lg bg-error-50 p-3 text-xs font-semibold text-error-700">{error}</p>}
-    <div className="mt-4 space-y-3">{unpaid.map((job) => { const amount=Number(job.final_amount ?? job.employer_total ?? job.total ?? 0); return <div key={job.id} className="flex items-center justify-between gap-4 rounded-xl bg-white p-4 ring-1 ring-amber-200"><div><p className="font-bold text-slate-900">{job.title || 'Pekerjaan'}</p><p className="mt-1 text-sm font-extrabold text-amber-700">{formatIDR(amount)}</p><p className="mt-1 text-[11px] text-slate-500">Status: {job.payment_status || 'pending'}</p></div><button onClick={()=>void pay(job.id)} disabled={busy===job.id} className="flex shrink-0 items-center gap-2 rounded-lg bg-amber-600 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-60">{busy===job.id?<Loader2 className="h-4 w-4 animate-spin"/>:<CreditCard className="h-4 w-4"/>}{busy===job.id?'Memproses...':'Bayar'}</button></div>; })}</div>
+    <div className="mt-4 space-y-3">{paymentJobs.map((job) => { const amount=Number(job.final_amount ?? job.employer_total ?? job.total ?? 0); return <div key={job.id} className="flex items-center justify-between gap-4 rounded-xl bg-white p-4 ring-1 ring-amber-200"><div><p className="font-bold text-slate-900">{job.title || 'Pekerjaan'}</p><p className="mt-1 text-sm font-extrabold text-amber-700">{formatIDR(amount)}</p><p className="mt-1 text-[11px] text-slate-500">Status: Menunggu pembayaran</p></div><button onClick={()=>void pay(job.id)} disabled={busy===job.id} className="flex shrink-0 items-center gap-2 rounded-lg bg-amber-600 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-60">{busy===job.id?<Loader2 className="h-4 w-4 animate-spin"/>:<CreditCard className="h-4 w-4"/>}{busy===job.id?'Memproses...':'Bayar'}</button></div>; })}</div>
   </section>;
 }
