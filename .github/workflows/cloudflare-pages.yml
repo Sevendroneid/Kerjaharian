@@ -140,7 +140,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for endpoint in ai-problem-solver ai-task-parser ai-worker-matcher ai-admin-insights ai-user-proactive ai-admin-voice ai-admin-transcribe ai-user ai-admin; do
+          for endpoint in ai-core ai-problem-solver ai-task-parser ai-worker-matcher ai-admin-insights ai-user-proactive ai-admin-voice ai-admin-transcribe ai-user ai-admin; do
             if [ "$endpoint" = "ai-admin-transcribe" ]; then
               status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' -X POST -F 'audio=@/dev/null;filename=test.webm;type=audio/webm' "https://www.kerjaharian.my.id/api/${endpoint}")"
             else
