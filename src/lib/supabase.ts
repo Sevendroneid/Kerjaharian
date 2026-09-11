@@ -7,6 +7,19 @@ if (!supabaseUrl || !supabasePublishableKey) throw new Error('Missing Supabase e
 
 export const supabase = createClient(supabaseUrl, supabasePublishableKey, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, experimental: { passkey: true } } });
 
+// Some browsers can temporarily expose no active session even though Supabase
+// still has a refresh token. Recover that session before callers give up.
+const nativeGetSession = supabase.auth.getSession.bind(supabase.auth);
+supabase.auth.getSession = async () => {
+  const current = await nativeGetSession();
+  if (current.data.session?.access_token) return current;
+  const refreshed = await supabase.auth.refreshSession();
+  if (refreshed.data.session?.access_token) {
+    return { data: { session: refreshed.data.session }, error: null };
+  }
+  return current;
+};
+
 export interface Profile {
   id: string; full_name: string | null; phone: string | null; whatsapp: string | null;
   role: 'employer' | 'worker' | 'admin'; kyc_verified: boolean; ktp_photo_url: string | null;
