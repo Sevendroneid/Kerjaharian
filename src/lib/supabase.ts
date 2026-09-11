@@ -20,7 +20,7 @@ export interface Job {
   category: 'logistik' | 'tukang' | 'kebersihan' | 'serabutan'; job_type_id: string | null;
   title: string; location: string; wage: number; wage_type: 'hourly' | 'daily'; estimated_hours: number | null;
   fee: number; fee_breakdown: { insurance: number; tax: number; platform: number } | null; total: number;
-  final_amount: number | null; payment_status: 'pending' | 'settled' | 'cancelled' | null;
+  final_amount: number | null; payment_status: 'pending' | 'settled' | 'cancelled' | 'refunded' | 'partial_refund' | null;
   status: 'open' | 'assigned' | 'completed' | 'cancelled'; duration_minutes: number | null;
   overtime_rate_per_minute: number | null; started_at: string | null; scheduled_end_at: string | null;
   completed_at: string | null; overtime_minutes: number; overtime_amount: number;
