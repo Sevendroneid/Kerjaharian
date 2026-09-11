@@ -11,6 +11,7 @@ export async function onRequest(context) {
   const clientKey = env.MIDTRANS_CLIENT_KEY;
   const environment = String(env.MIDTRANS_ENV || 'sandbox').toLowerCase() === 'production' ? 'production' : 'sandbox';
   const snapApiUrl = environment === 'production' ? 'https://app.midtrans.com/snap/v1/transactions' : 'https://app.sandbox.midtrans.com/snap/v1/transactions';
+  const statusApiBase = environment === 'production' ? 'https://api.midtrans.com/v2' : 'https://api.sandbox.midtrans.com/v2';
 
   if (!supabaseUrl || !anonKey || !serviceKey || !serverKey || !clientKey) {
     return Response.json({ error: 'Payment service is not configured' }, { status: 500 });
@@ -31,7 +32,7 @@ export async function onRequest(context) {
 
   const { data: job, error: jobError } = await admin
     .from('jobs')
-    .select('id, employer_id, worker_id, title, final_amount, employer_total, total, payment_status, status, midtrans_order_id, midtrans_snap_token, midtrans_transaction_status, midtrans_pending_amount')
+    .select('id, employer_id, worker_id, title, final_amount, employer_total, total, payment_status, status, updated_at, midtrans_order_id, midtrans_snap_token, midtrans_transaction_status, midtrans_pending_amount')
     .eq('id', jobId)
     .single();
 
@@ -62,9 +63,37 @@ export async function onRequest(context) {
     return Response.json({ token: job.midtrans_snap_token, client_key: clientKey, order_id: job.midtrans_order_id, gross_amount: amountDue, environment, reused: true });
   }
 
+  // A crashed request can leave the reservation in `initializing`. Never create a
+  // second transaction blindly: first reconcile the old Midtrans order. Midtrans
+  // explicitly recommends idempotent notification handling and status checking when
+  // notification delivery/state is uncertain.
+  if (pendingStatus === 'initializing' && job.midtrans_order_id) {
+    const initializedAt = Date.parse(String(job.updated_at || ''));
+    const stale = Number.isFinite(initializedAt) && Date.now() - initializedAt > 10 * 60 * 1000;
+    if (!stale) {
+      return Response.json({ error: 'Payment initialization already in progress. Please wait and try again.' }, { status: 409 });
+    }
+
+    const statusResponse = await fetch(`${statusApiBase}/${encodeURIComponent(job.midtrans_order_id)}/status`, {
+      headers: { Accept: 'application/json', Authorization: `Basic ${btoa(`${serverKey}:`)}` },
+    });
+    const statusBody = await statusResponse.json().catch(() => ({}));
+    const remoteStatus = String(statusBody?.transaction_status || '').toLowerCase();
+
+    if (statusResponse.ok && remoteStatus && !['failure', 'deny', 'cancel', 'expire', 'cancelled'].includes(remoteStatus)) {
+      return Response.json({ error: 'Previous Midtrans payment attempt still exists. Reconciliation is required before starting another payment.', transaction_status: remoteStatus, order_id: job.midtrans_order_id }, { status: 409 });
+    }
+
+    if (statusResponse.ok && ['failure', 'deny', 'cancel', 'expire', 'cancelled'].includes(remoteStatus)) {
+      await admin.from('jobs').update({ midtrans_transaction_status: remoteStatus, midtrans_snap_token: null, midtrans_pending_amount: null }).eq('id', job.id).eq('midtrans_order_id', job.midtrans_order_id).eq('midtrans_transaction_status', 'initializing');
+    } else if (statusResponse.status !== 404) {
+      return Response.json({ error: 'Could not reconcile the previous Midtrans payment attempt. Please retry shortly.' }, { status: 409 });
+    } else {
+      await admin.from('jobs').update({ midtrans_transaction_status: 'failure', midtrans_snap_token: null, midtrans_pending_amount: null }).eq('id', job.id).eq('midtrans_order_id', job.midtrans_order_id).eq('midtrans_transaction_status', 'initializing');
+    }
+  }
+
   // Atomically reserve this job for one payment attempt before calling Midtrans.
-  // Without this reservation, two rapid clicks could create two different Midtrans
-  // order IDs for the same payable amount and only the last one would remain linked.
   const hasPriorOrder = Boolean(job.midtrans_order_id);
   const orderId = paidAmount > 0
     ? `KH-${job.id}-TOPUP-${Date.now()}`
@@ -107,8 +136,6 @@ export async function onRequest(context) {
     .eq('midtrans_order_id', orderId);
   if (tokenError) return Response.json({ error: 'Payment token created but could not be stored', detail: tokenError.message }, { status: 500 });
 
-  // Do not overwrite a settlement that may have arrived between the Midtrans
-  // response and this database write. Only transition our own reservation.
   await admin
     .from('jobs')
     .update({ midtrans_transaction_status: 'pending', payment_status: 'pending' })
