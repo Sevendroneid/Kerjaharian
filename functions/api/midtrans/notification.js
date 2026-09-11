@@ -32,20 +32,11 @@ export async function onRequest(context) {
   if (findError) return Response.json({ error: findError.message }, { status: 500 });
   if (!job) return Response.json({ error: 'KerjaHarian job not found for Midtrans order' }, { status: 404 });
 
-  // Settlement must never be able to move a non-completed job into a paid state.
+  // A valid Midtrans settlement is the payment event itself. Do not reject the
+  // webhook merely because a resolution is open: that can cause provider retries
+  // and would conflate payment collection with the separate payout hold.
+  // Worker payout remains pending until the resolution/financial action is cleared.
   if (success && String(job.status) !== 'completed') return Response.json({ error: 'Payment notification rejected: job is not completed' }, { status: 409 });
-
-  // An active resolution case freezes settlement until an admin decision closes it.
-  if (success && job.order_id) {
-    const { data: openCases, error: resolutionError } = await admin
-      .from('resolutions')
-      .select('id')
-      .eq('order_id', job.order_id)
-      .in('status', ['open', 'waiting_response', 'under_review', 'waiting_evidence', 'negotiation'])
-      .limit(1);
-    if (resolutionError) return Response.json({ error: resolutionError.message }, { status: 500 });
-    if ((openCases ?? []).length > 0) return Response.json({ error: 'Payment notification rejected: resolution case is still open' }, { status: 409 });
-  }
 
   const expectedAmount = Number(job.midtrans_pending_amount ?? job.final_amount ?? job.employer_total ?? job.total ?? 0);
   const notifiedAmount = Number(notification.gross_amount);
