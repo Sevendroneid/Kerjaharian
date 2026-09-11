@@ -27,6 +27,7 @@ export async function onRequest(context) {
   const orderId = String(notification.order_id);
   const transactionStatus = String(notification.transaction_status || '').toLowerCase();
   const success = ['settlement', 'capture'].includes(transactionStatus) && String(notification.status_code) === '200' && (notification.fraud_status == null || String(notification.fraud_status).toUpperCase() === 'ACCEPT');
+  const refunded = ['refund', 'partial_refund'].includes(transactionStatus);
   const terminalFailure = ['deny', 'cancel', 'expire', 'failure'].includes(transactionStatus);
 
   const { data: job, error: findError } = await admin
@@ -44,18 +45,16 @@ export async function onRequest(context) {
     return Response.json({ error: 'Gross amount mismatch' }, { status: 409 });
   }
 
-  // Midtrans can retry the same notification. Treat an identical event as success without another mutation.
   const incomingTransactionId = notification.transaction_id ? String(notification.transaction_id) : null;
-  if (job.midtrans_transaction_status === transactionStatus && job.midtrans_transaction_id === incomingTransactionId) {
-    return Response.json({ ok: true, order_id: orderId, payment_status: job.payment_status, duplicate: true });
+  const duplicate = job.midtrans_transaction_status === transactionStatus && job.midtrans_transaction_id === incomingTransactionId;
+  if (duplicate) return Response.json({ ok: true, order_id: orderId, payment_status: job.payment_status, duplicate: true });
+
+  // Never allow an old failure/pending notification to regress a settled/refunded payment.
+  if (['settled', 'refunded', 'partial_refund'].includes(String(job.payment_status)) && !success && !refunded) {
+    return Response.json({ ok: true, order_id: orderId, payment_status: job.payment_status, ignored: true });
   }
 
-  // A settled payment is terminal for the job. Never let a delayed/retried failure notification regress it.
-  if (job.payment_status === 'settled' && !success) {
-    return Response.json({ ok: true, order_id: orderId, payment_status: 'settled', ignored: true });
-  }
-
-  const nextPaymentStatus = success ? 'settled' : terminalFailure ? 'cancelled' : 'pending';
+  const nextPaymentStatus = success ? 'settled' : refunded ? (transactionStatus === 'partial_refund' ? 'partial_refund' : 'refunded') : terminalFailure ? 'cancelled' : 'pending';
   const update = {
     midtrans_transaction_status: transactionStatus || 'unknown',
     midtrans_transaction_id: incomingTransactionId,
@@ -66,5 +65,21 @@ export async function onRequest(context) {
   const { error: updateError } = await admin.from('jobs').update(update).eq('id', job.id);
   if (updateError) return Response.json({ error: updateError.message }, { status: 500 });
 
-  return Response.json({ ok: true, order_id: orderId, payment_status: update.payment_status });
+  const { error: auditError } = await admin.from('job_payment_events').insert({
+    job_id: job.id,
+    midtrans_order_id: orderId,
+    transaction_id: incomingTransactionId,
+    transaction_status: transactionStatus || 'unknown',
+    gross_amount: notifiedAmount,
+    payment_status: nextPaymentStatus,
+    metadata: {
+      status_code: String(notification.status_code),
+      payment_type: notification.payment_type || null,
+      fraud_status: notification.fraud_status || null,
+      settlement_time: notification.settlement_time || null,
+    },
+  });
+  if (auditError && auditError.code !== '23505') return Response.json({ error: auditError.message }, { status: 500 });
+
+  return Response.json({ ok: true, order_id: orderId, payment_status: nextPaymentStatus });
 }
