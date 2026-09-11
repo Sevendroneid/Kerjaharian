@@ -21,14 +21,22 @@ type JobRow = {
   employer_id: string | null;
 };
 
-export function OvertimeApprovalPanel({ role, lang = 'id' }: { role: 'worker' | 'employer'; lang?: 'id' | 'en' }) {
+export function OvertimeApprovalPanel({ role, lang: initialLang }: { role: 'worker' | 'employer'; lang?: 'id' | 'en' }) {
   const { user } = useAuth();
   const [jobs, setJobs] = useState<JobRow[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [now, setNow] = useState(() => Date.now());
   const [overtimeChecked, setOvertimeChecked] = useState<Record<string, boolean>>({});
+  const [lang, setLang] = useState<'id' | 'en'>(() => initialLang ?? ((localStorage.getItem('kerjaharian_lang') as 'id' | 'en') || 'id'));
   const id = lang === 'id';
+
+  useEffect(() => { if (initialLang) setLang(initialLang); }, [initialLang]);
+  useEffect(() => {
+    const sync = () => setLang((localStorage.getItem('kerjaharian_lang') as 'id' | 'en') || 'id');
+    window.addEventListener('kerjaharian-language-change', sync);
+    return () => window.removeEventListener('kerjaharian-language-change', sync);
+  }, []);
 
   const load = useCallback(async () => {
     if (!user) return;
