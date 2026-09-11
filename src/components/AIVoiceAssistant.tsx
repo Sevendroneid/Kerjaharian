@@ -25,7 +25,7 @@ export function AIVoiceAssistant({profile}:Props){
     if(!supported){setError('Perekaman suara tidak tersedia di browser/PWA ini. Gunakan Chrome terbaru atau mode teks.');return;}
     try{
       const C=(window as any).SpeechRecognition||(window as any).webkitSpeechRecognition;
-      const r=C() as Recognition;
+      const r=new C() as Recognition;
       r.lang='id-ID';r.interimResults=false;r.continuous=false;
       r.onresult=e=>setText(clean(Array.from(e.results as any).map((x:any)=>x[0]?.transcript||'').join(' ')));
       r.onerror=e=>{setListening(false);setError(e?.error==='not-allowed'?'Izin mikrofon ditolak. Izinkan mikrofon di browser.':e?.error==='service-not-allowed'?'Layanan pengenalan suara diblokir browser. Coba Chrome terbaru.':'Suara tidak dapat dikenali. Silakan coba lagi.')};
