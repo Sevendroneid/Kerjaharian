@@ -62,7 +62,15 @@ export async function onRequest(context) {
     return Response.json({ token: job.midtrans_snap_token, client_key: clientKey, order_id: job.midtrans_order_id, gross_amount: amountDue, environment, reused: true });
   }
 
-  const orderId = paidAmount > 0 ? `KH-${job.id}-TOPUP-${Date.now()}` : (job.midtrans_order_id || `KH-${job.id}`);
+  // A terminal/failed Midtrans attempt must never reuse its old order ID.
+  // Reuse is limited to an actually pending transaction; otherwise create a
+  // fresh order ID so a new attempt cannot collide with the old transaction.
+  const hasPriorOrder = Boolean(job.midtrans_order_id);
+  const orderId = paidAmount > 0
+    ? `KH-${job.id}-TOPUP-${Date.now()}`
+    : hasPriorOrder
+      ? `KH-${job.id}-RETRY-${Date.now()}`
+      : `KH-${job.id}`;
   const payload = {
     transaction_details: { order_id: orderId, gross_amount: amountDue },
     item_details: [{ id: job.id, price: amountDue, quantity: 1, name: String(job.title || 'KerjaHarian job').slice(0, 50) }],
