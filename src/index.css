@@ -30,9 +30,8 @@
   .bg-slate-200 { background-color: #171717 !important; }
   .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600, .text-slate-500 { color: rgba(255,255,255,.88) !important; }
   .text-slate-400 { color: rgba(255,255,255,.55) !important; }
-  .border-slate-200, .border-slate-300, .ring-slate-200, .ring-slate-200\\/80 { border-color: rgba(255,255,255,.12) !important; --tw-ring-color: rgba(255,255,255,.12) !important; }
+  .border-slate-200, .border-slate-300, .ring-slate-200 { border-color: rgba(255,255,255,.12) !important; --tw-ring-color: rgba(255,255,255,.12) !important; }
   .ring-slate-300 { --tw-ring-color: rgba(255,255,255,.18) !important; }
-  .placeholder\\:text-slate-400::placeholder { color: rgba(255,255,255,.38) !important; }
 }
 
 @layer components {
