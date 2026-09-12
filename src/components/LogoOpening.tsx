@@ -13,7 +13,7 @@ export function LogoOpening({ onDone }: LogoOpeningProps) {
   return (
     <div
       aria-label="KerjaHarian"
-      className="fixed inset-0 z-[200] grid place-items-center overflow-hidden bg-black animate-[openingFadeOut_400ms_ease-in-out_2600ms_forwards]"
+      className="fixed inset-0 z-[200] grid place-items-center overflow-hidden bg-[#202020] animate-[openingFadeOut_400ms_ease-in-out_2600ms_forwards]"
     >
       <div className="animate-[openingLogoIn_1400ms_cubic-bezier(0.16,1,0.3,1)_forwards] scale-[0.08] opacity-0 whitespace-nowrap">
         <span className="font-display text-5xl font-extrabold tracking-tight text-white sm:text-6xl">
