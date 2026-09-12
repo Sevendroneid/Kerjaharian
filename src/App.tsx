@@ -12,6 +12,7 @@ import { EmployerMatchingControl } from '@/components/EmployerMatchingControl';
 import { WorkerConfirmationStatus } from '@/components/WorkerConfirmationStatus';
 import { WorkerMatchingProfile } from '@/components/WorkerMatchingProfile';
 import { LogoOpening } from '@/components/LogoOpening';
+import { RoleEntry } from '@/components/RoleEntry';
 import { I18n } from '@/lib/i18n';
 import { useAuth } from '@/lib/auth';
 import type { View, CategoryId } from '@/lib/types';
@@ -74,13 +75,13 @@ export default function App() {
   const initialView = routeViews[window.location.pathname] ?? 'landing';
   const [view, setView] = useState<View>(initialView); const [lang, setLang] = useState<'id' | 'en'>(() => (localStorage.getItem('kerjaharian_lang') as 'id' | 'en') || 'id');
   const [authModal, setAuthModal] = useState<{ open: boolean; mode: 'signin' | 'signup' }>({ open: false, mode: 'signin' });
-  const [showOpening, setShowOpening] = useState(() => initialView === 'landing' && sessionStorage.getItem('kerjaharian_opening_seen') !== '1');
+  const [showOpening, setShowOpening] = useState(() => initialView === 'landing');
   const isSecretAdminPath = window.location.pathname === SECRET_PATH; const isAdminResolutionPath = window.location.pathname === ADMIN_RESOLUTION_PATH; const isAdminIncidentPath = window.location.pathname === ADMIN_INCIDENT_PATH; const isAdminPrivacyPath = window.location.pathname === ADMIN_PRIVACY_PATH;
   const [adminPreview] = useState(() => isSecretAdminPath || isAdminResolutionPath || isAdminIncidentPath || isAdminPrivacyPath || new URLSearchParams(window.location.search).get(ADMIN_PREVIEW_PARAM) === '1');
   const [pendingCategory, setPendingCategory] = useState<CategoryId | null>(null); const { user, profile, loading: authLoading } = useAuth(); const i18n = new I18n(lang);
   const navigate = useCallback((v: View, category?: CategoryId) => { setView(v); setPendingCategory(category ?? null); if (v !== 'landing') setShowOpening(false); const path = Object.entries(routeViews).find(([, x]) => x === v)?.[0]; if (path) window.history.pushState({ view: v }, '', path); window.scrollTo({ top: 0, behavior: 'smooth' }); }, []);
   const openAuth = useCallback((mode: 'signin' | 'signup') => setAuthModal({ open: true, mode }), []); const closeAuth = useCallback(() => setAuthModal(p => ({ ...p, open: false })), []);
-  const handleLangChange = useCallback((newLang: 'id' | 'en') => { setLang(newLang); localStorage.setItem('kerjaharian_lang', newLang); }, []); const finishOpening = useCallback(() => { sessionStorage.setItem('kerjaharian_opening_seen', '1'); setShowOpening(false); }, []);
+  const handleLangChange = useCallback((newLang: 'id' | 'en') => { setLang(newLang); localStorage.setItem('kerjaharian_lang', newLang); }, []); const finishOpening = useCallback(() => { setShowOpening(false); }, []);
   useEffect(() => { if (!adminPreview) setPageMeta(view); }, [view, adminPreview]); useEffect(() => { const onPop = () => setView(routeViews[window.location.pathname] ?? 'landing'); window.addEventListener('popstate', onPop); return () => window.removeEventListener('popstate', onPop); }, []);
   useEffect(() => { if (adminPreview || authLoading || !user || !profile) return; if (profile.role === 'admin') { setView('admin'); setAuthModal(p => ({ ...p, open: false })); return; } if (!profile.full_name) { setAuthModal(p => ({ ...p, open: true, mode: 'signup' })); return; } if (profile.role === 'employer') setView('employer'); else if (profile.role === 'worker') setView('worker'); }, [adminPreview, authLoading, user, profile]);
   if (isAdminResolutionPath || isAdminIncidentPath || isAdminPrivacyPath) { if (authLoading || (user && !profile)) return <Loading />; if (!user) return <AppErrorBoundary><Suspense fallback={<Loading />}><AdminLogin onClose={() => { window.location.href = '/'; }} onSuccess={() => { window.location.replace(window.location.pathname); }} /></Suspense></AppErrorBoundary>; if (!profile) return <Loading />; if (profile.role !== 'admin') return <AppErrorBoundary><div className="min-h-screen bg-slate-50 grid place-items-center p-6"><div className="max-w-md rounded-2xl bg-white p-6 text-center ring-1 ring-slate-200"><h1 className="text-lg font-extrabold">Akses Admin ditolak</h1><p className="mt-2 text-sm text-slate-500">Akun ini bukan akun Administrator KerjaHarian.</p><button onClick={() => { window.location.href = '/'; }} className="mt-4 rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white">Kembali</button></div></div></AppErrorBoundary>; return <AppErrorBoundary><Suspense fallback={<Loading />}>{isAdminIncidentPath ? <AdminIncidentQueue /> : isAdminPrivacyPath ? <AdminPrivacyQueue /> : <AdminResolutionQueue />}</Suspense></AppErrorBoundary>; }
@@ -88,9 +89,9 @@ export default function App() {
   if (view === 'admin') return <AppErrorBoundary><Suspense fallback={<Loading />}><AdminRoute><AdminDashboard onNavigate={navigate} /></AdminRoute></Suspense><AIVoiceAssistant role="admin" profile={profile} /></AppErrorBoundary>;
   const protectedDashboard = view === 'employer' || view === 'worker'; const knownPublic = view === 'landing' || view === 'privacy' || view === 'terms' || view === 'help'; const unknownPath = !routeViews[window.location.pathname] && !isSecretAdminPath && !isAdminResolutionPath && !isAdminIncidentPath && !isAdminPrivacyPath;
   const kycRoute = window.location.pathname === KYC_PATH;
-  return <AppErrorBoundary><div className="flex min-h-screen flex-col"><Header view={view} onNavigate={navigate} onAuthClick={openAuth} lang={lang} onLangChange={handleLangChange} /><Breadcrumbs view={view} onNavigate={navigate} /><main className="flex-1"><Suspense fallback={<Loading />}>
+  return <AppErrorBoundary><div className="flex min-h-screen flex-col">{view !== 'landing' && <Header view={view} onNavigate={navigate} onAuthClick={openAuth} lang={lang} onLangChange={handleLangChange} />}{view !== 'landing' && <Breadcrumbs view={view} onNavigate={navigate} />}<main className="flex-1"><Suspense fallback={<Loading />}>
     {unknownPath ? <NotFoundPage onNavigate={navigate} /> : null}
-    {knownPublic && view === 'landing' ? <Landing onNavigate={navigate} lang={lang} /> : null}
+    {knownPublic && view === 'landing' ? <RoleEntry onNavigate={navigate} /> : null}
     {(view === 'privacy' || view === 'terms' || view === 'help') && <PublicInfoPage view={view} onNavigate={navigate} />}
     {kycRoute ? <KycGate><div /></KycGate> : null}
     {!kycRoute && protectedDashboard ? <KycGate><div>
@@ -104,5 +105,5 @@ export default function App() {
       <div className="mx-auto w-full max-w-6xl px-4 pb-4 pt-4"><SafetyIncidentCenter /></div><div className="mx-auto w-full max-w-6xl px-4 pb-8 pt-4"><ResolutionCenter /></div>
       <PrivacyCenter /><OvertimeApprovalPanel role={view === 'employer' ? 'employer' : 'worker'} /><JobTimer role={view === 'employer' ? 'employer' : 'worker'} lang={lang} />
     </div></KycGate> : null}
-  </Suspense></main><Footer onNavigate={navigate} /><AuthModal open={authModal.open} onClose={closeAuth} /><AIProblemSolver /><PWAInstallPrompt />{showOpening && <LogoOpening onDone={finishOpening} />}</div></AppErrorBoundary>;
+  </Suspense></main>{view !== 'landing' && <Footer onNavigate={navigate} />}<AuthModal open={authModal.open} onClose={closeAuth} /><AIProblemSolver /><PWAInstallPrompt />{showOpening && <LogoOpening onDone={finishOpening} />}</div></AppErrorBoundary>;
 }
