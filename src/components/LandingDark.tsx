@@ -8,7 +8,6 @@ import {
   Menu,
   Package,
   Search,
-  ShieldCheck,
   Sparkles,
   Truck,
   UserRound,
@@ -19,7 +18,6 @@ import { Logo } from './Logo';
 import type { View } from '@/lib/types';
 
 interface LandingDarkProps { onNavigate: (view: View) => void; lang: 'id' | 'en'; }
-
 type Service = { title: string; icon: typeof Package };
 
 const services: Service[] = [
@@ -69,19 +67,19 @@ export function LandingDark({ onNavigate, lang }: LandingDarkProps) {
 
       <div className="mx-auto max-w-5xl px-4 pb-24 sm:px-6">
         <section className="pt-5 sm:pt-7">
-          <div className="flex items-center justify-between">
+          <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-xs text-black/45">{id ? 'KerjaHarian' : 'KerjaHarian'}</p>
-              <h1 className="mt-0.5 text-xl font-bold tracking-[-0.035em] sm:text-2xl">{id ? 'Mau pesan apa?' : 'What do you need?'}</h1>
+              <p className="text-xs font-medium text-black/45">{id ? 'Selamat datang di KerjaHarian' : 'Welcome to KerjaHarian'}</p>
+              <h1 className="mt-1 text-xl font-bold tracking-[-0.035em] sm:text-2xl">{id ? 'Mau pesan apa hari ini?' : 'What do you need today?'}</h1>
             </div>
-            <button type="button" onClick={() => go('worker')} className="rounded-full border border-black/10 bg-white px-3 py-2 text-xs font-semibold shadow-sm">
-              {id ? 'Cari kerja' : 'Find work'}
+            <button type="button" onClick={() => go('worker')} aria-label={id ? 'Cari kerja' : 'Find work'} className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white text-black/70 shadow-sm ring-1 ring-black/[0.05]">
+              <UserRound className="h-5 w-5" />
             </button>
           </div>
 
-          <button type="button" onClick={() => go('employer')} className="mt-4 flex h-12 w-full items-center gap-3 rounded-2xl border border-black/[0.08] bg-white px-4 text-left shadow-sm hover:border-black/15">
+          <button type="button" onClick={() => go('employer')} className="mt-4 flex h-12 w-full items-center gap-3 rounded-2xl border border-black/[0.07] bg-white px-4 text-left shadow-sm hover:border-black/15">
             <Search className="h-5 w-5 shrink-0 text-black/40" />
-            <span className="flex-1 text-sm text-black/45">{id ? 'Cari layanan atau pekerjaan...' : 'Search services or jobs...'}</span>
+            <span className="flex-1 truncate text-sm text-black/45">{id ? 'Cari layanan yang kamu butuhkan' : 'Search for a service'}</span>
             <ChevronRight className="h-4 w-4 text-black/30" />
           </button>
         </section>
@@ -91,7 +89,7 @@ export function LandingDark({ onNavigate, lang }: LandingDarkProps) {
             <h2 className="text-sm font-bold">{id ? 'Layanan' : 'Services'}</h2>
             <button type="button" onClick={() => go('employer')} className="text-xs font-semibold text-orange-600">{id ? 'Lihat semua' : 'See all'}</button>
           </div>
-          <div className="mt-3 grid grid-cols-4 gap-x-2 gap-y-4 sm:grid-cols-8">
+          <div className="mt-4 grid grid-cols-4 gap-x-2 gap-y-5 sm:grid-cols-8">
             {services.map(({ title, icon: Icon }) => (
               <button type="button" key={title} onClick={() => go('employer')} className="group flex min-w-0 flex-col items-center gap-2 text-center">
                 <span className="grid h-14 w-14 place-items-center rounded-2xl bg-white text-orange-600 shadow-sm ring-1 ring-black/[0.05] transition-transform group-hover:-translate-y-0.5 sm:h-16 sm:w-16">
@@ -103,7 +101,7 @@ export function LandingDark({ onNavigate, lang }: LandingDarkProps) {
           </div>
         </section>
 
-        <section className="mt-7 overflow-hidden rounded-2xl bg-[#171717] px-5 py-5 text-white sm:px-6">
+        <section className="mt-7 rounded-2xl bg-[#171717] px-5 py-5 text-white sm:px-6">
           <div className="flex items-center gap-3">
             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-orange-500 text-white"><BriefcaseBusiness className="h-5 w-5" /></span>
             <div className="min-w-0 flex-1">
@@ -116,17 +114,20 @@ export function LandingDark({ onNavigate, lang }: LandingDarkProps) {
           </div>
         </section>
 
-        <section className="mt-6 grid gap-3 sm:grid-cols-2">
-          <button type="button" onClick={() => go('worker')} className="flex items-center gap-3 rounded-2xl border border-black/[0.07] bg-white p-4 text-left shadow-sm">
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-black/[0.04] text-black/70"><UserRound className="h-5 w-5" /></span>
-            <span className="min-w-0 flex-1"><span className="block text-sm font-bold">{id ? 'Cari pekerjaan' : 'Find work'}</span><span className="mt-0.5 block text-xs text-black/45">{id ? 'Lihat pekerjaan harian yang tersedia.' : 'Find available daily work.'}</span></span>
-            <ChevronRight className="h-4 w-4 text-black/30" />
-          </button>
-          <button type="button" onClick={() => go('help')} className="flex items-center gap-3 rounded-2xl border border-black/[0.07] bg-white p-4 text-left shadow-sm">
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-black/[0.04] text-black/70"><ShieldCheck className="h-5 w-5" /></span>
-            <span className="min-w-0 flex-1"><span className="block text-sm font-bold">{id ? 'Aman & terpercaya' : 'Safe & trusted'}</span><span className="mt-0.5 block text-xs text-black/45">{id ? 'Bantuan dan informasi KerjaHarian.' : 'KerjaHarian help and information.'}</span></span>
-            <ChevronRight className="h-4 w-4 text-black/30" />
-          </button>
+        <section className="mt-6">
+          <h2 className="text-sm font-bold">{id ? 'Untuk kamu' : 'For you'}</h2>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <button type="button" onClick={() => go('worker')} className="flex items-center gap-3 rounded-2xl border border-black/[0.07] bg-white p-4 text-left shadow-sm">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-black/[0.04] text-black/70"><UserRound className="h-5 w-5" /></span>
+              <span className="min-w-0 flex-1"><span className="block text-sm font-bold">{id ? 'Cari pekerjaan' : 'Find work'}</span><span className="mt-0.5 block text-xs text-black/45">{id ? 'Lihat pekerjaan harian yang tersedia.' : 'Find available daily work.'}</span></span>
+              <ChevronRight className="h-4 w-4 text-black/30" />
+            </button>
+            <button type="button" onClick={() => go('employer')} className="flex items-center gap-3 rounded-2xl border border-black/[0.07] bg-white p-4 text-left shadow-sm">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-orange-500/10 text-orange-600"><BriefcaseBusiness className="h-5 w-5" /></span>
+              <span className="min-w-0 flex-1"><span className="block text-sm font-bold">{id ? 'Pesan pekerja' : 'Book a worker'}</span><span className="mt-0.5 block text-xs text-black/45">{id ? 'Mulai order tenaga harian.' : 'Start a daily-worker order.'}</span></span>
+              <ChevronRight className="h-4 w-4 text-black/30" />
+            </button>
+          </div>
         </section>
       </div>
 
@@ -139,7 +140,7 @@ export function LandingDark({ onNavigate, lang }: LandingDarkProps) {
             <UserRound className="h-5 w-5" /><span className="text-[10px] font-semibold">{id ? 'Cari kerja' : 'Find work'}</span>
           </button>
           <button type="button" onClick={() => go('employer')} className="flex flex-col items-center justify-center gap-1 text-black/45 hover:text-black">
-            <Package className="h-5 w-5" /><span className="text-[10px] font-semibold">{id ? 'Pesanan' : 'Orders'}</span>
+            <Package className="h-5 w-5" /><span className="text-[10px] font-semibold">{id ? 'Pesan' : 'Book'}</span>
           </button>
         </div>
       </nav>
