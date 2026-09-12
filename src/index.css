@@ -59,3 +59,6 @@
 #top > div { grid-template-columns: 1fr !important; }
 #top > div > div:first-child { max-width: 760px; margin-inline: auto; text-align: center; }
 #top > div > div:first-child > div { justify-content: center; }
+
+/* The old generic trust-information panel is not a product action. Hide it from the landing flow. */
+main > section:nth-of-type(6) { display: none !important; }
