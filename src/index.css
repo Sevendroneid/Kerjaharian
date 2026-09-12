@@ -8,10 +8,10 @@
     font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
     font-synthesis: none;
   }
-  html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; background: #050505; }
+  html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; background: #000; }
   body {
     @apply font-sans antialiased;
-    background: #050505 !important;
+    background: #000 !important;
     color: #fff !important;
     font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
     text-rendering: optimizeLegibility;
@@ -19,11 +19,11 @@
   button, input, select, textarea { font: inherit; }
   ::selection { background: rgba(249,115,22,.22); color: #fff; }
   ::-webkit-scrollbar { width: 10px; height: 10px; }
-  ::-webkit-scrollbar-track { background: #050505; }
+  ::-webkit-scrollbar-track { background: #000; }
   ::-webkit-scrollbar-thumb { background: #303030; border-radius: 9999px; border: 2px solid transparent; background-clip: content-box; }
   ::-webkit-scrollbar-thumb:hover { background: #454545; }
 
-  /* KerjaHarian visual continuity: internal surfaces stay on the same black canvas as the landing page. */
+  /* KerjaHarian visual continuity: internal surfaces stay on the black canvas as the opening animation and landing page. */
   .bg-slate-50 { background-color: #090909 !important; }
   .bg-slate-100 { background-color: #111 !important; }
   .bg-white { background-color: #111 !important; }
@@ -32,6 +32,9 @@
   .text-slate-400 { color: rgba(255,255,255,.55) !important; }
   .border-slate-200, .border-slate-300, .ring-slate-200 { border-color: rgba(255,255,255,.12) !important; --tw-ring-color: rgba(255,255,255,.12) !important; }
   .ring-slate-300 { --tw-ring-color: rgba(255,255,255,.18) !important; }
+
+  /* LandingDark still carries the previous charcoal utility; force that page canvas to follow the opening animation's black. */
+  .bg-\[\#202020\] { background-color: #000 !important; }
 }
 
 @layer components {
