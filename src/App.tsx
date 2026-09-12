@@ -38,9 +38,10 @@ const SECRET_PATH = '/rahasia';
 const ADMIN_RESOLUTION_PATH = '/admin/resolutions';
 const ADMIN_INCIDENT_PATH = '/admin/incidents';
 const ADMIN_PRIVACY_PATH = '/admin/privacy';
+const KYC_PATH = '/verifikasi-kyc';
 const ADMIN_PREVIEW_PARAM = 'admin-preview';
 const SITE = 'https://www.kerjaharian.my.id';
-const routeViews: Record<string, View> = { '/': 'landing', '/privacy': 'privacy', '/terms': 'terms', '/help': 'help', '/cari-kerja': 'worker', '/cari-pekerja': 'employer' };
+const routeViews: Record<string, View> = { '/': 'landing', '/privacy': 'privacy', '/terms': 'terms', '/help': 'help', '/cari-kerja': 'worker', '/cari-pekerja': 'employer', [KYC_PATH]: 'employer' };
 const publicMeta: Record<string, { title: string; description: string; h1: string }> = {
   landing: { title: 'KerjaHarian — Cari Kerja Harian & Pekerja Terpercaya', description: 'KerjaHarian menghubungkan pekerja harian dengan pemberi kerja di Indonesia. Cari kerja atau pekerja dengan proses sederhana dan harga yang jelas.', h1: 'Cari Kerja Harian atau Pekerja Terpercaya' },
   worker: { title: 'Cari Kerja Harian | KerjaHarian', description: 'Temukan peluang kerja harian sesuai keahlian dan area kamu melalui KerjaHarian.', h1: 'Cari Kerja Harian' },
@@ -86,11 +87,13 @@ export default function App() {
   if (adminPreview) { if (authLoading || (user && !profile)) return <Loading />; if (!user) return <AppErrorBoundary><Suspense fallback={<Loading />}><AdminLogin onClose={() => { window.location.href = '/'; }} onSuccess={() => { window.location.replace(SECRET_PATH); }} /></Suspense></AppErrorBoundary>; if (!profile) return <Loading />; if (profile.role !== 'admin') return <AppErrorBoundary><div className="min-h-screen bg-slate-50 grid place-items-center p-6"><div className="max-w-md rounded-2xl bg-white p-6 text-center ring-1 ring-slate-200"><h1 className="text-lg font-extrabold">Akses Admin ditolak</h1><p className="mt-2 text-sm text-slate-500">Akun ini bukan akun Administrator KerjaHarian.</p><button onClick={() => { window.location.href = '/'; }} className="mt-4 rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white">Kembali</button></div></div></AppErrorBoundary>; return <AppErrorBoundary><Suspense fallback={<Loading />}><AdminDashboard onNavigate={navigate} /></Suspense><AIVoiceAssistant role="admin" profile={profile} /></AppErrorBoundary>; }
   if (view === 'admin') return <AppErrorBoundary><Suspense fallback={<Loading />}><AdminRoute><AdminDashboard onNavigate={navigate} /></AdminRoute></Suspense><AIVoiceAssistant role="admin" profile={profile} /></AppErrorBoundary>;
   const protectedDashboard = view === 'employer' || view === 'worker'; const knownPublic = view === 'landing' || view === 'privacy' || view === 'terms' || view === 'help'; const unknownPath = !routeViews[window.location.pathname] && !isSecretAdminPath && !isAdminResolutionPath && !isAdminIncidentPath && !isAdminPrivacyPath;
+  const kycRoute = window.location.pathname === KYC_PATH;
   return <AppErrorBoundary><div className="flex min-h-screen flex-col"><Header view={view} onNavigate={navigate} onAuthClick={openAuth} lang={lang} onLangChange={handleLangChange} /><Breadcrumbs view={view} onNavigate={navigate} /><main className="flex-1"><Suspense fallback={<Loading />}>
     {unknownPath ? <NotFoundPage onNavigate={navigate} /> : null}
     {knownPublic && view === 'landing' ? <Landing onNavigate={navigate} lang={lang} /> : null}
     {(view === 'privacy' || view === 'terms' || view === 'help') && <PublicInfoPage view={view} onNavigate={navigate} />}
-    {protectedDashboard ? <KycGate><div>
+    {kycRoute ? <KycGate><div /></KycGate> : null}
+    {!kycRoute && protectedDashboard ? <KycGate><div>
       {view === 'employer' ? <EmployerEntry onAuthClick={openAuth} initialCategory={pendingCategory} lang={lang} i18n={i18n} /> : <Worker onAuthClick={openAuth} />}
       {view === 'worker' && <WorkerDispatchPanel />}
       {view === 'worker' && <WorkerConfirmationStatus />}
