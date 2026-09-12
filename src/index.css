@@ -4,22 +4,35 @@
 
 @layer base {
   :root {
-    color-scheme: light;
+    color-scheme: dark;
     font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
     font-synthesis: none;
   }
-  html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+  html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; background: #050505; }
   body {
-    @apply bg-slate-50 text-slate-900 font-sans antialiased;
+    @apply font-sans antialiased;
+    background: #050505 !important;
+    color: #fff !important;
     font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
     text-rendering: optimizeLegibility;
   }
   button, input, select, textarea { font: inherit; }
-  ::selection { @apply bg-primary-500/20 text-primary-950; }
+  ::selection { background: rgba(249,115,22,.22); color: #fff; }
   ::-webkit-scrollbar { width: 10px; height: 10px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { @apply bg-slate-300 rounded-full border-2 border-solid border-transparent bg-clip-content; }
-  ::-webkit-scrollbar-thumb:hover { @apply bg-slate-400; }
+  ::-webkit-scrollbar-track { background: #050505; }
+  ::-webkit-scrollbar-thumb { background: #303030; border-radius: 9999px; border: 2px solid transparent; background-clip: content-box; }
+  ::-webkit-scrollbar-thumb:hover { background: #454545; }
+
+  /* KerjaHarian visual continuity: internal surfaces stay on the same black canvas as the landing page. */
+  .bg-slate-50 { background-color: #090909 !important; }
+  .bg-slate-100 { background-color: #111 !important; }
+  .bg-white { background-color: #111 !important; }
+  .bg-slate-200 { background-color: #171717 !important; }
+  .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600, .text-slate-500 { color: rgba(255,255,255,.88) !important; }
+  .text-slate-400 { color: rgba(255,255,255,.55) !important; }
+  .border-slate-200, .border-slate-300, .ring-slate-200, .ring-slate-200\\/80 { border-color: rgba(255,255,255,.12) !important; --tw-ring-color: rgba(255,255,255,.12) !important; }
+  .ring-slate-300 { --tw-ring-color: rgba(255,255,255,.18) !important; }
+  .placeholder\\:text-slate-400::placeholder { color: rgba(255,255,255,.38) !important; }
 }
 
 @layer components {
@@ -27,16 +40,22 @@
   .btn { @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary-500 disabled:cursor-not-allowed disabled:opacity-50; }
   .btn-primary { @apply btn bg-primary-600 text-white shadow-soft hover:bg-primary-700 hover:shadow-card active:scale-[0.98]; }
   .btn-accent { @apply btn bg-accent-500 text-white shadow-soft hover:bg-accent-600 hover:shadow-card active:scale-[0.98]; }
-  .btn-ghost { @apply btn bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50 hover:ring-slate-300 active:scale-[0.98]; }
+  .btn-ghost { @apply btn bg-[#111] text-white/80 ring-1 ring-white/10 hover:bg-[#171717] hover:ring-white/20 active:scale-[0.98]; }
   .btn-soft { @apply btn bg-primary-50 text-primary-700 hover:bg-primary-100 active:scale-[0.98]; }
   .btn-danger { @apply btn bg-red-600 text-white shadow-soft hover:bg-red-700 active:scale-[0.98]; }
-  .card { @apply rounded-2xl bg-white ring-1 ring-slate-200/80 shadow-soft; }
+  .card { @apply rounded-2xl bg-[#111] ring-1 ring-white/10 shadow-soft; }
   .chip { @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold; }
-  .input { @apply min-h-11 w-full rounded-xl border-0 bg-white px-4 py-3 text-sm text-slate-900 ring-1 ring-inset ring-slate-200 transition placeholder:text-slate-400 focus:ring-2 focus:ring-inset focus:ring-primary-500; }
-  .label { @apply mb-1.5 block text-sm font-semibold text-slate-700; }
+  .input { @apply min-h-11 w-full rounded-xl border-0 bg-[#111] px-4 py-3 text-sm text-white ring-1 ring-inset ring-white/10 transition placeholder:text-white/40 focus:ring-2 focus:ring-inset focus:ring-primary-500; }
+  .label { @apply mb-1.5 block text-sm font-semibold text-white/80; }
   .status-badge { @apply inline-flex min-h-8 items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold; }
   .status-pending { @apply status-badge bg-amber-50 text-amber-800 ring-1 ring-amber-200; }
   .status-success { @apply status-badge bg-green-50 text-green-800 ring-1 ring-green-200; }
   .status-danger { @apply status-badge bg-red-50 text-red-800 ring-1 ring-red-200; }
   .status-neutral { @apply status-badge bg-slate-100 text-slate-700 ring-1 ring-slate-200; }
 }
+
+/* Minimal hero: remove the oversized promotional image/card and let the message carry the landing page. */
+#top > div > div:last-child { display: none !important; }
+#top > div { grid-template-columns: 1fr !important; }
+#top > div > div:first-child { max-width: 760px; margin-inline: auto; text-align: center; }
+#top > div > div:first-child > div { justify-content: center; }
