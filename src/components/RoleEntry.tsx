@@ -14,10 +14,10 @@ export function RoleEntry({ onNavigate }: RoleEntryProps) {
   const [selectedRole, setSelectedRole] = useState<'employer' | 'worker' | null>(null);
 
   useEffect(() => {
-    if (!authOpen || !user || !profile?.full_name || !selectedRole) return;
+    if (!user || !profile?.full_name || !selectedRole) return;
     setAuthOpen(false);
     onNavigate(profile.role === 'worker' ? 'worker' : 'employer');
-  }, [authOpen, user, profile, selectedRole, onNavigate]);
+  }, [user, profile, selectedRole, onNavigate]);
 
   const chooseRole = (role: 'employer' | 'worker') => {
     setSelectedRole(role);
