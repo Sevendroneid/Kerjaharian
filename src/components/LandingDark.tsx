@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { ArrowRight, BriefcaseBusiness, Menu, UserRound, X, Zap } from 'lucide-react';
 import { Logo } from './Logo';
 import type { View } from '@/lib/types';
