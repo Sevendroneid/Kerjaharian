@@ -1,98 +1,122 @@
-import { ArrowRight, CheckCircle, Clock3, MapPin, Search, ShieldCheck, Star, Users } from 'lucide-react';
+import { useState } from 'react';
+import { ArrowRight, CheckCircle2, Clock3, Facebook, HelpCircle, Instagram, Linkedin, Menu, MessageCircle, ShieldCheck, TikTok, Youtube, X, Zap } from 'lucide-react';
+import { Logo } from './Logo';
 import type { View } from '@/lib/types';
 
 interface LandingDarkProps { onNavigate: (view: View) => void; lang: 'id' | 'en'; }
 
-const categories = [
-  ['Angkut & Logistik', 'Cepat, dekat, siap jalan'],
-  ['Bersih-bersih', 'Rumah, kantor, area usaha'],
-  ['Pindahan', 'Bantu angkat dan pindah'],
-  ['Potong Rumput', 'Kebun dan area luar'],
+const services = [
+  ['01', 'Angkut & Logistik', 'Angkut barang, bongkar muat, dan kebutuhan logistik harian.'],
+  ['02', 'Bersih-bersih', 'Rumah, kantor, toko, dan area usaha.'],
+  ['03', 'Pindahan', 'Bantuan tenaga untuk pindahan dan pengangkutan.'],
+  ['04', 'Potong Rumput', 'Kebun, halaman, dan pekerjaan area luar.'],
+  ['05', 'Kebun', 'Pekerjaan fisik untuk kebutuhan kebun dan lingkungan.'],
+  ['06', 'Pekerjaan Fisik', 'Berbagai kebutuhan tenaga kerja harian.'],
 ];
 
-const jobs = [
-  { title: 'Angkut Barang', price: 'Rp150.000', distance: '1,8 km', rating: '4,9', image: 'https://images.pexels.com/photos/13699204/pexels-photo-13699204.jpeg?auto=compress&cs=tinysrgb&w=900' },
-  { title: 'Bersih-bersih', price: 'Rp120.000', distance: '2,4 km', rating: '4,8', image: 'https://images.pexels.com/photos/10151372/pexels-photo-10151372.jpeg?auto=compress&cs=tinysrgb&w=900' },
-  { title: 'Pekerja Proyek', price: 'Rp200.000', distance: '3,1 km', rating: '4,9', image: 'https://images.pexels.com/photos/8173678/pexels-photo-8173678.jpeg?auto=compress&cs=tinysrgb&w=900' },
+const faqs = [
+  ['Bagaimana cara mencari pekerja?', 'Pilih kebutuhan pekerjaan, lihat harga dan informasi yang tersedia, lalu lanjutkan ke proses pemesanan.'],
+  ['Bagaimana cara mencari pekerjaan?', 'Masuk sebagai Pekerja, lengkapi proses verifikasi, lalu lihat pekerjaan yang tersedia.'],
+  ['Bagaimana cara mengetahui harga?', 'Harga ditampilkan berdasarkan jenis pekerjaan sebelum order dibuat.'],
+  ['Bagaimana cara pembayaran?', 'Pembayaran mengikuti alur transaksi KerjaHarian dan metode yang tersedia di sistem.'],
+  ['Bagaimana pekerjaan dimulai?', 'Pekerjaan mengikuti status transaksi dan mekanisme check-in yang tersedia.'],
+  ['Bagaimana jika terjadi masalah?', 'Gunakan pusat bantuan dan mekanisme penyelesaian masalah KerjaHarian.'],
 ];
+
+const socials = ['Facebook', 'Instagram', 'TikTok', 'YouTube', 'LinkedIn', 'X', 'WhatsApp'];
 
 export function LandingDark({ onNavigate, lang }: LandingDarkProps) {
   const id = lang === 'id';
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const go = (view: View) => { setMenuOpen(false); onNavigate(view); };
+  const scrollTo = (id: string) => { setMenuOpen(false); document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+
   return (
-    <main className="min-h-screen bg-[#050505] pb-24 text-white">
-      <section className="border-b border-white/10 bg-[#050505]">
-        <div className="mx-auto max-w-7xl px-4 pb-16 pt-10 sm:px-6 sm:pb-24 lg:px-8">
-          <div className="grid items-center gap-12 lg:grid-cols-[1.08fr_.92fr]">
-            <div>
-              <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-bold text-white/70">
-                <span className="h-2 w-2 rounded-full bg-orange-500" /> {id ? 'Marketplace tenaga kerja on-demand' : 'On-demand labor marketplace'}
-              </div>
-              <h1 className="max-w-3xl text-5xl font-black leading-[.95] tracking-[-.055em] sm:text-7xl">
-                {id ? <>BUTUH TENAGA<br /><span className="text-orange-500">KERJA HARI INI?</span></> : <>NEED WORKERS<br /><span className="text-orange-500">TODAY?</span></>}
-              </h1>
-              <p className="mt-6 max-w-xl text-base leading-7 text-white/60 sm:text-lg">
-                {id ? 'Cari pekerja terdekat. Lihat harga. Pesan. Selesai.' : 'Find nearby workers. See the price. Book. Done.'}
-              </p>
-              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                <button onClick={() => onNavigate('employer')} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-orange-500 px-7 py-3.5 text-sm font-black text-white shadow-[0_12px_32px_rgba(249,115,22,.22)] transition hover:-translate-y-0.5 hover:bg-orange-400">
-                  {id ? 'Cari Pekerja' : 'Find Workers'} <ArrowRight className="h-4 w-4" />
-                </button>
-                <button onClick={() => onNavigate('worker')} className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.04] px-7 py-3.5 text-sm font-bold text-white transition hover:bg-white/[0.08]">
-                  {id ? 'Cari Kerja' : 'Find Work'}
-                </button>
-              </div>
-              <div className="mt-7 flex flex-wrap gap-x-5 gap-y-2 text-xs font-semibold text-white/50">
-                <span className="inline-flex items-center gap-1.5"><CheckCircle className="h-4 w-4 text-orange-500" /> Harga jelas</span>
-                <span className="inline-flex items-center gap-1.5"><ShieldCheck className="h-4 w-4 text-orange-500" /> Lebih aman</span>
-                <span className="inline-flex items-center gap-1.5"><Clock3 className="h-4 w-4 text-orange-500" /> On-demand</span>
-              </div>
-            </div>
-            <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-[#111] p-2 shadow-2xl">
-              <img src="https://images.unsplash.com/photo-1747673902815-cb0a04ef2cf3?auto=format&fit=crop&w=1400&q=82" alt="Pekerja lapangan" className="h-[380px] w-full rounded-[1.5rem] object-cover opacity-90 sm:h-[500px]" />
-              <div className="absolute bottom-6 left-6 right-6 rounded-2xl border border-white/10 bg-black/85 p-4 backdrop-blur-xl">
-                <div className="flex items-center justify-between gap-4">
-                  <div><p className="text-[10px] font-black uppercase tracking-[.16em] text-orange-500">KerjaHarian</p><p className="mt-1 text-sm font-bold">{id ? 'Pekerjaan nyata. Langsung jalan.' : 'Real work. Ready to go.'}</p></div>
-                  <div className="rounded-xl bg-orange-500 p-3"><Users className="h-5 w-5" /></div>
-                </div>
-              </div>
-            </div>
+    <main className="min-h-screen bg-[#050505] text-white">
+      <header className="sticky top-0 z-[80] border-b border-white/10 bg-[#050505]/90 backdrop-blur-xl">
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+          <button type="button" onClick={() => scrollTo('introduction')} className="flex items-center gap-2"><Logo className="[&_span]:text-white [&_.text-slate-400]:text-white/50" /><span className="hidden text-xs font-bold text-white/50 sm:inline">Marketplace tenaga kerja harian</span></button>
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={() => go('employer')} className="hidden rounded-lg bg-orange-500 px-4 py-2 text-xs font-black text-white sm:block">{id ? 'Butuh Pekerja' : 'Hire Workers'}</button>
+            <button type="button" onClick={() => setMenuOpen(v => !v)} aria-label="Menu" className="grid h-10 w-10 place-items-center rounded-lg border border-white/15 text-white">{menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}</button>
+          </div>
+        </div>
+        {menuOpen && <div className="border-t border-white/10 bg-[#080808]">
+          <nav className="mx-auto grid max-w-7xl gap-1 px-4 py-4 sm:grid-cols-2 sm:px-6 lg:grid-cols-3 lg:px-8">
+            {[['introduction', 'Introduction'], ['problem', 'Problem / Kebutuhan'], ['hero', 'Hero'], ['services', 'Layanan'], ['how', 'Cara Kerja'], ['employer-join', 'Untuk Pemberi Kerja'], ['worker-join', 'Untuk Pekerja'], ['trust', 'Trust & Safety'], ['faq', 'FAQ / Bantuan']].map(([target, label]) => <button key={target} type="button" onClick={() => scrollTo(target)} className="rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-white/70 hover:bg-white/5 hover:text-white">{label}</button>)}
+            <button type="button" onClick={() => go('help')} className="rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-white/70 hover:bg-white/5 hover:text-white">Pusat Bantuan</button>
+            <button type="button" onClick={() => go('terms')} className="rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-white/70 hover:bg-white/5 hover:text-white">Syarat & Ketentuan</button>
+            <button type="button" onClick={() => go('privacy')} className="rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-white/70 hover:bg-white/5 hover:text-white">Kebijakan Privasi</button>
+            <button type="button" onClick={() => { localStorage.setItem('kerjaharian_lang', lang === 'id' ? 'en' : 'id'); window.location.reload(); }} className="rounded-lg border border-white/10 px-3 py-2.5 text-left text-sm font-semibold text-white/70 hover:bg-white/5 hover:text-white">{lang === 'id' ? 'English' : 'Indonesia'}</button>
+          </nav>
+        </div>}
+      </header>
+
+      <section id="introduction" className="scroll-mt-20 border-b border-white/10">
+        <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-16 lg:px-8">
+          <p className="text-xs font-black uppercase tracking-[.22em] text-orange-500">KERJAHARIAN</p>
+          <div className="mt-6 overflow-hidden rounded-[2rem] border border-white/10 bg-[#111]">
+            <img src="https://images.pexels.com/photos/13699204/pexels-photo-13699204.jpeg?auto=compress&cs=tinysrgb&w=1800" alt="Pekerja melakukan pekerjaan fisik" className="h-[300px] w-full object-cover sm:h-[500px]" />
+          </div>
+          <div className="max-w-3xl py-8 sm:py-10">
+            <h1 className="text-4xl font-black tracking-[-.04em] sm:text-6xl">Kerja Nyata,<br /><span className="text-orange-500">Untuk Kebutuhan Nyata.</span></h1>
+            <p className="mt-5 max-w-2xl text-base leading-7 text-white/60 sm:text-lg">KerjaHarian mempertemukan orang yang membutuhkan tenaga kerja dengan orang yang siap bekerja.</p>
           </div>
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="rounded-2xl border border-white/10 bg-[#111] p-2 shadow-xl">
-          <div className="grid gap-2 md:grid-cols-[1fr_auto_auto]">
-            <div className="flex min-h-14 items-center gap-3 rounded-xl bg-white/[0.04] px-4">
-              <Search className="h-5 w-5 text-orange-500" />
-              <div><p className="text-[10px] font-black uppercase tracking-wider text-white/40">{id ? 'Cari' : 'Search'}</p><p className="text-sm font-semibold text-white/70">{id ? 'Apa pekerjaan yang Anda butuhkan?' : 'What service do you need?'}</p></div>
-            </div>
-            <button onClick={() => onNavigate('employer')} className="min-h-14 rounded-xl px-5 text-sm font-bold text-white/70 hover:bg-white/[0.05]"><MapPin className="mr-2 inline h-4 w-4 text-orange-500" />{id ? 'Di sekitar saya' : 'Near me'}</button>
-            <button onClick={() => onNavigate('employer')} className="min-h-14 rounded-xl bg-orange-500 px-7 text-sm font-black text-white hover:bg-orange-400">{id ? 'Cari' : 'Search'}</button>
+      <section id="problem" className="scroll-mt-20 border-b border-white/10 bg-[#090909]">
+        <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 sm:py-20 lg:px-8">
+          <p className="text-xs font-black uppercase tracking-[.18em] text-orange-500">02 · PROBLEM</p>
+          <h2 className="mt-3 max-w-3xl text-3xl font-black tracking-tight sm:text-5xl">Kebutuhan tenaga kerja dan kebutuhan pekerjaan bertemu di satu tempat.</h2>
+          <div className="mt-10 grid gap-4 md:grid-cols-2">
+            <article className="rounded-3xl border border-white/10 bg-[#111] p-7"><p className="text-sm font-black text-orange-500">PEMBERI KERJA</p><ul className="mt-5 space-y-4 text-sm leading-6 text-white/65"><li>• Membutuhkan tenaga kerja dengan cepat.</li><li>• Sulit menemukan orang yang sesuai kebutuhan.</li><li>• Membutuhkan proses yang sederhana.</li><li>• Perlu harga dan status transaksi yang jelas.</li></ul></article>
+            <article className="rounded-3xl border border-white/10 bg-[#111] p-7"><p className="text-sm font-black text-orange-500">PEKERJA</p><ul className="mt-5 space-y-4 text-sm leading-6 text-white/65"><li>• Membutuhkan pekerjaan harian.</li><li>• Tidak selalu memiliki CV formal.</li><li>• Membutuhkan akses ke peluang kerja.</li><li>• Perlu proses yang mudah dipahami.</li></ul></article>
           </div>
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-4 pb-10 pt-4 sm:px-6 lg:px-8">
-        <div className="mb-5 flex items-end justify-between"><div><p className="text-xs font-black uppercase tracking-[.16em] text-orange-500">Kategori</p><h2 className="mt-2 text-2xl font-black tracking-tight sm:text-3xl">{id ? 'Pilih pekerjaan yang Anda butuhkan.' : 'Choose what you need.'}</h2></div></div>
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {categories.map(([title, sub], i) => <button key={title} onClick={() => onNavigate('employer')} className="group rounded-2xl border border-white/10 bg-[#111] p-5 text-left transition hover:-translate-y-0.5 hover:border-orange-500/50 hover:bg-[#151515]"><div className="mb-8 text-xs font-black text-white/30">0{i + 1}</div><h3 className="text-base font-black">{title}</h3><p className="mt-1 text-xs leading-5 text-white/45">{sub}</p><ArrowRight className="mt-5 h-4 w-4 text-orange-500 transition group-hover:translate-x-1" /></button>)}
+      <section id="hero" className="scroll-mt-20 border-b border-white/10">
+        <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-24 lg:px-8">
+          <div className="max-w-4xl"><p className="text-xs font-black uppercase tracking-[.2em] text-orange-500">KERJAHARIAN</p><h2 className="mt-4 text-5xl font-black leading-[.95] tracking-[-.05em] sm:text-7xl">Hubungkan kebutuhan pekerjaan dengan tenaga kerja harian.</h2><p className="mt-6 max-w-2xl text-base leading-7 text-white/55 sm:text-lg">Butuh tenaga kerja? Atau sedang mencari pekerjaan? KerjaHarian membuat kedua kebutuhan tersebut lebih mudah dipertemukan.</p></div>
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row"><button type="button" onClick={() => go('employer')} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-orange-500 px-7 py-3.5 text-sm font-black">BUTUH PEKERJA <ArrowRight className="h-4 w-4" /></button><button type="button" onClick={() => go('worker')} className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-white/15 px-7 py-3.5 text-sm font-black">CARI KERJA</button></div>
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-        <div className="mb-6 flex items-end justify-between"><div><p className="text-xs font-black uppercase tracking-[.16em] text-orange-500">{id ? 'Terdekat' : 'Nearby'}</p><h2 className="mt-2 text-2xl font-black tracking-tight sm:text-3xl">{id ? 'Pekerjaan yang siap dipesan.' : 'Jobs ready to book.'}</h2></div><button onClick={() => onNavigate('employer')} className="hidden items-center gap-2 text-sm font-bold text-white/60 hover:text-white sm:flex">{id ? 'Lihat semua' : 'View all'} <ArrowRight className="h-4 w-4" /></button></div>
-        <div className="grid gap-4 md:grid-cols-3">
-          {jobs.map(job => <article key={job.title} className="overflow-hidden rounded-2xl border border-white/10 bg-[#111] transition hover:-translate-y-0.5 hover:border-white/20">
-            <div className="relative"><img src={job.image} alt={job.title} className="h-52 w-full object-cover" /><span className="absolute left-3 top-3 rounded-full bg-black/75 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-white backdrop-blur">Tersedia</span></div>
-            <div className="p-5"><div className="flex items-start justify-between gap-3"><div><h3 className="text-base font-black">{job.title}</h3><p className="mt-1 text-xs text-white/45"><MapPin className="mr-1 inline h-3.5 w-3.5" />{job.distance}</p></div><div className="flex items-center gap-1 text-xs font-bold"><Star className="h-3.5 w-3.5 fill-orange-500 text-orange-500" />{job.rating}</div></div><div className="mt-5 flex items-end justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-wider text-white/35">Harga</p><p className="mt-1 text-lg font-black text-white">{job.price}</p></div><button onClick={() => onNavigate('employer')} className="rounded-xl bg-orange-500 px-4 py-2.5 text-xs font-black text-white hover:bg-orange-400">{id ? 'PESAN SEKARANG' : 'BOOK NOW'}</button></div></div>
-          </article>)}
-        </div>
+      <section id="services" className="scroll-mt-20 border-b border-white/10 bg-[#090909]">
+        <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 sm:py-20 lg:px-8"><p className="text-xs font-black uppercase tracking-[.18em] text-orange-500">05 · EKOSISTEM / LAYANAN</p><h2 className="mt-3 text-3xl font-black sm:text-5xl">Berbagai kebutuhan pekerjaan fisik.</h2><div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{services.map(([num, title, text]) => <button type="button" key={title} onClick={() => go('employer')} className="group rounded-2xl border border-white/10 bg-[#111] p-6 text-left hover:border-orange-500/40"><span className="text-xs font-black text-white/25">{num}</span><h3 className="mt-8 text-lg font-black">{title}</h3><p className="mt-2 text-sm leading-6 text-white/45">{text}</p><ArrowRight className="mt-5 h-4 w-4 text-orange-500 transition group-hover:translate-x-1" /></button>)}</div></div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8"><div className="grid gap-4 lg:grid-cols-[1.1fr_.9fr]"><div className="rounded-[2rem] bg-orange-500 p-7 text-white sm:p-9"><p className="text-xs font-black uppercase tracking-[.16em] text-white/70">Cara kerja</p><h2 className="mt-3 max-w-lg text-3xl font-black tracking-tight sm:text-4xl">{id ? 'Cari. Pesan. Selesai.' : 'Find. Book. Done.'}</h2><div className="mt-8 grid gap-5 sm:grid-cols-3"><div><b className="text-sm">01 · Pilih</b><p className="mt-1 text-xs leading-5 text-white/75">Pilih kategori dan pekerjaan.</p></div><div><b className="text-sm">02 · Order</b><p className="mt-1 text-xs leading-5 text-white/75">Harga tampil sebelum order.</p></div><div><b className="text-sm">03 · Selesai</b><p className="mt-1 text-xs leading-5 text-white/75">Pantau pekerjaan sampai selesai.</p></div></div></div><div className="rounded-[2rem] border border-white/10 bg-[#111] p-7 sm:p-9"><div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/5"><ShieldCheck className="h-6 w-6 text-orange-500" /></div><h3 className="mt-5 text-xl font-black">{id ? 'Dibuat untuk transaksi nyata.' : 'Built for real transactions.'}</h3><p className="mt-3 text-sm leading-6 text-white/50">{id ? 'Harga jelas, lokasi terlihat, status tersedia, dan proses dibuat sesingkat mungkin.' : 'Clear pricing, visible location, availability, and a deliberately short transaction flow.'}</p><button onClick={() => onNavigate('employer')} className="mt-6 flex items-center gap-2 text-sm font-black text-orange-500 hover:text-orange-400">{id ? 'Mulai sekarang' : 'Start now'} <ArrowRight className="h-4 w-4" /></button></div></div></section>
+      <section id="how" className="scroll-mt-20 border-b border-white/10">
+        <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 sm:py-20 lg:px-8"><p className="text-xs font-black uppercase tracking-[.18em] text-orange-500">06 · CARA KERJA</p><h2 className="mt-3 text-3xl font-black sm:text-5xl">Alur dibuat sesingkat mungkin.</h2><div className="mt-10 grid gap-4 md:grid-cols-2"><div className="rounded-3xl bg-orange-500 p-7"><h3 className="text-xl font-black">Pemberi Kerja</h3><p className="mt-6 text-sm font-semibold leading-8">Pilih kebutuhan → Lihat harga → Buat pesanan → Pekerja menerima → Pekerjaan berjalan → Selesai</p></div><div className="rounded-3xl border border-white/10 bg-[#111] p-7"><h3 className="text-xl font-black">Pekerja</h3><p className="mt-6 text-sm font-semibold leading-8 text-white/70">Lihat pekerjaan → Pilih pekerjaan → Terima pekerjaan → Check-in → Kerjakan → Selesai</p></div></div></div>
+      </section>
 
-      <section className="mx-auto max-w-7xl px-4 pt-8 sm:px-6 lg:px-8"><div className="grid gap-3 sm:grid-cols-3"><div className="rounded-2xl border border-white/10 bg-[#0c0c0c] p-5"><CheckCircle className="h-5 w-5 text-orange-500" /><p className="mt-4 text-sm font-black">{id ? 'Harga transparan' : 'Transparent pricing'}</p></div><div className="rounded-2xl border border-white/10 bg-[#0c0c0c] p-5"><MapPin className="h-5 w-5 text-orange-500" /><p className="mt-4 text-sm font-black">{id ? 'Pekerja lebih dekat' : 'Workers nearby'}</p></div><div className="rounded-2xl border border-white/10 bg-[#0c0c0c] p-5"><Clock3 className="h-5 w-5 text-orange-500" /><p className="mt-4 text-sm font-black">{id ? 'Untuk kebutuhan hari ini' : 'For today’s needs'}</p></div></div></section>
+      <section id="employer-join" className="scroll-mt-20 border-b border-white/10 bg-[#090909]">
+        <div className="mx-auto max-w-5xl px-4 py-14 text-center sm:px-6 sm:py-20 lg:px-8"><p className="text-xs font-black uppercase tracking-[.18em] text-orange-500">07 · PEMBERI KERJA</p><h2 className="mt-3 text-3xl font-black sm:text-5xl">BUTUH TENAGA KERJA?</h2><p className="mx-auto mt-4 max-w-2xl text-sm leading-6 text-white/55">Bergabung sebagai Pemberi Kerja untuk menemukan tenaga kerja sesuai kebutuhan Anda.</p><p className="mx-auto mt-6 max-w-2xl text-xs font-semibold leading-6 text-white/40">Login/Daftar → Persetujuan → KTP + verifikasi wajah/selfie → Review → Disetujui → Panel Pemberi Kerja</p><button type="button" onClick={() => go('employer')} className="mt-8 rounded-xl bg-orange-500 px-7 py-3.5 text-sm font-black">BERGABUNG SEBAGAI PEMBERI KERJA</button></div>
+      </section>
+
+      <section id="worker-join" className="scroll-mt-20 border-b border-white/10">
+        <div className="mx-auto max-w-5xl px-4 py-14 text-center sm:px-6 sm:py-20 lg:px-8"><p className="text-xs font-black uppercase tracking-[.18em] text-orange-500">08 · PEKERJA</p><h2 className="mt-3 text-3xl font-black sm:text-5xl">SEDANG MENCARI PEKERJAAN?</h2><p className="mx-auto mt-4 max-w-2xl text-sm leading-6 text-white/55">Bergabung sebagai Pekerja untuk menemukan kesempatan kerja harian.</p><p className="mx-auto mt-6 max-w-2xl text-xs font-semibold leading-6 text-white/40">Login/Daftar → Persetujuan → KTP → Review → Disetujui → Panel Pekerja</p><button type="button" onClick={() => go('worker')} className="mt-8 rounded-xl border border-white/15 px-7 py-3.5 text-sm font-black">BERGABUNG SEBAGAI PEKERJA</button></div>
+      </section>
+
+      <section id="trust" className="scroll-mt-20 border-b border-white/10 bg-[#090909]">
+        <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 sm:py-20 lg:px-8"><p className="text-xs font-black uppercase tracking-[.18em] text-orange-500">09 · TRUST & SAFETY</p><h2 className="mt-3 text-3xl font-black sm:text-5xl">Transaksi dibuat dengan struktur yang jelas.</h2><div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3"><div className="rounded-2xl border border-white/10 bg-[#111] p-6"><ShieldCheck className="h-6 w-6 text-orange-500"/><p className="mt-4 font-black">Verifikasi identitas</p></div><div className="rounded-2xl border border-white/10 bg-[#111] p-6"><CheckCircle2 className="h-6 w-6 text-orange-500"/><p className="mt-4 font-black">Harga jelas</p></div><div className="rounded-2xl border border-white/10 bg-[#111] p-6"><Clock3 className="h-6 w-6 text-orange-500"/><p className="mt-4 font-black">Status pekerjaan terstruktur</p></div><div className="rounded-2xl border border-white/10 bg-[#111] p-6"><Zap className="h-6 w-6 text-orange-500"/><p className="mt-4 font-black">Proses transaksi sederhana</p></div><div className="rounded-2xl border border-white/10 bg-[#111] p-6"><MessageCircle className="h-6 w-6 text-orange-500"/><p className="mt-4 font-black">Bantuan dan penyelesaian masalah</p></div></div></div>
+      </section>
+
+      <section id="faq" className="scroll-mt-20 border-b border-white/10">
+        <div className="mx-auto max-w-4xl px-4 py-14 sm:px-6 sm:py-20 lg:px-8"><p className="text-xs font-black uppercase tracking-[.18em] text-orange-500">10 · FAQ / BAGAIMANA CARA...</p><h2 className="mt-3 text-3xl font-black sm:text-5xl">Bagaimana cara menggunakan KerjaHarian?</h2><div className="mt-8 divide-y divide-white/10 rounded-2xl border border-white/10 bg-[#0b0b0b]">{faqs.map(([q, a], i) => <div key={q}><button type="button" onClick={() => setOpenFaq(openFaq === i ? null : i)} className="flex w-full items-center justify-between gap-4 px-5 py-5 text-left text-sm font-bold"><span>{q}</span><HelpCircle className="h-4 w-4 shrink-0 text-orange-500" /></button>{openFaq === i && <p className="px-5 pb-5 text-sm leading-6 text-white/50">{a}</p>}</div>)}</div><button type="button" onClick={() => go('help')} className="mt-6 text-sm font-black text-orange-500">Buka Pusat Bantuan <ArrowRight className="ml-1 inline h-4 w-4" /></button></div>
+      </section>
+
+      <section className="border-b border-white/10 bg-orange-500">
+        <div className="mx-auto max-w-5xl px-4 py-14 text-center sm:px-6 sm:py-20 lg:px-8"><p className="text-xs font-black uppercase tracking-[.18em] text-white/70">11 · SIAP?</p><h2 className="mt-3 text-4xl font-black sm:text-6xl">SIAP MENGGUNAKAN KERJAHARIAN?</h2><p className="mx-auto mt-4 max-w-xl text-sm leading-6 text-white/80">Cari tenaga kerja untuk kebutuhan Anda atau temukan pekerjaan harian.</p><div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row"><button type="button" onClick={() => go('employer')} className="rounded-xl bg-black px-7 py-3.5 text-sm font-black text-white">BUTUH PEKERJA</button><button type="button" onClick={() => go('worker')} className="rounded-xl border border-white/50 px-7 py-3.5 text-sm font-black text-white">CARI KERJA</button></div></div>
+      </section>
+
+      <footer className="bg-[#030303]">
+        <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8"><div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4"><div><Logo className="[&_span]:text-white [&_.text-slate-400]:text-white/50"/><p className="mt-4 max-w-xs text-sm leading-6 text-white/40">Marketplace tenaga kerja harian.</p></div><div><h3 className="text-sm font-black">Tentang KerjaHarian</h3><div className="mt-4 space-y-3 text-sm text-white/45"><button onClick={() => scrollTo('introduction')}>Tentang Kami</button><button onClick={() => scrollTo('how')} className="block">Cara Kerja</button><button onClick={() => go('help')} className="block">Blog / Informasi</button></div></div><div><h3 className="text-sm font-black">Layanan</h3><div className="mt-4 space-y-3 text-sm text-white/45">{services.slice(0, 5).map(([, title]) => <button key={title} onClick={() => go('employer')} className="block text-left">{title}</button>)}</div></div><div><h3 className="text-sm font-black">Bantuan & Legal</h3><div className="mt-4 space-y-3 text-sm text-white/45"><button onClick={() => go('help')} className="block">Pusat Bantuan</button><button onClick={() => scrollTo('faq')} className="block">FAQ</button><button onClick={() => go('help')} className="block">Hubungi Kami</button><button onClick={() => go('terms')} className="block">Syarat & Ketentuan</button><button onClick={() => go('privacy')} className="block">Kebijakan Privasi</button></div></div></div>
+          <div className="mt-12 border-t border-white/10 pt-8"><div className="flex flex-wrap gap-2">{socials.map(name => <span key={name} className="rounded-lg border border-white/10 px-3 py-2 text-xs font-bold text-white/45" aria-label={name}>{name}</span>)}</div><div className="mt-6 flex flex-col gap-3 text-xs text-white/35 sm:flex-row sm:items-center sm:justify-between"><span>Indonesia · English</span><span>© 2026 KerjaHarian. Semua hak dilindungi.</span></div></div>
+        </div>
+      </footer>
     </main>
   );
 }
