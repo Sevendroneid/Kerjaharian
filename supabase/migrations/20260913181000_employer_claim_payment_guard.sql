@@ -7,7 +7,7 @@ BEGIN
   END IF;
   UPDATE public.jobs SET worker_id=auth.uid(),status='assigned',updated_at=now()
   WHERE id=p_job_id AND status='open' AND worker_id IS NULL
-    AND (payment_status='settled' OR payment_status IS NULL)
+    AND (payment_required=false OR payment_status='settled')
   RETURNING * INTO v_job;
   IF NOT FOUND THEN RAISE EXCEPTION 'Pekerjaan belum dibayar atau sudah diambil mitra lain'; END IF;
   IF v_job.order_id IS NOT NULL THEN
