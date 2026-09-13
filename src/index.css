@@ -66,3 +66,12 @@
   filter: none !important;
   text-shadow: none !important;
 }
+
+/* Landing CTA solid pills must render literal white bg + black text,
+   independent of the dark-mode retrofit that remaps .bg-white globally. */
+.landing-cta-solid {
+  background-color: #fff !important;
+  color: #000 !important;
+  -webkit-text-fill-color: #000 !important;
+  opacity: 1 !important;
+}
