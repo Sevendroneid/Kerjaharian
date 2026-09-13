@@ -3,9 +3,10 @@ import { LandingDark } from '@/components/LandingDark';
 
 interface RoleEntryProps {
   onNavigate: (view: View) => void;
+  lang: 'id' | 'en';
+  onLangChange: (lang: 'id' | 'en') => void;
 }
 
-export function RoleEntry({ onNavigate }: RoleEntryProps) {
-  const lang = (localStorage.getItem('kerjaharian_lang') as 'id' | 'en') || 'id';
-  return <LandingDark onNavigate={onNavigate} lang={lang} />;
+export function RoleEntry({ onNavigate, lang, onLangChange }: RoleEntryProps) {
+  return <LandingDark onNavigate={onNavigate} lang={lang} onLangChange={onLangChange} />;
 }
