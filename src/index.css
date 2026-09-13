@@ -72,3 +72,10 @@ header .md\\:hidden + div button {
   color: #fff !important;
   opacity: 1 !important;
 }
+
+/* Explicitly target the two desktop navigation actions so inherited/utility opacity cannot dim them. */
+header nav button:nth-child(2),
+header nav button:nth-child(3) {
+  color: #fff !important;
+  opacity: 1 !important;
+}
