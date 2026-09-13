@@ -1,4 +1,4 @@
-const CACHE_NAME = 'kerjaharian-static-v5';
+const CACHE_NAME = 'kerjaharian-static-v6';
 const STATIC_DESTINATIONS = new Set(['script', 'style', 'image', 'font', 'manifest']);
 
 self.addEventListener('install', (event) => {
