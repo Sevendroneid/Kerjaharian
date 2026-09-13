@@ -20,6 +20,12 @@ declare global {
   interface Window { dataLayer: unknown[]; gtag: (...args: unknown[]) => void; }
 }
 
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    window.location.reload();
+  });
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <AuthProvider>
