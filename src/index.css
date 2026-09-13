@@ -58,32 +58,6 @@
 #top > div > div:first-child { max-width: 760px; margin-inline: auto; text-align: center; }
 #top > div > div:first-child > div { justify-content: center; }
 
-main > section:nth-of-type(6) { display: none !important; }
-
-/* Landing actions: Cari Kerja and Pesan Pekerja are real navigation features. */
-header nav button,
-header nav button.text-white,
-header .md\\:hidden + div button {
-  color: #fff !important;
-  opacity: 1 !important;
-}
-
-header nav button:nth-child(2),
-header nav button:nth-child(3) {
-  color: #fff !important;
-  opacity: 1 !important;
-}
-
-header nav.text-white\/90 > button:nth-child(2),
-header nav.text-white\/90 > button:nth-child(3),
-header div.md\\:hidden + div button:nth-child(2),
-header div.md\\:hidden + div button:nth-child(3) {
-  color: rgb(255 255 255) !important;
-  -webkit-text-fill-color: rgb(255 255 255) !important;
-  opacity: 1 !important;
-  filter: none !important;
-}
-
 /* Source-level class prevents inherited Tailwind opacity utilities from dimming the two landing actions. */
 .landing-nav-action {
   color: #fff !important;
