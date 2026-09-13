@@ -26,8 +26,6 @@ export async function onRequest(context) {
   const terminalFailure=['deny','cancel','expire','failure'].includes(transactionStatus);
   const notifiedAmount=Number(notification.gross_amount);
 
-  // Employer wallet top-up path. Wallet credit is performed only by the
-  // database SECURITY DEFINER function after signature and amount validation.
   if(orderId.startsWith('KH-WALLET-')){
     const {data:topup,error:topupError}=await admin.from('employer_wallet_topups').select('id,gross_amount,status').eq('midtrans_order_id',orderId).maybeSingle();
     if(topupError)return Response.json({error:topupError.message},{status:500});
@@ -38,12 +36,12 @@ export async function onRequest(context) {
     return Response.json({ok:true,order_id:orderId,topup_status:result?.credited?'settled':result?.cancelled?'cancelled':result?.refund_status||'pending'});
   }
 
-  const {data:job,error:findError}=await admin.from('jobs').select('id,order_id,worker_id,status,worker_amount,final_amount,employer_total,total,payment_status,midtrans_transaction_status,midtrans_transaction_id,paid_at,midtrans_pending_amount').eq('midtrans_order_id',orderId).maybeSingle();
+  const {data:job,error:findError}=await admin.from('jobs').select('id,order_id,worker_id,status,payment_required,worker_amount,final_amount,employer_total,total,payment_status,midtrans_transaction_status,midtrans_transaction_id,paid_at,midtrans_pending_amount').eq('midtrans_order_id',orderId).maybeSingle();
   if(findError)return Response.json({error:findError.message},{status:500});
   if(!job)return Response.json({error:'KerjaHarian job not found for Midtrans order'},{status:404});
-  // Legacy post-completion payments are retained only for old jobs. New prepaid
-  // wallet jobs never receive a Midtrans job-payment notification.
-  if(success&&String(job.status)!=='completed')return Response.json({error:'Payment notification rejected: job is not completed'},{status:409});
+  // Direct employer payments are settled before a worker claims the job.
+  // Legacy jobs retain the old post-completion payment rule.
+  if(success&&String(job.status)!=='completed'&&!job.payment_required)return Response.json({error:'Payment notification rejected: job is not completed'},{status:409});
   const expectedAmount=Number(job.midtrans_pending_amount??job.final_amount??job.employer_total??job.total??0);
   if(!Number.isFinite(expectedAmount)||expectedAmount!==notifiedAmount)return Response.json({error:'Gross amount mismatch'},{status:409});
   const incomingTransactionId=notification.transaction_id?String(notification.transaction_id):null;
