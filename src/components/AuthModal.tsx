@@ -83,6 +83,10 @@ export function AuthModal({ open, onClose, mode = 'signin' }: AuthModalProps) {
       if (!supported || typeof supabase.auth.signInWithPasskey !== 'function') throw new Error('Passkey belum tersedia pada perangkat/client KerjaHarian.');
       const result = await withTimeout(supabase.auth.signInWithPasskey(), 30000, 'Verifikasi Fingerprint/Passkey timeout.');
       if (result.error) throw result.error;
+      const { data: current } = await supabase.auth.getUser();
+      if (!current.user) throw new Error('Sesi login tidak terbentuk.');
+      const { data: p } = await supabase.from('profiles').select('role,is_admin').eq('id', current.user.id).maybeSingle();
+      if (p?.is_admin || p?.role === 'admin') { await supabase.auth.signOut(); throw new Error('Gunakan Login Admin untuk akun Administrator.'); }
       await refreshProfile(); onClose();
     } catch (err: any) { setError(err?.message || 'Login Fingerprint / Passkey gagal.'); }
     finally { setLoading(false); }
