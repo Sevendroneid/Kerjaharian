@@ -23,7 +23,6 @@
   ::-webkit-scrollbar-thumb { background: #303030; border-radius: 9999px; border: 2px solid transparent; background-clip: content-box; }
   ::-webkit-scrollbar-thumb:hover { background: #454545; }
 
-  /* KerjaHarian visual continuity: internal surfaces stay on the black canvas as the opening animation and landing page. */
   .bg-slate-50 { background-color: #090909 !important; }
   .bg-slate-100 { background-color: #111 !important; }
   .bg-white { background-color: #111 !important; }
@@ -32,8 +31,6 @@
   .text-slate-400 { color: rgba(255,255,255,.55) !important; }
   .border-slate-200, .border-slate-300, .ring-slate-200 { border-color: rgba(255,255,255,.12) !important; --tw-ring-color: rgba(255,255,255,.12) !important; }
   .ring-slate-300 { --tw-ring-color: rgba(255,255,255,.18) !important; }
-
-  /* LandingDark still carries the previous charcoal utility; force that page canvas to follow the opening animation's black. */
   .bg-\[\#202020\] { background-color: #000 !important; }
 }
 
@@ -56,16 +53,14 @@
   .status-neutral { @apply status-badge bg-slate-100 text-slate-700 ring-1 ring-slate-200; }
 }
 
-/* Minimal hero: remove the oversized promotional image/card and let the message carry the landing page. */
 #top > div > div:last-child { display: none !important; }
 #top > div { grid-template-columns: 1fr !important; }
 #top > div > div:first-child { max-width: 760px; margin-inline: auto; text-align: center; }
 #top > div > div:first-child > div { justify-content: center; }
 
-/* The old generic trust-information panel is not a product action. Hide it from the landing flow. */
 main > section:nth-of-type(6) { display: none !important; }
 
-/* Landing actions: Cari Kerja and Pesan Pekerja must always render at full white opacity. */
+/* Landing actions: Cari Kerja and Pesan Pekerja are real navigation features. */
 header nav button,
 header nav button.text-white,
 header .md\\:hidden + div button {
@@ -73,14 +68,12 @@ header .md\\:hidden + div button {
   opacity: 1 !important;
 }
 
-/* Explicitly target the two desktop navigation actions so inherited/utility opacity cannot dim them. */
 header nav button:nth-child(2),
 header nav button:nth-child(3) {
   color: #fff !important;
   opacity: 1 !important;
 }
 
-/* LandingDark CTAs: never allow inherited translucent text utilities to dim Cari Kerja / Pesan Pekerja. */
 header nav.text-white\/90 > button:nth-child(2),
 header nav.text-white\/90 > button:nth-child(3),
 header div.md\\:hidden + div button:nth-child(2),
@@ -89,4 +82,13 @@ header div.md\\:hidden + div button:nth-child(3) {
   -webkit-text-fill-color: rgb(255 255 255) !important;
   opacity: 1 !important;
   filter: none !important;
+}
+
+/* Source-level class prevents inherited Tailwind opacity utilities from dimming the two landing actions. */
+.landing-nav-action {
+  color: #fff !important;
+  -webkit-text-fill-color: #fff !important;
+  opacity: 1 !important;
+  filter: none !important;
+  text-shadow: none !important;
 }
