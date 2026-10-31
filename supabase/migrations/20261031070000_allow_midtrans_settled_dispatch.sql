@@ -1,6 +1,6 @@
 -- Allow the direct Midtrans settlement state to pass the dispatch payment gate.
 -- Keep the legacy reserved-funds path unchanged. Refund/cancel/pending states remain blocked.
-CREATE OR REPLACE FUNCTION public.dispatch_open_job(p_job_id uuid, p_limit integer DEFAULT 10)
+CREATE OR REPLACE FUNCTION public.dispatch_open_job(p_job_id uuid, p_limit integer)
 RETURNS integer
 LANGUAGE plpgsql
 SECURITY DEFINER
