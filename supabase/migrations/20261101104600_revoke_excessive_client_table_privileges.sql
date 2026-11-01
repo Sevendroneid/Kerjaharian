@@ -25,8 +25,11 @@ $$;
 
 -- These records are read-only to clients; all writes use server-side RPC/webhook paths.
 REVOKE ALL PRIVILEGES ON TABLE public.dispatch_confirmations FROM anon;
+REVOKE INSERT, UPDATE, DELETE ON TABLE public.dispatch_confirmations FROM anon, authenticated;
 REVOKE ALL PRIVILEGES ON TABLE public.worker_earning_ledger FROM anon;
+REVOKE INSERT, UPDATE, DELETE ON TABLE public.worker_earning_ledger FROM anon, authenticated;
 REVOKE ALL PRIVILEGES ON TABLE public.worker_withdrawals FROM anon;
+REVOKE INSERT, UPDATE, DELETE ON TABLE public.worker_withdrawals FROM anon, authenticated;
 REVOKE ALL PRIVILEGES ON TABLE public.employer_wallet_accounts FROM anon, authenticated;
 REVOKE ALL PRIVILEGES ON TABLE public.employer_wallet_ledger FROM anon, authenticated;
 REVOKE ALL PRIVILEGES ON TABLE public.employer_wallet_topups FROM anon, authenticated;
