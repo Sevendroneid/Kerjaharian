@@ -18,7 +18,7 @@ export function EmployerMatchingControl({ lang = 'id' }: { lang?: 'id' | 'en' })
     if (!user) return;
     const [{ data: open }, { data: pending }] = await Promise.all([
       supabase.from('orders').select('id,title,status,total_price,matching_requirements').eq('employer_id', user.id).in('status', ['open', 'Pending']).order('created_at', { ascending: false }).limit(10),
-      supabase.from('dispatch_confirmations').select('id,job_id,worker_id,expires_at,worker:profiles!dispatch_confirmations_worker_id_fkey(full_name,rating,jobs_done,kyc_verified),job:jobs!dispatch_confirmations_job_id_fkey(title,order_id)').eq('employer_id', user.id).eq('status', 'pending').gt('expires_at', new Date().toISOString()).order('created_at', { ascending: false }).limit(10),
+      supabase.rpc('get_employer_dispatch_candidates'),
     ]);
     setOrders((open ?? []) as OpenOrder[]);
     setCandidates((pending ?? []) as unknown as Candidate[]);
