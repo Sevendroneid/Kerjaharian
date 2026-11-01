@@ -71,5 +71,5 @@ BEGIN
 END;
 $function$;
 
-REVOKE ALL ON FUNCTION public.set_employer_order_location(uuid, numeric, numeric) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.set_employer_order_location(uuid, numeric, numeric) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.set_employer_order_location(uuid, numeric, numeric) TO authenticated;
