@@ -174,10 +174,10 @@ BEGIN
         amount = EXCLUDED.amount,
         status = 'posted',
         description = EXCLUDED.description,
-        metadata = COALESCE(public.worker_earning_ledger.metadata, '{}'::jsonb)
+        metadata = COALESCE(worker_earning_ledger.metadata, '{}'::jsonb)
                    || jsonb_build_object('completed_at', now()),
-        posted_at = COALESCE(public.worker_earning_ledger.posted_at, now())
-    WHERE public.worker_earning_ledger.status = 'pending';
+        posted_at = COALESCE(worker_earning_ledger.posted_at, now())
+    WHERE worker_earning_ledger.status = 'pending';
   ELSIF lower(COALESCE(NEW.status, '')) IN ('cancelled', 'canceled')
      AND lower(COALESCE(OLD.status, '')) IS DISTINCT FROM lower(COALESCE(NEW.status, '')) THEN
     UPDATE public.worker_earning_ledger
