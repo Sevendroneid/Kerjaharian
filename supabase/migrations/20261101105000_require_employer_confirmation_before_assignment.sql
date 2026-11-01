@@ -40,13 +40,14 @@ BEGIN
     RAISE EXCEPTION 'Anda sedang menunggu konfirmasi Employer untuk tawaran lain';
   END IF;
 
+  -- Read the offer first without locking, then lock job before offer to match
+  -- dispatch_open_job's lock order and avoid job/offer deadlocks.
   SELECT * INTO v_offer
   FROM public.dispatch_offers
   WHERE id = p_offer_id
     AND worker_id = auth.uid()
     AND status = 'offered'
-    AND expires_at > now()
-  FOR UPDATE;
+    AND expires_at > now();
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Panggilan kerja sudah tidak tersedia';
@@ -65,6 +66,19 @@ BEGIN
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Pekerjaan tidak tersedia atau pembayaran belum terverifikasi';
+  END IF;
+
+  SELECT * INTO v_offer
+  FROM public.dispatch_offers
+  WHERE id = p_offer_id
+    AND job_id = v_job.id
+    AND worker_id = auth.uid()
+    AND status = 'offered'
+    AND expires_at > now()
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Panggilan kerja sudah tidak tersedia';
   END IF;
 
   IF COALESCE((v_job.matching_requirements->>'confirmed')::boolean, false) IS NOT TRUE THEN
@@ -122,6 +136,34 @@ BEGIN
     RAISE EXCEPTION 'Login diperlukan';
   END IF;
 
+  -- Lock the job first to keep the same lock order as worker acceptance/dispatch.
+  SELECT * INTO v_confirmation
+  FROM public.dispatch_confirmations
+  WHERE id = p_confirmation_id
+    AND employer_id = auth.uid()
+    AND status = 'pending'
+    AND expires_at > now();
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Konfirmasi kandidat sudah tidak tersedia';
+  END IF;
+
+  SELECT * INTO v_job
+  FROM public.jobs
+  WHERE id = v_confirmation.job_id
+    AND employer_id = auth.uid()
+    AND status = 'open'
+    AND worker_id IS NULL
+    AND (
+      payment_status = 'funds_reserved'
+      OR (payment_status = 'settled' AND payment_required IS TRUE)
+    )
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Pekerjaan sudah diambil atau pembayaran tidak lagi valid';
+  END IF;
+
   SELECT * INTO v_confirmation
   FROM public.dispatch_confirmations
   WHERE id = p_confirmation_id
@@ -144,22 +186,6 @@ BEGIN
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Tawaran pekerja sudah tidak tersedia';
-  END IF;
-
-  SELECT * INTO v_job
-  FROM public.jobs
-  WHERE id = v_confirmation.job_id
-    AND employer_id = auth.uid()
-    AND status = 'open'
-    AND worker_id IS NULL
-    AND (
-      payment_status = 'funds_reserved'
-      OR (payment_status = 'settled' AND payment_required IS TRUE)
-    )
-  FOR UPDATE;
-
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'Pekerjaan sudah diambil atau pembayaran tidak lagi valid';
   END IF;
 
   UPDATE public.jobs
