@@ -29,7 +29,25 @@ BEGIN
     'gender', 'any',
     'age_min', NULL,
     'age_max', NULL,
-    'heavy_lifting_kg', CASE WHEN (p_requirements->>'heavy_lifting_kg') ~ '^\\d+$' THEN GREATEST(0, LEAST((p_requirements->>'heavy_lifting_kg')::integer, 100)) ELSE 0 END,
+    'heavy_lifting_kg', CASE WHEN (p_requirements->>'heavy_lifting_kg') ~ '^[0-9]+ THEN GREATEST(0, LEAST((p_requirements->>'heavy_lifting_kg')::integer, 100)) ELSE 0 END,
+    'night_work', COALESCE((p_requirements->>'night_work')::boolean, false),
+    'private_home', COALESCE((p_requirements->>'private_home')::boolean, false),
+    'needs_tools', COALESCE((p_requirements->>'needs_tools')::boolean, false),
+    'required_skill', COALESCE(NULLIF(left(p_requirements->>'required_skill', 100), ''), NULL),
+    'notes', COALESCE(left(p_requirements->>'notes', 500), '')
+  );
+
+  UPDATE public.orders SET matching_requirements = v_requirements WHERE id = v_order.id;
+  UPDATE public.jobs SET matching_requirements = v_requirements WHERE order_id = v_order.id AND status = 'open';
+
+  INSERT INTO public.job_events(job_id, order_id, actor_id, event_type, metadata)
+  SELECT j.id, j.order_id, auth.uid(), 'MATCHING_REQUIREMENTS_CONFIRMED', v_requirements
+  FROM public.jobs j WHERE j.order_id = v_order.id;
+
+  RETURN v_requirements;
+END;
+$function$;
+ THEN GREATEST(0, LEAST((p_requirements->>'heavy_lifting_kg')::integer, 100)) ELSE 0 END,
     'night_work', COALESCE((p_requirements->>'night_work')::boolean, false),
     'private_home', COALESCE((p_requirements->>'private_home')::boolean, false),
     'needs_tools', COALESCE((p_requirements->>'needs_tools')::boolean, false),
