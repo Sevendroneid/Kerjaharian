@@ -26,16 +26,6 @@ export async function onRequest(context) {
   const terminalFailure=['deny','cancel','expire','failure'].includes(transactionStatus);
   const notifiedAmount=Number(notification.gross_amount);
 
-  if(orderId.startsWith('KH-WALLET-')){
-    const {data:topup,error:topupError}=await admin.from('employer_wallet_topups').select('id,gross_amount,status').eq('midtrans_order_id',orderId).maybeSingle();
-    if(topupError)return Response.json({error:topupError.message},{status:500});
-    if(!topup)return Response.json({error:'Wallet top-up not found'},{status:404});
-    if(Number(topup.gross_amount)!==notifiedAmount)return Response.json({error:'Wallet top-up amount mismatch'},{status:409});
-    const {data:result,error:applyError}=await admin.rpc('apply_employer_wallet_topup',{p_midtrans_order_id:orderId,p_transaction_id:notification.transaction_id?String(notification.transaction_id):null,p_transaction_status:transactionStatus,p_amount:notifiedAmount});
-    if(applyError)return Response.json({error:applyError.message},{status:500});
-    return Response.json({ok:true,order_id:orderId,topup_status:result?.credited?'settled':result?.cancelled?'cancelled':result?.refund_status||'pending'});
-  }
-
   const {data:job,error:findError}=await admin.from('jobs').select('id,order_id,worker_id,status,payment_required,worker_amount,final_amount,employer_total,total,payment_status,midtrans_transaction_status,midtrans_transaction_id,paid_at,midtrans_pending_amount').eq('midtrans_order_id',orderId).maybeSingle();
   if(findError)return Response.json({error:findError.message},{status:500});
   if(!job)return Response.json({error:'KerjaHarian job not found for Midtrans order'},{status:404});
