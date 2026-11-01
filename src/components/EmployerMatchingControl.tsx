@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { formatIDR } from '@/lib/format';
 import { useAuth } from '@/lib/auth';
 
-type OpenOrder = { id: string; title: string | null; status: string; total_price: number; matching_requirements: Record<string, unknown> | null };
+type OpenOrder = { id: string; title: string | null; status: string; total_price: number; night_shift: boolean; matching_requirements: Record<string, unknown> | null };
 type Candidate = { id: string; job_id: string; worker_id: string; expires_at: string; worker: { full_name: string | null; rating: number; jobs_done: number; kyc_verified: boolean } | null; job: { title: string | null; order_id: string | null } | null };
 
 export function EmployerMatchingControl({ lang = 'id' }: { lang?: 'id' | 'en' }) {
@@ -17,7 +17,7 @@ export function EmployerMatchingControl({ lang = 'id' }: { lang?: 'id' | 'en' })
   const load = useCallback(async () => {
     if (!user) return;
     const [{ data: open }, { data: pending }] = await Promise.all([
-      supabase.from('orders').select('id,title,status,total_price,matching_requirements').eq('employer_id', user.id).in('status', ['open', 'Pending']).order('created_at', { ascending: false }).limit(10),
+      supabase.from('orders').select('id,title,status,total_price,night_shift,matching_requirements').eq('employer_id', user.id).in('status', ['open', 'Pending']).order('created_at', { ascending: false }).limit(10),
       supabase.rpc('get_employer_dispatch_candidates'),
     ]);
     setOrders((open ?? []) as OpenOrder[]);
@@ -27,16 +27,10 @@ export function EmployerMatchingControl({ lang = 'id' }: { lang?: 'id' | 'en' })
   useEffect(() => { void load(); if (!user) return; const timer = window.setInterval(() => void load(), 3000); return () => window.clearInterval(timer); }, [load, user]);
 
   const saveRequirements = async (order: OpenOrder) => {
-    const gender = window.prompt(lang === 'id' ? 'Gender hanya diisi bila benar-benar relevan untuk pekerjaan. Ketik: any / male / female' : 'Gender only when genuinely relevant. Enter: any / male / female', 'any') || 'any';
-    if (!['any', 'male', 'female'].includes(gender)) { setMessage(lang === 'id' ? 'Pilihan gender tidak valid.' : 'Invalid gender.'); return; }
-    const ageMinRaw = window.prompt(lang === 'id' ? 'Usia minimum (kosongkan jika tidak relevan):' : 'Minimum age (blank if not relevant):', '');
-    const ageMaxRaw = window.prompt(lang === 'id' ? 'Usia maksimum (kosongkan jika tidak relevan):' : 'Maximum age (blank if not relevant):', '');
-    const ageMinText = ageMinRaw?.trim() ?? ''; const ageMaxText = ageMaxRaw?.trim() ?? '';
     const heavyRaw = window.prompt(lang === 'id' ? 'Beban angkat maksimum yang dibutuhkan (kg, 0 jika tidak ada):' : 'Required lifting capacity (kg, 0 if none):', '0');
     const privateHome = window.confirm(lang === 'id' ? 'Apakah pekerjaan berada di rumah/ruang privat?' : 'Is this work inside a private home/space?');
     const notes = window.prompt(lang === 'id' ? 'Catatan kebutuhan pekerjaan (bukan ras, penampilan, pendidikan, atau tuduhan kriminal):' : 'Job requirement notes (not race, appearance, education, or criminal accusations):', '') || '';
-    const requirements = { workers_needed: 1, gender, age_min: ageMinText ? Number(ageMinText) : null, age_max: ageMaxText ? Number(ageMaxText) : null, heavy_lifting_kg: Number(heavyRaw) || 0, night_work: false, private_home: privateHome, needs_tools: false, required_skill: null, notes };
-    if ((requirements.age_min !== null && !Number.isInteger(requirements.age_min)) || (requirements.age_max !== null && !Number.isInteger(requirements.age_max))) { setMessage(lang === 'id' ? 'Usia harus berupa angka bulat.' : 'Age must be a whole number.'); return; }
+    const requirements = { workers_needed: 1, gender: 'any', age_min: null, age_max: null, heavy_lifting_kg: Number(heavyRaw) || 0, night_work: Boolean(order.night_shift), private_home: privateHome, needs_tools: false, required_skill: null, notes };
     setBusy(order.id); setMessage(''); const { error } = await supabase.rpc('set_job_matching_requirements', { p_order_id: order.id, p_requirements: requirements });
     if (error) setMessage(error.message); else { setMessage(lang === 'id' ? 'Kebutuhan pekerjaan dikunci. Pencarian pekerja dapat dimulai.' : 'Job requirements confirmed. Worker matching can start.'); await load(); } setBusy(null);
   };
