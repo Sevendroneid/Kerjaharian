@@ -37,7 +37,8 @@ export async function onRequest(context) {
   if (!Number.isInteger(amount) || amount <= 0) return Response.json({ error: 'Invalid server-side payment amount' }, { status: 409 });
   const pendingStatus = String(job.midtrans_transaction_status || '').toLowerCase();
   if (job.midtrans_snap_token && ['pending', 'authorize'].includes(pendingStatus) && Number(job.midtrans_pending_amount || 0) === amount) return Response.json({ token: job.midtrans_snap_token, client_key: clientKey, order_id: job.midtrans_order_id, gross_amount: amount, environment, reused: true });
-  const orderIdForMidtrans = `KH-${job.id}`;
+  const hasPriorOrder = Boolean(job.midtrans_order_id);
+  const orderIdForMidtrans = hasPriorOrder ? `KH-${job.id}-R${crypto.randomUUID().replace(/-/g, '').slice(0, 8)}` : `KH-${job.id}`;
   const payload = { transaction_details: { order_id: orderIdForMidtrans, gross_amount: amount }, item_details: [{ id: job.id, price: amount, quantity: 1, name: String(order.title || 'KerjaHarian order').slice(0, 50) }], customer_details: { first_name: String(userData.user_metadata?.full_name || 'Employer').slice(0, 40), email: userData.email || undefined, phone: userData.phone || undefined } };
   const authorization = btoa(`${serverKey}:`);
   const midtransResponse = await fetch(snapApiUrl, { method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Basic ${authorization}`, 'Idempotency-Key': orderIdForMidtrans.slice(0, 46) }, body: JSON.stringify(payload) });
