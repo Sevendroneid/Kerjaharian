@@ -57,6 +57,7 @@ BEGIN
     'payment_gate', v_order.matching_requirements->'payment_gate'
   );
 
+  PERFORM set_config('kh.internal_order_mutation', 'on', true);
   UPDATE public.orders
   SET matching_requirements = v_requirements
   WHERE id = v_order.id;
