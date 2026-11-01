@@ -78,8 +78,9 @@ BEGIN
     RETURN NEW;
   END IF;
 
-  IF NEW.role IS DISTINCT FROM OLD.role THEN
-    RAISE EXCEPTION 'Cannot modify account role through profile update';
+  IF NEW.role IS DISTINCT FROM OLD.role
+     AND (OLD.role = 'admin' OR NEW.role = 'admin') THEN
+    RAISE EXCEPTION 'Cannot modify admin role through profile update';
   END IF;
 
   IF NEW.kyc_verified IS DISTINCT FROM OLD.kyc_verified
