@@ -30,7 +30,8 @@ export const PLATFORM_FEE_PERCENT = 0.05; // 5% platform fee only
 export const NIGHT_SHIFT_MULTIPLIER = 0.20;
 export const NIGHT_SHIFT_START_HOUR = 21;
 export const NIGHT_SHIFT_END_HOUR = 6;
-export const MICRO_INSURANCE_DAILY = 3227;
+// Protection is disabled in platform_policy_config until a real provider/legal agreement is active.
+export const MICRO_INSURANCE_DAILY = 0;
 
 /**
  * Night shift is defined by the actual job start clock: 21:00 through 05:59.
