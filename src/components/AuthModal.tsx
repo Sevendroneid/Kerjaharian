@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { CheckCircle2, Fingerprint, LockKeyhole, ShieldCheck, X } from 'lucide-react';
+import { CheckCircle2, Fingerprint, ShieldCheck, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
 
