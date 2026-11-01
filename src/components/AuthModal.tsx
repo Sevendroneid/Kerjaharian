@@ -96,8 +96,12 @@ export function AuthModal({ open, onClose, mode = 'signin' }: AuthModalProps) {
       if (verifyError) throw verifyError;
       const { data: current } = await supabase.auth.getUser();
       if (!current.user) throw new Error('Sesi login tidak terbentuk.');
-      const { data: existingProfile, error: profileReadError } = await supabase.from('profiles').select('full_name,role').eq('id', current.user.id).maybeSingle();
+      const { data: existingProfile, error: profileReadError } = await supabase.from('profiles').select('full_name,role,is_admin').eq('id', current.user.id).maybeSingle();
       if (profileReadError) throw profileReadError;
+      if (existingProfile?.is_admin || existingProfile?.role === 'admin') {
+        await supabase.auth.signOut();
+        throw new Error('Gunakan Login Admin untuk akun Administrator.');
+      }
       if (!existingProfile) {
         const { error: profileCreateError } = await supabase.from('profiles').insert({ id: current.user.id, full_name: null, role: 'worker', is_admin: false });
         if (profileCreateError && profileCreateError.code !== '23505') throw profileCreateError;
