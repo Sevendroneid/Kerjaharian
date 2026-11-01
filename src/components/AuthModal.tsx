@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { CheckCircle2, Fingerprint, LockKeyhole, ShieldCheck, X } from 'lucide-react';
+import { CheckCircle2, Fingerprint, ShieldCheck, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
 
-type Step = 'login' | 'otp' | 'pin' | 'profile' | 'passkey';
+type Step = 'otp' | 'profile' | 'passkey';
 type AuthMode = 'signin' | 'signup';
 interface AuthModalProps { open: boolean; onClose: () => void; mode?: AuthMode; lang?: 'id' | 'en'; }
 
@@ -15,7 +15,6 @@ function normalizePhone(value: string) {
   return `+62${digits}`;
 }
 function canonicalPhone(value: string) { return normalizePhone(value).replace(/^\+/, ''); }
-function internalEmailFromPhone(phone: string) { return `${phone.replace(/^\+/, '')}@kerjaharian.app`; }
 async function withTimeout<T>(promise: PromiseLike<T>, ms: number, label: string): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try { return await Promise.race([Promise.resolve(promise), new Promise<T>((_, reject) => { timer = setTimeout(() => reject(new Error(label)), ms); })]); }
@@ -32,10 +31,8 @@ async function callPhoneAuth(body: Record<string, unknown>) {
 
 export function AuthModal({ open, onClose, mode = 'signin' }: AuthModalProps) {
   const { user, profile, refreshProfile } = useAuth();
-  const [step, setStep] = useState<Step>(mode === 'signup' ? 'otp' : 'login');
+  const [step, setStep] = useState<Step>('otp');
   const [phone, setPhone] = useState('');
-  const [pin, setPin] = useState('');
-  const [pinConfirm, setPinConfirm] = useState('');
   const [challengeId, setChallengeId] = useState<string | null>(null);
   const [otpCode, setOtpCode] = useState('');
   const [fullName, setFullName] = useState('');
@@ -56,26 +53,9 @@ export function AuthModal({ open, onClose, mode = 'signin' }: AuthModalProps) {
       setProfilePhone(user.phone || phone || '');
       return;
     }
-    setStep(mode === 'signup' ? 'otp' : 'login');
-    if (mode === 'signup') { setChallengeId(null); setOtpCode(''); }
+    setStep('otp');
+    setChallengeId(null); setOtpCode('');
   }, [open, mode, user, profile, onClose]);
-
-  const loginWithPin = async () => {
-    const normalized = normalizePhone(phone);
-    if (!/^\+62\d{9,14}$/.test(normalized)) { setError('Nomor HP belum valid.'); return; }
-    if (!/^\d{6,8}$/.test(pin)) { setError('PIN harus 6–8 digit.'); return; }
-    setLoading(true); setError('');
-    try {
-      const { error: signInError } = await withTimeout(supabase.auth.signInWithPassword({ email: internalEmailFromPhone(normalized), password: pin }), 12000, 'Login PIN timeout. Silakan coba lagi.');
-      if (signInError) throw signInError;
-      const { data: current } = await supabase.auth.getUser();
-      if (!current.user) throw new Error('Sesi login tidak terbentuk.');
-      const { data: p } = await supabase.from('profiles').select('role,is_admin').eq('id', current.user.id).maybeSingle();
-      if (p?.is_admin || p?.role === 'admin') { await supabase.auth.signOut(); throw new Error('Gunakan Login Admin untuk akun Administrator.'); }
-      await refreshProfile(); onClose();
-    } catch (err: any) { setError(err?.message || 'Login PIN gagal.'); }
-    finally { setLoading(false); }
-  };
 
   const loginWithPasskey = async () => {
     setLoading(true); setError('');
@@ -114,23 +94,29 @@ export function AuthModal({ open, onClose, mode = 'signin' }: AuthModalProps) {
       if (data?.status !== 'success' || !data?.token_hash) throw new Error('Verifikasi gagal, coba lagi');
       const { error: verifyError } = await supabase.auth.verifyOtp({ token_hash: data.token_hash, type: 'magiclink' });
       if (verifyError) throw verifyError;
-      setPin(''); setPinConfirm(''); setStep('pin');
-    } catch (err: any) { setError(err?.message || 'Kode salah atau kedaluwarsa'); }
-    finally { setLoading(false); }
-  };
-
-  const createPin = async () => {
-    if (!/^\d{6,8}$/.test(pin)) { setError('Buat PIN 6–8 digit.'); return; }
-    if (pin !== pinConfirm) { setError('Konfirmasi PIN tidak sama.'); return; }
-    setLoading(true); setError('');
-    try {
       const { data: current } = await supabase.auth.getUser();
-      if (!current.user) throw new Error('Sesi verifikasi tidak ditemukan.');
-      const { error: updateError } = await supabase.auth.updateUser({ password: pin });
-      if (updateError) throw updateError;
-      setFullName(typeof current.user.user_metadata?.full_name === 'string' ? current.user.user_metadata.full_name : '');
-      setProfilePhone(current.user.phone || phone); setRoleSelected(false); setStep('profile');
-    } catch (err: any) { setError(err?.message || 'PIN gagal dibuat.'); }
+      if (!current.user) throw new Error('Sesi login tidak terbentuk.');
+      const { data: existingProfile, error: profileReadError } = await supabase.from('profiles').select('full_name,role,is_admin').eq('id', current.user.id).maybeSingle();
+      if (profileReadError) throw profileReadError;
+      if (existingProfile?.is_admin || existingProfile?.role === 'admin') {
+        await supabase.auth.signOut();
+        throw new Error('Gunakan Login Admin untuk akun Administrator.');
+      }
+      if (!existingProfile) {
+        const { error: profileCreateError } = await supabase.from('profiles').insert({ id: current.user.id, full_name: null, role: 'worker', is_admin: false });
+        if (profileCreateError && profileCreateError.code !== '23505') throw profileCreateError;
+      }
+      if (existingProfile?.full_name) {
+        await refreshProfile();
+        onClose();
+      } else {
+        setFullName(typeof current.user.user_metadata?.full_name === 'string' ? current.user.user_metadata.full_name : '');
+        setProfilePhone(current.user.phone || phone);
+        setRole(existingProfile?.role === 'employer' ? 'employer' : 'worker');
+        setRoleSelected(false);
+        setStep('profile');
+      }
+    } catch (err: any) { setError(err?.message || 'Kode salah atau kedaluwarsa'); }
     finally { setLoading(false); }
   };
 
@@ -167,19 +153,26 @@ export function AuthModal({ open, onClose, mode = 'signin' }: AuthModalProps) {
     <div className="w-full max-w-md rounded-2xl bg-white shadow-xl">
       <div className="flex items-center justify-between border-b px-5 py-4"><div className="flex items-center gap-2 font-semibold text-slate-900"><ShieldCheck className="h-5 w-5 text-blue-600" />KerjaHarian</div><button onClick={onClose} type="button" className="rounded-lg p-2 hover:bg-slate-100" aria-label="Tutup"><X className="h-5 w-5" /></button></div>
       <div className="p-5">
-        {step === 'login' && <>
-          <h2 className="text-xl font-bold text-slate-900">Masuk KerjaHarian</h2><p className="mt-1 text-sm text-slate-500">Login untuk Pekerja dan Pemberi Kerja.</p>
-          <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600"><b>PIN atau Fingerprint / Passkey.</b> WhatsApp OTP digunakan saat pendaftaran/verifikasi nomor.</div>
-          <div className="mt-4 space-y-3"><label className="block text-sm font-medium text-slate-700">Nomor HP<input value={phone} onChange={e => setPhone(e.target.value)} placeholder="08xxxxxxxxxx" inputMode="tel" className="mt-1 w-full rounded-xl border px-3 py-3" /></label><label className="block text-sm font-medium text-slate-700">PIN<input value={pin} onChange={e => setPin(e.target.value.replace(/\D/g, '').slice(0,8))} type="password" inputMode="numeric" maxLength={8} placeholder="6–8 digit PIN" className="mt-1 w-full rounded-xl border px-3 py-3 text-center tracking-[0.35em]" /></label><button onClick={() => void loginWithPin()} disabled={loading} className="w-full rounded-xl bg-slate-900 py-3 text-sm font-semibold text-white"><LockKeyhole size={17} className="mr-1 inline" />{loading ? 'Memverifikasi...' : 'Masuk dengan PIN'}</button>{supported && <button onClick={() => void loginWithPasskey()} disabled={loading} className="w-full rounded-xl border border-slate-300 py-3 text-sm font-semibold"><Fingerprint size={18} className="mr-1 inline" />Masuk dengan Fingerprint / Passkey</button>}<button onClick={() => { setError(''); setStep('otp'); setChallengeId(null); setOtpCode(''); }} type="button" className="w-full py-2 text-sm font-semibold text-blue-700">Daftar akun baru</button></div>
+        {step === 'otp' && <>
+          <h2 className="text-xl font-bold text-slate-900">{mode === 'signup' ? 'Daftar dengan WhatsApp' : 'Masuk dengan WhatsApp'}</h2>
+          <p className="mt-1 text-sm text-slate-500">Gunakan nomor WhatsApp untuk menerima kode OTP setiap kali masuk atau membuat akun.</p>
+          <div className="mt-5 space-y-3">
+            <label className="block text-sm font-medium text-slate-700">Nomor HP / WhatsApp
+              <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="08xxxxxxxxxx" inputMode="tel" autoComplete="tel" className="mt-1 w-full rounded-xl border px-3 py-3" />
+            </label>
+            {!challengeId ? <button onClick={() => void sendOtp()} disabled={loading} className="w-full rounded-xl bg-blue-600 py-3 text-sm font-semibold text-white">{loading ? 'Mengirim...' : 'Kirim OTP WhatsApp'}</button> : <>
+              <div className="rounded-lg bg-green-50 p-3 text-sm text-green-800"><CheckCircle2 className="mr-1 inline h-5 w-5" />Kode terkirim. Periksa WhatsApp Anda.</div>
+              <input value={otpCode} onChange={e => setOtpCode(e.target.value.replace(/\D/g,'').slice(0,6))} placeholder="Kode OTP" inputMode="numeric" autoComplete="one-time-code" maxLength={6} className="w-full rounded-xl border px-3 py-3 text-center text-lg tracking-[0.4em]" />
+              <button onClick={() => void verifyOtp()} disabled={loading} className="w-full rounded-xl bg-blue-600 py-3 text-sm font-semibold text-white">{loading ? 'Memverifikasi...' : 'Verifikasi & Masuk'}</button>
+              <button onClick={() => { setChallengeId(null); setOtpCode(''); }} type="button" className="w-full py-2 text-sm text-slate-600 underline">Kirim ulang / ganti nomor</button>
+            </>}
+            {supported && <button onClick={() => void loginWithPasskey()} disabled={loading} className="w-full rounded-xl border border-slate-300 py-3 text-sm font-semibold"><Fingerprint size={18} className="mr-1 inline" />Alternatif: Fingerprint / Passkey</button>}
+          </div>
         </>}
-
-        {step === 'otp' && <><h2 className="text-xl font-bold">Verifikasi Nomor</h2><p className="mt-1 text-sm text-slate-500">Verifikasi nomor WhatsApp untuk membuat akun baru.</p><div className="mt-5 space-y-3"><label className="block text-sm font-medium text-slate-700">Nomor HP / WhatsApp<input value={phone} onChange={e => setPhone(e.target.value)} placeholder="08xxxxxxxxxx" inputMode="tel" className="mt-1 w-full rounded-xl border px-3 py-3" /></label>{!challengeId ? <button onClick={() => void sendOtp()} disabled={loading} className="w-full rounded-xl bg-blue-600 py-3 text-sm font-semibold text-white">{loading ? 'Mengirim...' : 'Kirim Kode WhatsApp'}</button> : <><div className="rounded-lg bg-green-50 p-3 text-sm text-green-800"><CheckCircle2 className="mr-1 inline h-5 w-5" />Kode terkirim. Cek WhatsApp Anda.</div><input value={otpCode} onChange={e => setOtpCode(e.target.value.replace(/\D/g,'').slice(0,6))} placeholder="123456" inputMode="numeric" maxLength={6} className="w-full rounded-xl border px-3 py-3 text-center text-lg tracking-[0.4em]" /><button onClick={() => void verifyOtp()} disabled={loading} className="w-full rounded-xl bg-blue-600 py-3 text-sm font-semibold text-white">{loading ? 'Memeriksa...' : 'Verifikasi Nomor'}</button><button onClick={() => { setChallengeId(null); setOtpCode(''); }} type="button" className="w-full py-2 text-sm text-slate-600 underline">Kirim ulang / ganti nomor</button></>}</div></>}
-
-        {step === 'pin' && <><h2 className="text-xl font-bold">Buat PIN Login</h2><p className="mt-1 text-sm text-slate-500">PIN menjadi metode login utama setelah verifikasi nomor.</p><div className="mt-5 space-y-3"><input value={pin} onChange={e => setPin(e.target.value.replace(/\D/g,'').slice(0,8))} type="password" inputMode="numeric" maxLength={8} placeholder="6–8 digit PIN" className="w-full rounded-xl border px-3 py-3 text-center tracking-[0.35em]" /><input value={pinConfirm} onChange={e => setPinConfirm(e.target.value.replace(/\D/g,'').slice(0,8))} type="password" inputMode="numeric" maxLength={8} placeholder="Ulangi PIN" className="w-full rounded-xl border px-3 py-3 text-center tracking-[0.35em]" /><button onClick={() => void createPin()} disabled={loading} className="w-full rounded-xl bg-slate-900 py-3 text-sm font-semibold text-white">{loading ? 'Menyimpan...' : 'Simpan PIN & Lanjutkan'}</button></div></>}
 
         {step === 'profile' && <><h2 className="text-xl font-bold">Profil Akun</h2><p className="mt-1 text-sm text-slate-500">Tentukan apakah akun digunakan sebagai Pekerja atau Pemberi Kerja.</p><div className="mt-5 space-y-3"><label className="block text-sm font-medium text-slate-700">Nama lengkap<input value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Contoh: Budi Santoso" className="mt-1 w-full rounded-xl border px-3 py-3" /></label><label className="block text-sm font-medium text-slate-700">Nomor HP / WhatsApp<input value={profilePhone} onChange={e => setProfilePhone(e.target.value)} placeholder="08xxxxxxxxxx" inputMode="tel" className="mt-1 w-full rounded-xl border px-3 py-3" /></label><div className="grid grid-cols-2 gap-3"><button onClick={() => { setRole('worker'); setRoleSelected(true); }} type="button" className={`rounded-xl border py-3 text-sm font-semibold ${roleSelected && role === 'worker' ? 'border-blue-600 bg-blue-600 text-white' : 'bg-slate-50'}`}>👷 Pekerja</button><button onClick={() => { setRole('employer'); setRoleSelected(true); }} type="button" className={`rounded-xl border py-3 text-sm font-semibold ${roleSelected && role === 'employer' ? 'border-blue-600 bg-blue-600 text-white' : 'bg-slate-50'}`}>🏢 Pemberi Kerja</button></div><button onClick={() => void completeProfile()} disabled={loading || !fullName.trim() || !roleSelected} className="w-full rounded-xl bg-blue-600 py-3 text-sm font-semibold text-white">{loading ? 'Menyimpan...' : 'Lanjutkan'}</button></div></>}
 
-        {step === 'passkey' && <><h2 className="text-xl font-bold">Aktifkan Login Fingerprint</h2><p className="mt-1 text-sm text-slate-500">Opsional. Setelah terdaftar, login berikutnya dapat memakai biometrik.</p><div className="mt-5 space-y-3"><button onClick={() => void registerPasskey()} disabled={loading || !supported} className="w-full rounded-xl bg-slate-900 py-3 text-sm font-semibold text-white"><Fingerprint size={18} className="mr-1 inline" />Daftarkan Fingerprint / Passkey</button><button onClick={onClose} type="button" className="w-full rounded-xl border py-3 text-sm font-semibold">Lewati, gunakan PIN</button></div></>}
+        {step === 'passkey' && <><h2 className="text-xl font-bold">Aktifkan Login Fingerprint</h2><p className="mt-1 text-sm text-slate-500">Opsional. Setelah terdaftar, login berikutnya dapat memakai biometrik.</p><div className="mt-5 space-y-3"><button onClick={() => void registerPasskey()} disabled={loading || !supported} className="w-full rounded-xl bg-slate-900 py-3 text-sm font-semibold text-white"><Fingerprint size={18} className="mr-1 inline" />Daftarkan Fingerprint / Passkey</button><button onClick={onClose} type="button" className="w-full rounded-xl border py-3 text-sm font-semibold">Lewati, gunakan OTP WhatsApp</button></div></>}
         {error && <div className="mt-4 rounded-xl bg-red-50 p-3 text-xs text-red-700">{error}</div>}
       </div>
     </div>

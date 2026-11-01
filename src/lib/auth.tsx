@@ -7,9 +7,6 @@ interface AuthState {
   user: User | null;
   profile: Profile | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: string | null }>;
-  signUp: (email: string, password: string, fullName: string) => Promise<{ error: string | null }>;
-  signInWithGoogle: () => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -125,12 +122,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => window.clearInterval(interval);
   }, [hasActiveJob]);
 
-  const signIn = useCallback(async (email: string, password: string) => { lastActivityRef.current = Date.now(); const { error } = await supabase.auth.signInWithPassword({ email, password }); return { error: error?.message ?? null }; }, []);
-  const signUp = useCallback(async (email: string, password: string, fullName: string) => { lastActivityRef.current = Date.now(); const { error } = await supabase.auth.signUp({ email, password, options: { data: { full_name: fullName } } }); return { error: error?.message ?? null }; }, []);
-  const signInWithGoogle = useCallback(async () => { lastActivityRef.current = Date.now(); const { error } = await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } }); return { error: error?.message ?? null }; }, []);
   const signOut = useCallback(async () => { signingOutRef.current = true; await supabase.auth.signOut(); setSession(null); setUser(null); setProfile(null); userRef.current = null; window.location.replace('https://www.kerjaharian.my.id'); }, []);
 
-  return <AuthContext.Provider value={{ session, user, profile, loading, signIn, signUp, signInWithGoogle, signOut, refreshProfile }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ session, user, profile, loading, signOut, refreshProfile }}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() { const ctx = useContext(AuthContext); if (!ctx) throw new Error('useAuth must be used within AuthProvider'); return ctx; }

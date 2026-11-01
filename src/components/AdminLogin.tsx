@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Fingerprint, LockKeyhole, ShieldCheck, X } from 'lucide-react';
+import { Fingerprint, ShieldCheck, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 interface AdminLoginProps { onClose: () => void; onSuccess: () => void; }
@@ -14,8 +14,15 @@ function normalizePhone(value: string) {
   return `+62${digits}`;
 }
 
-function adminEmailFromPhone(phone: string) {
-  return `${phone.replace(/^\+/, '')}@kerjaharian.app`;
+function canonicalPhone(value: string) { return normalizePhone(value).replace(/^\+/, ''); }
+
+async function callPhoneAuth(body: Record<string, unknown>) {
+  const response = await fetch('/api/phone-auth-otpid', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(body), cache: 'no-store' });
+  const text = await response.text();
+  let data: any = null;
+  try { data = text ? JSON.parse(text) : null; } catch { data = { error: text || `HTTP ${response.status}` }; }
+  if (!response.ok || data?.error) throw new Error(data?.error || `Server OTP mengembalikan HTTP ${response.status}`);
+  return data;
 }
 
 async function withTimeout<T>(promise: PromiseLike<T>, ms: number, label: string): Promise<T> {
@@ -51,9 +58,9 @@ function readablePasskeyError(error: unknown) {
   const value = error as { code?: string; message?: string } | null;
   switch (value?.code) {
     case 'webauthn_credential_not_found':
-      return 'Credential Fingerprint tidak terdaftar di server untuk domain produksi ini. Masuk dengan PIN lalu daftarkan ulang Passkey.';
+      return 'Credential Fingerprint tidak terdaftar di server untuk domain produksi ini. Masuk dengan OTP WhatsApp lalu daftarkan ulang Passkey.';
     case 'webauthn_verification_failed':
-      return 'Credential Fingerprint ditolak server. Ini biasanya terjadi bila credential dibuat pada origin/domain yang berbeda. KerjaHarian sekarang mengunci login Admin ke domain produksi www.kerjaharian.my.id; masuk dengan PIN lalu daftarkan ulang Passkey di sana.';
+      return 'Credential Fingerprint ditolak server. Ini biasanya terjadi bila credential dibuat pada origin/domain yang berbeda. KerjaHarian sekarang mengunci login Admin ke domain produksi www.kerjaharian.my.id; masuk dengan OTP WhatsApp lalu daftarkan ulang Passkey di sana.';
     case 'webauthn_challenge_expired':
     case 'webauthn_challenge_not_found':
       return 'Sesi verifikasi Fingerprint kedaluwarsa. Tekan Fingerprint sekali lagi untuk membuat challenge baru.';
@@ -69,29 +76,11 @@ function readablePasskeyError(error: unknown) {
 
 export default function AdminLogin({ onClose, onSuccess }: AdminLoginProps) {
   const [phone, setPhone] = useState('');
-  const [pin, setPin] = useState('');
+  const [challengeId, setChallengeId] = useState<string | null>(null);
+  const [otpCode, setOtpCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const supported = typeof window !== 'undefined' && !!window.PublicKeyCredential;
-
-  const loginWithPin = async () => {
-    const normalized = normalizePhone(phone);
-    if (!/^\+62\d{9,14}$/.test(normalized)) { setError('Nomor HP Admin belum valid.'); return; }
-    if (!/^\d{8}$/.test(pin)) { setError('PIN Admin harus tepat 8 digit.'); return; }
-    setLoading(true); setError('');
-    try {
-      const email = adminEmailFromPhone(normalized);
-      const { error: signInError } = await withTimeout(
-        supabase.auth.signInWithPassword({ email, password: pin }),
-        12000,
-        'Login PIN timeout. Silakan coba lagi.',
-      );
-      if (signInError) throw signInError;
-      await assertAdminAndFinish(onSuccess);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Login PIN Admin gagal.');
-    } finally { setLoading(false); }
-  };
 
   const loginWithPasskey = async () => {
     setLoading(true); setError('');
@@ -113,6 +102,35 @@ export default function AdminLogin({ onClose, onSuccess }: AdminLoginProps) {
     } finally { setLoading(false); }
   };
 
+  const sendOtp = async () => {
+    const normalized = normalizePhone(phone);
+    if (!/^\+62\d{9,14}$/.test(normalized)) { setError('Nomor HP Admin belum valid.'); return; }
+    setLoading(true); setError('');
+    try {
+      const data = await callPhoneAuth({ action: 'request', phone: canonicalPhone(normalized) });
+      if (!data?.challenge_id) throw new Error('OTP WhatsApp gagal dikirim.');
+      setPhone(normalized); setChallengeId(data.challenge_id); setOtpCode('');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Gagal mengirim OTP WhatsApp.');
+    } finally { setLoading(false); }
+  };
+
+  const verifyOtp = async () => {
+    const code = otpCode.replace(/\D/g, '');
+    if (!challengeId) { setError('Kirim OTP WhatsApp terlebih dahulu.'); return; }
+    if (code.length < 3) { setError('Masukkan kode OTP.'); return; }
+    setLoading(true); setError('');
+    try {
+      const data = await callPhoneAuth({ action: 'verify', phone: canonicalPhone(phone), challenge_id: challengeId, code });
+      if (data?.status !== 'success' || !data?.token_hash) throw new Error('Verifikasi OTP gagal.');
+      const { error: verifyError } = await supabase.auth.verifyOtp({ token_hash: data.token_hash, type: 'magiclink' });
+      if (verifyError) throw verifyError;
+      await assertAdminAndFinish(onSuccess);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Verifikasi OTP Admin gagal.');
+    } finally { setLoading(false); }
+  };
+
   return <div className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4">
     <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl">
       <div className="flex items-center gap-3 mb-5">
@@ -121,16 +139,18 @@ export default function AdminLogin({ onClose, onSuccess }: AdminLoginProps) {
         <button onClick={onClose} type="button" className="rounded-lg p-2 hover:bg-slate-100" aria-label="Tutup"><X size={18}/></button>
       </div>
       <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
-        Setelah logout, Admin dapat masuk kembali dengan <b>PIN 8 digit</b> atau <b>Fingerprint / Passkey</b>. WhatsApp OTP tidak digunakan pada login Admin.
+        Login Admin menggunakan OTP WhatsApp melalui OTP.ID. Fingerprint / Passkey tetap tersedia sebagai alternatif pada domain produksi resmi.
       </div>
       <div className="mt-4 space-y-3">
         <label className="block text-sm font-medium text-slate-700">Nomor HP Admin
           <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="08xxxxxxxxxx" inputMode="tel" autoComplete="tel" className="mt-1 w-full rounded-xl border px-3 py-3" />
         </label>
-        <label className="block text-sm font-medium text-slate-700">PIN Admin
-          <input value={pin} onChange={e => setPin(e.target.value.replace(/\D/g, '').slice(0, 8))} type="password" inputMode="numeric" autoComplete="current-password" maxLength={8} placeholder="8 digit PIN" className="mt-1 w-full rounded-xl border px-3 py-3 text-center tracking-[0.35em]" onKeyDown={e => { if (e.key === 'Enter') void loginWithPin(); }} />
-        </label>
-        <button onClick={() => void loginWithPin()} disabled={loading} className="w-full bg-slate-900 text-white rounded-xl py-3 text-sm font-semibold disabled:opacity-60"><LockKeyhole size={17} className="inline mr-1"/>{loading ? 'Memverifikasi...' : 'Masuk dengan PIN'}</button>
+        {!challengeId ? <button onClick={() => void sendOtp()} disabled={loading} className="w-full bg-slate-900 text-white rounded-xl py-3 text-sm font-semibold disabled:opacity-60">{loading ? 'Mengirim OTP...' : 'Kirim OTP WhatsApp'}</button> : <>
+          <div className="rounded-lg bg-green-50 p-3 text-sm text-green-800">OTP terkirim. Periksa WhatsApp Admin.</div>
+          <input value={otpCode} onChange={e => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="Kode OTP" className="w-full rounded-xl border px-3 py-3 text-center tracking-[0.4em]" onKeyDown={e => { if (e.key === 'Enter') void verifyOtp(); }} />
+          <button onClick={() => void verifyOtp()} disabled={loading} className="w-full bg-slate-900 text-white rounded-xl py-3 text-sm font-semibold disabled:opacity-60">{loading ? 'Memverifikasi...' : 'Verifikasi OTP & Masuk'}</button>
+          <button onClick={() => { setChallengeId(null); setOtpCode(''); }} type="button" className="w-full py-2 text-sm text-slate-600 underline">Kirim ulang / ganti nomor</button>
+        </>}
         {supported && <>
           <div className="flex items-center gap-2 text-[11px] text-slate-400"><span className="h-px flex-1 bg-slate-200"/><span>ATAU</span><span className="h-px flex-1 bg-slate-200"/></div>
           <button onClick={() => void loginWithPasskey()} disabled={loading} className="w-full border border-slate-300 rounded-xl py-3 text-sm font-semibold disabled:opacity-60"><Fingerprint size={18} className="inline mr-1"/>{loading ? 'Menunggu biometrik...' : 'Masuk dengan Fingerprint / Passkey'}</button>
