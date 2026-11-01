@@ -35,6 +35,9 @@ export function WorkerDispatchPanel() {
 
   const load = useCallback(async () => {
     if (!user || !online) { setOffers([]); return; }
+    const { data: pendingConfirmation, error: confirmationError } = await supabase.from('dispatch_confirmations').select('id').eq('worker_id', user.id).eq('status', 'pending').gt('expires_at', new Date().toISOString()).limit(1).maybeSingle();
+    if (confirmationError) { setError(confirmationError.message); return; }
+    if (pendingConfirmation) { setOffers([]); setJobs({}); setError(''); return; }
     const { data, error: offerError } = await supabase.from('dispatch_offers').select('id,job_id,rank,distance_meters,score,expires_at,status').eq('worker_id', user.id).eq('status','offered').gt('expires_at', new Date().toISOString()).order('offered_at',{ascending:false}).limit(10);
     if (offerError) { setError(offerError.message); return; }
     const next = (data ?? []) as Offer[];
