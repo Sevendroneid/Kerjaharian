@@ -47,7 +47,13 @@ export async function onRequest(context) {
   const incomingTransactionId=notification.transaction_id?String(notification.transaction_id):null;
   const duplicate=job.midtrans_transaction_status===transactionStatus&&job.midtrans_transaction_id===incomingTransactionId;
   if(duplicate)return Response.json({ok:true,order_id:orderId,payment_status:job.payment_status,duplicate:true});
-  if(['settled','refunded','partial_refund'].includes(String(job.payment_status))&&!success&&!refunded)return Response.json({ok:true,order_id:orderId,payment_status:job.payment_status,ignored:true});
+  const currentPaymentStatus=String(job.payment_status||'');
+  // A refund is terminal for the original Midtrans transaction. Delayed or reordered
+  // settlement notifications must never resurrect a refunded/partially refunded job.
+  if(['refunded','partial_refund'].includes(currentPaymentStatus)&&success)return Response.json({ok:true,order_id:orderId,payment_status:currentPaymentStatus,ignored:true});
+  // A full refund must not be downgraded by a delayed partial-refund notification.
+  if(currentPaymentStatus==='refunded'&&transactionStatus==='partial_refund')return Response.json({ok:true,order_id:orderId,payment_status:currentPaymentStatus,ignored:true});
+  if(['settled','refunded','partial_refund'].includes(currentPaymentStatus)&&!success&&!refunded)return Response.json({ok:true,order_id:orderId,payment_status:job.payment_status,ignored:true});
   const nextPaymentStatus=success?'settled':refunded?(transactionStatus==='partial_refund'?'partial_refund':'refunded'):terminalFailure?'cancelled':'pending';
   const update={midtrans_transaction_status:transactionStatus||'unknown',midtrans_transaction_id:incomingTransactionId,payment_status:nextPaymentStatus,paid_at:success?(job.paid_at||new Date().toISOString()):job.paid_at,midtrans_pending_amount:success||refunded||terminalFailure?null:job.midtrans_pending_amount};
   const {error:updateError}=await admin.from('jobs').update(update).eq('id',job.id);
